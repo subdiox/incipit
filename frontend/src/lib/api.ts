@@ -1,0 +1,176 @@
+import type {
+  Book,
+  BooksResponse,
+  BookUpdate,
+  Facet,
+  PagesResponse,
+  Progress,
+  SetupStatus,
+  Shelf,
+  SortKey,
+  SortOrder,
+  Stats,
+  User,
+} from '@/types'
+
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+function readCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  const headers = new Headers(init.headers)
+
+  if (MUTATION_METHODS.has(method)) {
+    const csrf = readCookie('incipit_csrf')
+    if (csrf) headers.set('X-CSRF-Token', csrf)
+  }
+
+  // Only set JSON content-type when sending a non-FormData body.
+  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  const res = await fetch(`/api${path}`, {
+    ...init,
+    method,
+    headers,
+    credentials: 'include',
+  })
+
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    try {
+      const data = await res.json()
+      if (data && typeof data.error === 'string') message = data.error
+    } catch {
+      // ignore non-JSON error bodies
+    }
+    throw new ApiError(message, res.status)
+  }
+
+  if (res.status === 204) return undefined as T
+  const text = await res.text()
+  if (!text) return undefined as T
+  return JSON.parse(text) as T
+}
+
+function jsonBody(body: unknown): RequestInit {
+  return { body: JSON.stringify(body) }
+}
+
+export interface BookQuery {
+  search?: string
+  sort?: SortKey
+  order?: SortOrder
+  author?: number
+  series?: number
+  tag?: number
+  publisher?: number
+  language?: string
+  limit?: number
+  offset?: number
+}
+
+function bookQueryString(q: BookQuery): string {
+  const params = new URLSearchParams()
+  if (q.search) params.set('search', q.search)
+  if (q.sort) params.set('sort', q.sort)
+  if (q.order) params.set('order', q.order)
+  if (q.author != null) params.set('author', String(q.author))
+  if (q.series != null) params.set('series', String(q.series))
+  if (q.tag != null) params.set('tag', String(q.tag))
+  if (q.publisher != null) params.set('publisher', String(q.publisher))
+  if (q.language) params.set('language', q.language)
+  if (q.limit != null) params.set('limit', String(q.limit))
+  if (q.offset != null) params.set('offset', String(q.offset))
+  const s = params.toString()
+  return s ? `?${s}` : ''
+}
+
+// ---- Media URL helpers (used directly as <img src>) ----
+export const mediaUrl = {
+  thumbnail: (id: number, w = 400) => `/api/books/${id}/thumbnail?w=${w}`,
+  cover: (id: number) => `/api/books/${id}/cover`,
+  page: (id: number, n: number, w?: number) =>
+    `/api/books/${id}/pages/${n}${w ? `?w=${w}` : ''}`,
+  file: (id: number) => `/api/books/${id}/file`,
+}
+
+export const api = {
+  // Setup & auth
+  setupStatus: () => request<SetupStatus>('/setup/status'),
+  setup: (username: string, password: string) =>
+    request<User>('/setup', { method: 'POST', ...jsonBody({ username, password }) }),
+  login: (username: string, password: string) =>
+    request<User>('/auth/login', { method: 'POST', ...jsonBody({ username, password }) }),
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  me: () => request<User>('/auth/me'),
+
+  // Books
+  books: (q: BookQuery = {}) => request<BooksResponse>(`/books${bookQueryString(q)}`),
+  book: (id: number) => request<Book>(`/books/${id}`),
+  createBook: (form: FormData) => request<Book>('/books', { method: 'POST', body: form }),
+  updateBook: (id: number, body: BookUpdate) =>
+    request<Book>(`/books/${id}`, { method: 'PUT', ...jsonBody(body) }),
+  deleteBook: (id: number) => request<void>(`/books/${id}`, { method: 'DELETE' }),
+
+  // Reading
+  pages: (id: number) => request<PagesResponse>(`/books/${id}/pages`),
+  progress: (id: number) => request<Progress>(`/books/${id}/progress`),
+  saveProgress: (id: number, page: number, totalPages: number) =>
+    request<void>(`/books/${id}/progress`, { method: 'PUT', ...jsonBody({ page, totalPages }) }),
+
+  // Facets & stats
+  authors: () => request<Facet[]>('/authors'),
+  series: () => request<Facet[]>('/series'),
+  tags: () => request<Facet[]>('/tags'),
+  publishers: () => request<Facet[]>('/publishers'),
+  languages: () => request<Facet[]>('/languages'),
+  stats: () => request<Stats>('/stats'),
+
+  // Shelves
+  shelves: () => request<Shelf[]>('/shelves'),
+  createShelf: (name: string, isPublic: boolean) =>
+    request<Shelf>('/shelves', { method: 'POST', ...jsonBody({ name, isPublic }) }),
+  deleteShelf: (id: number) => request<void>(`/shelves/${id}`, { method: 'DELETE' }),
+  shelfBooks: (id: number) => request<BooksResponse>(`/shelves/${id}/books`),
+  addToShelf: (shelfId: number, bookId: number) =>
+    request<void>(`/shelves/${shelfId}/books/${bookId}`, { method: 'POST' }),
+  removeFromShelf: (shelfId: number, bookId: number) =>
+    request<void>(`/shelves/${shelfId}/books/${bookId}`, { method: 'DELETE' }),
+
+  // Admin
+  adminUsers: () => request<User[]>('/admin/users'),
+  createUser: (body: {
+    username: string
+    password: string
+    isAdmin: boolean
+    canDownload: boolean
+    canUpload: boolean
+    canEdit: boolean
+  }) => request<User>('/admin/users', { method: 'POST', ...jsonBody(body) }),
+  updateUser: (
+    id: number,
+    body: {
+      password?: string
+      isAdmin?: boolean
+      canDownload?: boolean
+      canUpload?: boolean
+      canEdit?: boolean
+    },
+  ) => request<User>(`/admin/users/${id}`, { method: 'PUT', ...jsonBody(body) }),
+  deleteUser: (id: number) => request<void>(`/admin/users/${id}`, { method: 'DELETE' }),
+}

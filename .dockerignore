@@ -1,0 +1,11 @@
+.git
+.gitignore
+*.md
+frontend/node_modules
+frontend/dist
+web/dist/assets
+incipit
+*.test
+config
+library
+.DS_Store

@@ -1,0 +1,35 @@
+services:
+  incipit:
+    build: .
+    # Or use a published image once available:
+    # image: ghcr.io/incipit/incipit:latest
+    container_name: incipit
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Your existing Calibre library (must contain, or will get, metadata.db).
+      - ./library:/library
+      # Incipit's own state: app.db, image cache, generated secrets.
+      - ./config:/config
+    environment:
+      INCIPIT_ADDR: ":8080"
+      INCIPIT_LIBRARY: "/library"
+      INCIPIT_CONFIG: "/config"
+      # Set to true to never write to the Calibre library.
+      INCIPIT_READONLY: "false"
+      # Set when terminating TLS upstream so cookies are marked Secure.
+      INCIPIT_SECURE_COOKIES: "false"
+
+      # --- Optional: LDAP authentication ---
+      # INCIPIT_LDAP_ENABLED: "true"
+      # INCIPIT_LDAP_URL: "ldap://ldap.example.com:389"
+      # INCIPIT_LDAP_BIND_DN: "uid=%s,ou=people,dc=example,dc=com"
+      # INCIPIT_LDAP_BASE_DN: "dc=example,dc=com"
+      # INCIPIT_LDAP_ADMIN_GROUP_DN: "cn=admins,ou=groups,dc=example,dc=com"
+      # INCIPIT_LDAP_STARTTLS: "false"
+
+      # --- Optional: reverse-proxy header auth (only behind a trusted proxy) ---
+      # INCIPIT_PROXY_AUTH_ENABLED: "true"
+      # INCIPIT_PROXY_AUTH_HEADER: "X-Authenticated-User"
+      # INCIPIT_PROXY_AUTH_ADMIN_HEADER: "X-Authenticated-Admin"

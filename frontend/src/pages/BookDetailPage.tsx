@@ -1,0 +1,349 @@
+import { useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { api, ApiError, mediaUrl } from '@/lib/api'
+import { useAuth } from '@/auth/AuthContext'
+import type { Book, BookUpdate } from '@/types'
+import { authorNames, formatBytes, formatDate, languageLabel } from '@/lib/format'
+import { Cover } from '@/components/Cover'
+import { Rating } from '@/components/Rating'
+import { Modal } from '@/components/Modal'
+import { Spinner, FullPageSpinner } from '@/components/Spinner'
+import { AddToShelfMenu } from '@/components/AddToShelfMenu'
+import {
+  IconBook,
+  IconChevronLeft,
+  IconDownload,
+  IconEdit,
+  IconTrash,
+} from '@/components/icons'
+
+function Meta({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
+      <dd className="mt-1 text-sm text-slate-200">{children}</dd>
+    </div>
+  )
+}
+
+function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState({
+    title: book.title,
+    authors: book.authors.map((a) => a.name).join(', '),
+    series: book.series?.name ?? '',
+    seriesIndex: book.seriesIndex ? String(book.seriesIndex) : '',
+    tags: book.tags.map((t) => t.name).join(', '),
+    publisher: book.publisher?.name ?? '',
+    languages: book.languages.join(', '),
+    rating: book.rating,
+    comments: book.comments ?? '',
+    pubdate: book.pubdate?.slice(0, 10) ?? '',
+  })
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: (body: BookUpdate) => api.updateBook(book.id, body),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['book', book.id], updated)
+      queryClient.invalidateQueries({ queryKey: ['books'] })
+      queryClient.invalidateQueries({ queryKey: ['facets'] })
+      onClose()
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : 'Failed to save changes.'),
+  })
+
+  const split = (v: string) =>
+    v
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    const body: BookUpdate = {
+      title: form.title,
+      authors: split(form.authors),
+      series: form.series,
+      seriesIndex: form.seriesIndex ? Number(form.seriesIndex) : 0,
+      tags: split(form.tags),
+      publisher: form.publisher,
+      languages: split(form.languages),
+      rating: form.rating,
+      comments: form.comments,
+    }
+    if (form.pubdate) body.pubdate = form.pubdate
+    mutation.mutate(body)
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Edit metadata" maxWidth="max-w-xl">
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="label">Title</label>
+            <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Authors (comma separated)</label>
+            <input className="input" value={form.authors} onChange={(e) => setForm({ ...form, authors: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Series</label>
+            <input className="input" value={form.series} onChange={(e) => setForm({ ...form, series: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Series index</label>
+            <input
+              className="input"
+              type="number"
+              step="0.1"
+              value={form.seriesIndex}
+              onChange={(e) => setForm({ ...form, seriesIndex: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="label">Tags (comma separated)</label>
+            <input className="input" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Publisher</label>
+            <input className="input" value={form.publisher} onChange={(e) => setForm({ ...form, publisher: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Languages (comma separated)</label>
+            <input
+              className="input"
+              value={form.languages}
+              onChange={(e) => setForm({ ...form, languages: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="label">Publication date</label>
+            <input
+              className="input"
+              type="date"
+              value={form.pubdate}
+              onChange={(e) => setForm({ ...form, pubdate: e.target.value })}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Rating</label>
+            <Rating value={form.rating} onChange={(v) => setForm({ ...form, rating: v })} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Comments</label>
+            <textarea
+              className="input min-h-[100px] resize-y"
+              value={form.comments}
+              onChange={(e) => setForm({ ...form, comments: e.target.value })}
+            />
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn-primary" disabled={mutation.isPending}>
+            {mutation.isPending && <Spinner className="h-4 w-4" />}
+            Save changes
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+export function BookDetailPage() {
+  const { id } = useParams()
+  const bookId = Number(id)
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
+
+  const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const { data: book, isLoading, isError, error } = useQuery({
+    queryKey: ['book', bookId],
+    queryFn: () => api.book(bookId),
+    enabled: Number.isFinite(bookId),
+  })
+
+  const { data: progress } = useQuery({
+    queryKey: ['progress', bookId],
+    queryFn: () => api.progress(bookId).catch(() => null),
+    enabled: Number.isFinite(bookId),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.deleteBook(bookId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['books'] })
+      queryClient.invalidateQueries({ queryKey: ['facets'] })
+      navigate('/', { replace: true })
+    },
+  })
+
+  if (isLoading) return <FullPageSpinner />
+  if (isError || !book)
+    return (
+      <div className="card p-8 text-center text-sm text-red-300">
+        {(error as Error)?.message ?? 'Book not found.'}
+      </div>
+    )
+
+  const hasProgress = progress && progress.page > 0 && progress.totalPages > 0
+  const cbz = book.formats.find((f) => f.format.toLowerCase() === 'cbz') ?? book.formats[0]
+
+  return (
+    <div>
+      <Link to="/" className="btn-ghost mb-4 -ml-2 inline-flex">
+        <IconChevronLeft width={18} height={18} />
+        Library
+      </Link>
+
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-[300px_1fr]">
+        {/* Cover + actions */}
+        <div className="md:sticky md:top-20 md:self-start">
+          <div className="mx-auto max-w-[300px] overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700">
+            <Cover bookId={book.id} title={book.title} hasCover={book.hasCover} full width={600} rounded="rounded-none" />
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <Link to={`/books/${book.id}/read`} className="btn-primary w-full">
+              <IconBook width={18} height={18} />
+              {hasProgress ? `Resume · ${progress!.page + 1}/${progress!.totalPages}` : 'Read'}
+            </Link>
+
+            {user?.canDownload && cbz && (
+              <a href={mediaUrl.file(book.id)} className="btn-secondary w-full" download>
+                <IconDownload width={18} height={18} />
+                Download
+              </a>
+            )}
+
+            <div className="flex gap-2">
+              <AddToShelfMenu bookId={book.id} />
+            </div>
+
+            {user?.canEdit && (
+              <div className="flex gap-2 pt-1">
+                <button type="button" className="btn-secondary flex-1" onClick={() => setEditing(true)}>
+                  <IconEdit width={16} height={16} />
+                  Edit
+                </button>
+                <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>
+                  <IconTrash width={16} height={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Details */}
+        <div className="min-w-0">
+          <h1 className="text-3xl font-semibold tracking-tight text-white">{book.title}</h1>
+          <p className="mt-1.5 text-lg text-slate-400">{authorNames(book.authors)}</p>
+
+          {book.series && (
+            <p className="mt-1 text-sm text-accent-300">
+              {book.series.name}
+              {book.seriesIndex ? ` · Book ${book.seriesIndex}` : ''}
+            </p>
+          )}
+
+          {book.rating > 0 && (
+            <div className="mt-3">
+              <Rating value={book.rating} size={20} />
+            </div>
+          )}
+
+          {book.tags.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {book.tags.map((t) => (
+                <Link key={t.id} to={`/?tag=${t.id}`} className="chip">
+                  {t.name}
+                </Link>
+              ))}
+            </div>
+          )}
+
+          <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+            {book.publisher && <Meta label="Publisher">{book.publisher.name}</Meta>}
+            {formatDate(book.pubdate) && <Meta label="Published">{formatDate(book.pubdate)}</Meta>}
+            {book.languages.length > 0 && (
+              <Meta label="Languages">{book.languages.map(languageLabel).join(', ')}</Meta>
+            )}
+            {formatDate(book.timestamp) && <Meta label="Added">{formatDate(book.timestamp)}</Meta>}
+            {book.formats.length > 0 && (
+              <Meta label="Formats">
+                {book.formats.map((f) => `${f.format} (${formatBytes(f.size)})`).join(', ')}
+              </Meta>
+            )}
+            {Object.keys(book.identifiers).length > 0 && (
+              <Meta label="Identifiers">
+                <div className="flex flex-col gap-0.5">
+                  {Object.entries(book.identifiers).map(([k, v]) => (
+                    <span key={k} className="text-xs text-slate-400">
+                      <span className="uppercase text-slate-500">{k}</span>: {v}
+                    </span>
+                  ))}
+                </div>
+              </Meta>
+            )}
+          </dl>
+
+          {book.comments && (
+            <div className="mt-8">
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Description
+              </h2>
+              <div
+                className="prose-comments space-y-3 text-sm leading-relaxed text-slate-300 [&_a]:text-accent-300 [&_p]:mb-3"
+                dangerouslySetInnerHTML={{ __html: book.comments }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {editing && <EditModal book={book} open={editing} onClose={() => setEditing(false)} />}
+
+      <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete book">
+        <p className="text-sm text-slate-300">
+          Are you sure you want to permanently delete <span className="font-medium text-white">{book.title}</span>?
+          This cannot be undone.
+        </p>
+        {deleteMutation.isError && (
+          <p className="mt-3 text-sm text-red-300">
+            {(deleteMutation.error as Error)?.message ?? 'Failed to delete.'}
+          </p>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" className="btn-secondary" onClick={() => setConfirmDelete(false)}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn-danger"
+            onClick={() => deleteMutation.mutate()}
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending && <Spinner className="h-4 w-4" />}
+            Delete
+          </button>
+        </div>
+      </Modal>
+    </div>
+  )
+}
