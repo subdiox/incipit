@@ -117,7 +117,7 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-ink-950">
+    <div className="dark flex h-screen w-screen flex-col bg-ink-950">
       <div className="flex items-center gap-3 border-b border-ink-800 bg-ink-900 px-3 py-2">
         <button
           type="button"

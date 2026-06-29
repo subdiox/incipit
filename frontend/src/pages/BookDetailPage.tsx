@@ -271,7 +271,7 @@ export function BookDetailPage() {
           </p>
 
           {book.series && (
-            <p className="mt-1 text-sm text-accent-300">
+            <p className="mt-1 text-sm text-accentSoft">
               {book.series.name}
               {book.seriesIndex ? ` · ${t('book.volume', { index: book.seriesIndex })}` : ''}
             </p>
@@ -324,7 +324,7 @@ export function BookDetailPage() {
                 {t('book.description')}
               </h2>
               <div
-                className="prose-comments space-y-3 text-sm leading-relaxed text-slate-300 [&_a]:text-accent-300 [&_p]:mb-3"
+                className="prose-comments space-y-3 text-sm leading-relaxed text-slate-300 [&_a]:text-accentSoft [&_p]:mb-3"
                 dangerouslySetInnerHTML={{ __html: book.comments }}
               />
             </div>

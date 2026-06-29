@@ -8,6 +8,8 @@ import type { User } from '@/types'
 import { formatDate } from '@/lib/format'
 import { Modal } from '@/components/Modal'
 import { Spinner, FullPageSpinner } from '@/components/Spinner'
+import { SettingsContainer } from '@/components/SettingsSaver'
+import { ServerSettings } from '@/components/ServerSettings'
 import { LibrarySettings } from '@/components/LibrarySettings'
 import { LdapSettings } from '@/components/LdapSettings'
 import { IconCheck, IconEdit, IconPlus, IconTrash } from '@/components/icons'
@@ -25,7 +27,7 @@ function PermBadge({ active, label }: { active: boolean; label: string }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-        active ? 'bg-accent-500/15 text-accent-200' : 'bg-ink-800 text-slate-600'
+        active ? 'bg-accent-500/15 text-accentSoft' : 'bg-ink-800 text-slate-600'
       }`}
     >
       {active && <IconCheck width={11} height={11} />}
@@ -224,13 +226,23 @@ function EditUserModal({ user, open, onClose }: { user: User; open: boolean; onC
   )
 }
 
+type TabKey = 'general' | 'library' | 'auth' | 'users'
+
 export function AdminPage() {
   const queryClient = useQueryClient()
   const { user: me } = useAuth()
   const { t } = useI18n()
+  const [tab, setTab] = useState<TabKey>('general')
   const [createOpen, setCreateOpen] = useState(false)
   const [editUser, setEditUser] = useState<User | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null)
+
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: 'general', label: t('settings.tabGeneral') },
+    { key: 'library', label: t('settings.tabLibrary') },
+    { key: 'auth', label: t('settings.tabAuth') },
+    { key: 'users', label: t('settings.tabUsers') },
+  ]
 
   const { data: users, isLoading } = useQuery({ queryKey: ['admin-users'], queryFn: api.adminUsers })
 
@@ -242,13 +254,10 @@ export function AdminPage() {
     },
   })
 
-  return (
+  const usersTable = (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">{t('admin.title')}</h1>
-          <p className="mt-0.5 text-sm text-slate-500">{t('admin.subtitle')}</p>
-        </div>
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-slate-500">{t('admin.subtitle')}</p>
         <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
           <IconPlus width={16} height={16} />
           <span className="hidden sm:inline">{t('admin.newUser')}</span>
@@ -275,7 +284,7 @@ export function AdminPage() {
                   <tr key={u.id} className="border-b border-ink-800 last:border-0 hover:bg-ink-800/40">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-700 text-xs font-semibold uppercase text-accent-300">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-700 text-xs font-semibold uppercase text-accentSoft">
                           {u.username[0]}
                         </span>
                         <span className="font-medium text-slate-100">
@@ -322,9 +331,50 @@ export function AdminPage() {
           </div>
         </div>
       )}
+    </div>
+  )
 
-      <LibrarySettings />
-      <LdapSettings />
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight text-white">{t('settings.title')}</h1>
+        <p className="mt-0.5 text-sm text-slate-500">{t('settings.subtitle')}</p>
+      </div>
+
+      {/* Category tabs */}
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-ink-800">
+        {tabs.map((tb) => (
+          <button
+            key={tb.key}
+            type="button"
+            onClick={() => setTab(tb.key)}
+            className={`relative whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
+              tab === tb.key ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {tb.label}
+            {tab === tb.key && (
+              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent-500" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* General / Library / Authentication share one save bar; kept mounted so
+          edits survive switching tabs. */}
+      <SettingsContainer showSaveBar={tab !== 'users'}>
+        <div className={tab === 'general' ? '' : 'hidden'}>
+          <ServerSettings />
+        </div>
+        <div className={tab === 'library' ? '' : 'hidden'}>
+          <LibrarySettings />
+        </div>
+        <div className={tab === 'auth' ? '' : 'hidden'}>
+          <LdapSettings />
+        </div>
+      </SettingsContainer>
+
+      {tab === 'users' && usersTable}
 
       <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} />
       {editUser && <EditUserModal user={editUser} open={!!editUser} onClose={() => setEditUser(null)} />}

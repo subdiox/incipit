@@ -94,7 +94,7 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
       <div className="mb-5 flex items-center gap-2">
         <h1 className="text-2xl font-semibold tracking-tight text-white">{shelf.name}</h1>
         {shelf.isPublic && (
-          <span className="rounded-full bg-accent-500/15 px-2.5 py-0.5 text-xs font-medium text-accent-200">
+          <span className="rounded-full bg-accent-500/15 px-2.5 py-0.5 text-xs font-medium text-accentSoft">
             {t('shelves.public')}
           </span>
         )}
@@ -180,7 +180,7 @@ export function ShelvesPage() {
               className="card group flex cursor-pointer items-center gap-4 p-4 transition-colors hover:border-accent-500/40"
               onClick={() => setSelected(shelf)}
             >
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accent-300">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accentSoft">
                 <IconShelf width={22} height={22} />
               </span>
               <div className="min-w-0 flex-1">

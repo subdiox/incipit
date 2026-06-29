@@ -84,6 +84,8 @@ func (s *Server) Router() http.Handler {
 		// Unauthenticated endpoints.
 		r.Get("/setup/status", s.handleSetupStatus)
 		r.Post("/setup", s.handleSetup)
+		r.Get("/site", s.handleGetSite)
+		r.Get("/fs", s.handleBrowseFs) // setup-or-admin gated inside
 		r.Post("/auth/login", s.handleLogin)
 
 		// Authenticated endpoints.
@@ -129,6 +131,8 @@ func (s *Server) Router() http.Handler {
 				r.Post("/users", s.handleCreateUser)
 				r.Put("/users/{id}", s.handleUpdateUser)
 				r.Delete("/users/{id}", s.handleDeleteUser)
+
+				r.Put("/site", s.handleUpdateSite)
 
 				r.Get("/library", s.handleGetLibrary)
 				r.Put("/library", s.handleUpdateLibrary)

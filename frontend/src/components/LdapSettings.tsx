@@ -4,6 +4,7 @@ import { api, ApiError } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import type { LdapSettings as LdapSettingsType } from '@/types'
 import { Spinner } from './Spinner'
+import { useRegisterSave } from './SettingsSaver'
 
 type Msg = { type: 'success' | 'error'; text: string } | null
 
@@ -60,14 +61,27 @@ export function LdapSettings() {
     setPassword('')
   }
 
-  const saveM = useMutation({
-    mutationFn: () => api.updateLdap({ ...form, bindPassword: password || undefined }),
-    onSuccess: (next) => {
+  useRegisterSave('ldap', async () => {
+    const label = t('ldap.title')
+    const unchanged =
+      data &&
+      form.enabled === data.enabled &&
+      form.url === data.url &&
+      form.startTLS === data.startTLS &&
+      form.bindDN === data.bindDN &&
+      form.baseDN === data.baseDN &&
+      form.userFilter === data.userFilter &&
+      form.usernameAttribute === data.usernameAttribute &&
+      form.adminGroupDN === data.adminGroupDN &&
+      password === ''
+    if (unchanged) return { ok: true, label }
+    try {
+      const next = await api.updateLdap({ ...form, bindPassword: password || undefined })
       apply(next)
-      setMsg({ type: 'success', text: t('ldap.saved') })
-    },
-    onError: (e) =>
-      setMsg({ type: 'error', text: e instanceof ApiError ? e.message : t('ldap.failedToSave') }),
+      return { ok: true, label }
+    } catch (e) {
+      return { ok: false, label, error: e instanceof ApiError ? e.message : t('ldap.failedToSave') }
+    }
   })
 
   const testM = useMutation({
@@ -95,11 +109,11 @@ export function LdapSettings() {
       setMsg({ type: 'error', text: t('ldap.importFailed', { error: e instanceof ApiError ? e.message : '' }) }),
   })
 
-  const busy = saveM.isPending || testM.isPending || importM.isPending
+  const busy = testM.isPending || importM.isPending
   const savedEnabled = data?.enabled ?? false
 
   return (
-    <div className="card mt-8 p-5 sm:p-6">
+    <div className="card p-5 sm:p-6">
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-white">{t('ldap.title')}</h2>
         <p className="mt-0.5 text-sm text-slate-500">{t('ldap.subtitle')}</p>
@@ -110,14 +124,7 @@ export function LdapSettings() {
           <Spinner className="h-6 w-6 text-accent-400" />
         </div>
       ) : (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            setMsg(null)
-            saveM.mutate()
-          }}
-          className="space-y-4"
-        >
+        <div className="space-y-4">
           <Check
             label={t('ldap.enabled')}
             checked={form.enabled}
@@ -201,10 +208,6 @@ export function LdapSettings() {
           )}
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button type="submit" className="btn-primary" disabled={busy}>
-              {saveM.isPending && <Spinner className="h-4 w-4" />}
-              {t('ldap.save')}
-            </button>
             <button
               type="button"
               className="btn-secondary"
@@ -232,7 +235,7 @@ export function LdapSettings() {
               {t('ldap.import')}
             </button>
           </div>
-        </form>
+        </div>
       )}
     </div>
   )

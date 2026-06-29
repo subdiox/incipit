@@ -19,7 +19,7 @@ export const ja: Record<TranslationKey, string> = {
   // Navigation / app shell
   'nav.library': 'ライブラリ',
   'nav.shelves': '本棚',
-  'nav.admin': '管理',
+  'nav.admin': 'サーバー設定',
   'nav.administrator': '管理者',
   'nav.member': 'メンバー',
   'nav.logout': 'ログアウト',
@@ -36,10 +36,15 @@ export const ja: Record<TranslationKey, string> = {
   'account.role': '役割',
   'account.language': '表示言語',
   'account.languageHelp': 'インターフェース全体で使用する言語を選択します。',
+  'account.theme': '外観',
+  'account.themeHelp': '既定では端末の設定に従います。',
+  'theme.system': '端末に合わせる',
+  'theme.light': 'ライト',
+  'theme.dark': 'ダーク',
 
   // Login / setup
-  'login.welcome': 'Incipit へようこそ',
-  'login.signinTitle': 'Incipit にサインイン',
+  'login.welcome': '{{title}} へようこそ',
+  'login.signinTitle': '{{title}} にサインイン',
   'login.setupSubtitle': '管理者アカウントを作成して始めましょう。',
   'login.subtitle': 'セルフホスト型のコミックライブラリ。',
   'login.username': 'ユーザー名',
@@ -89,8 +94,6 @@ export const ja: Record<TranslationKey, string> = {
   'library.path': 'ライブラリのパス',
   'library.pathHelp': 'metadata.db があるフォルダ。存在しなければ作成されます。',
   'library.readOnlyNote': '読み取り専用モードが有効（INCIPIT_READONLY）。ライブラリへは書き込みません。',
-  'library.save': 'ライブラリのパスを保存',
-  'library.saved': 'ライブラリを更新しました。',
   'library.failedToSaveCfg': 'ライブラリの更新に失敗しました。',
 
   // Book detail
@@ -190,7 +193,6 @@ export const ja: Record<TranslationKey, string> = {
   'addToShelf.empty': '本棚がありません。本棚ページで作成してください。',
 
   // Admin / users
-  'admin.title': 'ユーザー',
   'admin.subtitle': 'アカウントと権限を管理します。',
   'admin.newUser': '新規ユーザー',
   'admin.colUser': 'ユーザー',
@@ -221,6 +223,35 @@ export const ja: Record<TranslationKey, string> = {
   'admin.deleteConfirmSuffix': ' を削除しますか？この操作は取り消せません。',
   'admin.failedToDeleteUser': 'ユーザーの削除に失敗しました。',
 
+  // Server settings page (admin)
+  'settings.title': 'サーバー設定',
+  'settings.subtitle': 'このサーバーと各アカウントを管理します。',
+  'settings.tabGeneral': '一般',
+  'settings.tabLibrary': 'ライブラリ',
+  'settings.tabAuth': '認証',
+  'settings.tabUsers': 'ユーザー',
+  'settings.save': '設定を保存',
+  'settings.saved': '設定を保存しました。',
+
+  // Folder picker
+  'picker.title': 'フォルダを選択',
+  'picker.browse': '参照…',
+  'picker.up': '上へ',
+  'picker.empty': 'サブフォルダはありません。',
+  'picker.failed': 'このフォルダを読み込めません。',
+  'picker.newFolderName': '新しいフォルダ名',
+  'picker.createHere': 'ここに作成',
+  'picker.createHint': '存在しない場合は保存時に作成されます。',
+  'picker.selectThis': 'このフォルダを選択',
+
+  // General section
+  'server.title': 'サイト',
+  'server.subtitle': 'インターフェース全体に表示されるサイト名。',
+  'server.siteTitle': 'サイトのタイトル',
+  'server.siteTitleHelp': 'サイドバー・ログイン画面・ブラウザのタブ・OPDSフィードに表示されます。',
+  'server.titleRequired': 'タイトルを入力してください。',
+  'server.failedToSave': '設定の保存に失敗しました。',
+
   // LDAP
   'ldap.title': 'LDAP認証',
   'ldap.subtitle': 'LDAP / Active Directory サーバーからユーザーを認証・インポートします。',
@@ -241,10 +272,8 @@ export const ja: Record<TranslationKey, string> = {
   'ldap.usernameAttributeHelp': 'Incipitのユーザー名に使う属性。例: uid, sAMAccountName',
   'ldap.adminGroupDN': '管理者グループDN',
   'ldap.adminGroupDNHelp': 'このグループのメンバーは管理者として取り込まれます（任意）。',
-  'ldap.save': '設定を保存',
   'ldap.test': '接続テスト',
   'ldap.import': 'ユーザーをインポート',
-  'ldap.saved': '設定を保存しました。',
   'ldap.failedToSave': '設定の保存に失敗しました。',
   'ldap.testOk': '接続に成功しました。',
   'ldap.testFailed': '接続に失敗しました: {{error}}',

@@ -61,7 +61,7 @@ function FacetSection({
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="chip border-transparent bg-transparent text-accent-300 hover:bg-transparent"
+            className="chip border-transparent bg-transparent text-accentSoft hover:bg-transparent"
           >
             {expanded ? t('library.showLess') : t('library.showMore', { count: facets.length - 8 })}
           </button>
@@ -150,7 +150,7 @@ export function LibraryPage() {
               p.delete('tag')
             })
           }
-          className="text-xs font-medium text-accent-300 hover:text-accent-200"
+          className="text-xs font-medium text-accentSoft hover:text-accentSoft"
         >
           {t('library.clearFilters')}
         </button>

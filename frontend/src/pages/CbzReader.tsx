@@ -222,7 +222,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
 
   return (
     <div
-      className="relative h-screen w-screen select-none overflow-hidden bg-black"
+      className="dark relative h-screen w-screen select-none overflow-hidden bg-black"
       onMouseMove={revealChrome}
     >
       {/* Top bar */}
@@ -250,7 +250,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
           }}
           className={`pointer-events-auto rounded-lg p-2 backdrop-blur transition-colors ${
             settingsOpen
-              ? 'bg-accent-600 text-white'
+              ? 'bg-accent-600 text-onaccent'
               : 'bg-black/40 text-slate-200 hover:bg-black/70 hover:text-white'
           }`}
           aria-label={t('reader.settings')}
@@ -464,7 +464,7 @@ function Seg({
       onClick={onClick}
       className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
         active
-          ? 'bg-accent-600 text-white'
+          ? 'bg-accent-600 text-onaccent'
           : 'bg-ink-800 text-slate-300 hover:bg-ink-700 hover:text-white'
       }`}
     >

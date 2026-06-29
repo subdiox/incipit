@@ -111,6 +111,21 @@ export interface SetupStatus {
 export type SortKey = 'title' | 'timestamp' | 'pubdate' | 'author' | 'series' | 'rating'
 export type SortOrder = 'asc' | 'desc'
 
+export interface SiteConfig {
+  title: string
+}
+
+export interface FsEntry {
+  name: string
+  path: string
+}
+
+export interface FsListing {
+  path: string
+  parent: string
+  entries: FsEntry[]
+}
+
 export interface LibrarySettings {
   path: string
   readOnly: boolean

@@ -3,6 +3,7 @@ import type {
   BooksResponse,
   BookUpdate,
   Facet,
+  FsListing,
   LdapImportResult,
   LdapSettings,
   LdapTestResult,
@@ -12,6 +13,7 @@ import type {
   Progress,
   SetupStatus,
   Shelf,
+  SiteConfig,
   SortKey,
   SortOrder,
   Stats,
@@ -118,6 +120,11 @@ export const mediaUrl = {
 export const api = {
   // Setup & auth
   setupStatus: () => request<SetupStatus>('/setup/status'),
+  site: () => request<SiteConfig>('/site'),
+  browseFs: (path?: string) =>
+    request<FsListing>(`/fs${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  updateSite: (title: string) =>
+    request<SiteConfig>('/admin/site', { method: 'PUT', ...jsonBody({ title }) }),
   setup: (username: string, password: string, libraryPath?: string) =>
     request<User>('/setup', {
       method: 'POST',

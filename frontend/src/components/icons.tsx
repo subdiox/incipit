@@ -149,6 +149,18 @@ export const IconCheck = (p: IconProps) => (
   </svg>
 )
 
+export const IconFolder = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  </svg>
+)
+
+export const IconArrowUp = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M12 19V5M5 12l7-7 7 7" />
+  </svg>
+)
+
 export const IconSettings = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M4 7h3M11 7h9" />

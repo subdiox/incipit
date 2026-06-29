@@ -1,16 +1,36 @@
 /** @type {import('tailwindcss').Config} */
+
+// Neutral/text/foreground colors are CSS variables (RGB channels) so the theme
+// can flip between light and dark while opacity utilities keep working. The
+// accent (brand) palette is fixed and reads well on both themes.
+const ch = (v) => `rgb(var(${v}) / <alpha-value>)`
+
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
         ink: {
-          950: '#0b0b0f',
-          900: '#101017',
-          850: '#15151f',
-          800: '#1a1a26',
-          700: '#23232f',
-          600: '#2e2e3c',
+          950: ch('--ink-950'),
+          900: ch('--ink-900'),
+          850: ch('--ink-850'),
+          800: ch('--ink-800'),
+          700: ch('--ink-700'),
+          600: ch('--ink-600'),
+        },
+        // Foreground/text tokens (formerly hard white + slate scale).
+        white: ch('--fg'),
+        fg: ch('--fg'),
+        onaccent: ch('--onaccent'),
+        accentSoft: ch('--accent-soft'),
+        slate: {
+          100: ch('--slate-100'),
+          200: ch('--slate-200'),
+          300: ch('--slate-300'),
+          400: ch('--slate-400'),
+          500: ch('--slate-500'),
+          600: ch('--slate-600'),
         },
         accent: {
           DEFAULT: '#7c6cf0',
@@ -43,7 +63,7 @@ export default {
         '2xl': '1.125rem',
       },
       boxShadow: {
-        soft: '0 4px 24px -8px rgba(0, 0, 0, 0.6)',
+        soft: '0 1px 2px rgba(0,0,0,0.04), 0 6px 20px -8px var(--shadow)',
         glow: '0 0 0 1px rgba(124, 108, 240, 0.4), 0 8px 32px -8px rgba(124, 108, 240, 0.35)',
       },
       keyframes: {

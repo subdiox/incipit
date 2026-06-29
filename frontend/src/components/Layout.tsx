@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
+import { useSiteTitle } from '@/lib/hooks'
 import {
   IconAdmin,
   IconBook,
@@ -32,7 +33,7 @@ function NavItem({
       className={({ isActive }) =>
         `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
           isActive
-            ? 'bg-accent-500/15 text-accent-200'
+            ? 'bg-accent-500/15 text-accentSoft'
             : 'text-slate-400 hover:bg-ink-800 hover:text-white'
         }`
       }
@@ -46,6 +47,7 @@ function NavItem({
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { user, logout } = useAuth()
   const { t } = useI18n()
+  const siteTitle = useSiteTitle()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
@@ -60,10 +62,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         onClick={onNavigate}
         className="flex items-center gap-2.5 px-4 pb-6 pt-5"
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-600 text-white shadow-glow">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-600 text-onaccent shadow-glow">
           <IconBook width={20} height={20} />
         </span>
-        <span className="text-lg font-semibold tracking-tight text-white">Incipit</span>
+        <span className="truncate text-lg font-semibold tracking-tight text-white">{siteTitle}</span>
       </Link>
 
       <nav className="flex-1 space-y-1 px-2">
@@ -82,7 +84,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             title={t('nav.account')}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-ink-800"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-700 text-sm font-semibold uppercase text-accent-300">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-700 text-sm font-semibold uppercase text-accentSoft">
               {user?.username?.[0] ?? '?'}
             </span>
             <div className="min-w-0 flex-1">

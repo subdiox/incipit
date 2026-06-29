@@ -31,7 +31,7 @@ export function BookCard({ book, action }: BookCardProps) {
             {authorNames(book.authors) || t('common.unknownAuthor')}
           </p>
           {book.series && (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-accent-300/80">
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-accentSoft/80">
               {book.series.name}
               {book.seriesIndex ? ` #${book.seriesIndex}` : ''}
             </p>

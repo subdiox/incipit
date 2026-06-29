@@ -17,7 +17,7 @@ export const en = {
   // Navigation / app shell
   'nav.library': 'Library',
   'nav.shelves': 'Shelves',
-  'nav.admin': 'Admin',
+  'nav.admin': 'Server settings',
   'nav.administrator': 'Administrator',
   'nav.member': 'Member',
   'nav.logout': 'Log out',
@@ -34,10 +34,15 @@ export const en = {
   'account.role': 'Role',
   'account.language': 'Display language',
   'account.languageHelp': 'Choose the language used across the interface.',
+  'account.theme': 'Appearance',
+  'account.themeHelp': 'Follows your device by default.',
+  'theme.system': 'Device',
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
 
   // Login / setup
-  'login.welcome': 'Welcome to Incipit',
-  'login.signinTitle': 'Sign in to Incipit',
+  'login.welcome': 'Welcome to {{title}}',
+  'login.signinTitle': 'Sign in to {{title}}',
   'login.setupSubtitle': 'Create your administrator account to get started.',
   'login.subtitle': 'Your self-hosted comic library.',
   'login.username': 'Username',
@@ -87,8 +92,6 @@ export const en = {
   'library.path': 'Library path',
   'library.pathHelp': 'Folder containing metadata.db. Created if it does not exist.',
   'library.readOnlyNote': 'Read-only mode is on (INCIPIT_READONLY); the library is never modified.',
-  'library.save': 'Save library path',
-  'library.saved': 'Library updated.',
   'library.failedToSaveCfg': 'Failed to update library.',
 
   // Book detail
@@ -188,7 +191,6 @@ export const en = {
   'addToShelf.empty': 'No shelves yet. Create one on the Shelves page.',
 
   // Admin / users
-  'admin.title': 'Users',
   'admin.subtitle': 'Manage accounts and permissions.',
   'admin.newUser': 'New user',
   'admin.colUser': 'User',
@@ -219,6 +221,35 @@ export const en = {
   'admin.deleteConfirmSuffix': '? This cannot be undone.',
   'admin.failedToDeleteUser': 'Failed to delete user.',
 
+  // Server settings page (admin)
+  'settings.title': 'Server settings',
+  'settings.subtitle': 'Manage this server and its accounts.',
+  'settings.tabGeneral': 'General',
+  'settings.tabLibrary': 'Library',
+  'settings.tabAuth': 'Authentication',
+  'settings.tabUsers': 'Users',
+  'settings.save': 'Save settings',
+  'settings.saved': 'Settings saved.',
+
+  // Folder picker
+  'picker.title': 'Select a folder',
+  'picker.browse': 'Browse…',
+  'picker.up': 'Up',
+  'picker.empty': 'No sub-folders here.',
+  'picker.failed': 'Cannot read this folder.',
+  'picker.newFolderName': 'New folder name',
+  'picker.createHere': 'Create here',
+  'picker.createHint': "The folder is created on save if it doesn't exist.",
+  'picker.selectThis': 'Select this folder',
+
+  // General section
+  'server.title': 'Site',
+  'server.subtitle': 'The site name shown across the interface.',
+  'server.siteTitle': 'Site title',
+  'server.siteTitleHelp': 'Shown in the sidebar, on the login screen, the browser tab and the OPDS feed.',
+  'server.titleRequired': 'Title is required.',
+  'server.failedToSave': 'Failed to save settings.',
+
   // LDAP
   'ldap.title': 'LDAP authentication',
   'ldap.subtitle': 'Authenticate and import users from an LDAP / Active Directory server.',
@@ -239,10 +270,8 @@ export const en = {
   'ldap.usernameAttributeHelp': 'Attribute used as the Incipit username, e.g. uid or sAMAccountName',
   'ldap.adminGroupDN': 'Admin group DN',
   'ldap.adminGroupDNHelp': 'Members of this group are imported as admins (optional).',
-  'ldap.save': 'Save settings',
   'ldap.test': 'Test connection',
   'ldap.import': 'Import users',
-  'ldap.saved': 'Settings saved.',
   'ldap.failedToSave': 'Failed to save settings.',
   'ldap.testOk': 'Connection successful.',
   'ldap.testFailed': 'Connection failed: {{error}}',

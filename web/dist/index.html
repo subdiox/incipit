@@ -1,12 +1,23 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0b0f" />
     <title>Incipit</title>
-    <script type="module" crossorigin src="/assets/index-s9MtNqj4.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CtEdpdsm.css">
+    <script>
+      // Apply the saved/system theme before paint to avoid a flash.
+      (function () {
+        try {
+          var m = localStorage.getItem('incipit.theme') || 'system'
+          var dark = m === 'dark' || (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.classList.toggle('dark', dark)
+        } catch (e) {
+          document.documentElement.classList.add('dark')
+        }
+      })()
+    </script>
+    <script type="module" crossorigin src="/assets/index-DC3Ls1GW.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CQWZNlzq.css">
   </head>
   <body>
     <div id="root"></div>

@@ -1,4 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+
+/** The admin-configurable site title, defaulting to "Incipit" while loading. */
+export function useSiteTitle(): string {
+  const { data } = useQuery({ queryKey: ['site'], queryFn: api.site, staleTime: 300_000 })
+  return data?.title || 'Incipit'
+}
 
 /** Debounce a rapidly-changing value. */
 export function useDebounced<T>(value: T, delay = 300): T {

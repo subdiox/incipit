@@ -18,7 +18,7 @@ export function LanguageSwitcher({ className = '' }: { className?: string }) {
           aria-pressed={lang === l.value}
           className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
             lang === l.value
-              ? 'bg-accent-600 text-white'
+              ? 'bg-accent-600 text-onaccent'
               : 'text-slate-400 hover:text-white'
           }`}
         >

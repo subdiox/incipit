@@ -73,7 +73,7 @@ func writeOPDS(w http.ResponseWriter, kind string, feed opdsFeed) {
 func (s *Server) handleOPDSRoot(w http.ResponseWriter, r *http.Request) {
 	feed := opdsFeed{
 		ID:    "urn:incipit:root",
-		Title: "Incipit Library",
+		Title: s.siteTitle(r.Context()),
 		Links: []opdsLink{
 			{Rel: "self", Href: "/opds", Type: opdsNav},
 			{Rel: "start", Href: "/opds", Type: opdsNav},

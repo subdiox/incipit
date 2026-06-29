@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { useSiteTitle } from '@/lib/hooks'
 import { Layout } from '@/components/Layout'
 import { RequireAdmin, RequireAuth } from '@/components/RequireAuth'
 import { LoginPage } from '@/pages/LoginPage'
@@ -10,6 +12,11 @@ import { AdminPage } from '@/pages/AdminPage'
 import { AccountPage } from '@/pages/AccountPage'
 
 export function App() {
+  const siteTitle = useSiteTitle()
+  useEffect(() => {
+    document.title = siteTitle
+  }, [siteTitle])
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

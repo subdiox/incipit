@@ -4,13 +4,16 @@ import { useQuery } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
+import { useSiteTitle } from '@/lib/hooks'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
+import { DirectoryPicker } from '@/components/DirectoryPicker'
 import { Spinner, FullPageSpinner } from '@/components/Spinner'
-import { IconBook } from '@/components/icons'
+import { IconBook, IconFolder } from '@/components/icons'
 
 export function LoginPage() {
   const navigate = useNavigate()
   const { t } = useI18n()
+  const siteTitle = useSiteTitle()
   const { user, loading: authLoading, setUser } = useAuth()
 
   const { data: status, isLoading: statusLoading } = useQuery({
@@ -23,6 +26,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [libraryPath, setLibraryPath] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -72,11 +76,13 @@ export function LoginPage() {
           <LanguageSwitcher />
         </div>
         <div className="mb-8 flex flex-col items-center text-center">
-          <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-600 text-white shadow-glow">
+          <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-600 text-onaccent shadow-glow">
             <IconBook width={28} height={28} />
           </span>
           <h1 className="text-2xl font-semibold tracking-tight text-white">
-            {needsSetup ? t('login.welcome') : t('login.signinTitle')}
+            {needsSetup
+              ? t('login.welcome', { title: siteTitle })
+              : t('login.signinTitle', { title: siteTitle })}
           </h1>
           <p className="mt-1.5 text-sm text-slate-400">
             {needsSetup ? t('login.setupSubtitle') : t('login.subtitle')}
@@ -142,15 +148,31 @@ export function LoginPage() {
                 <label className="label" htmlFor="libraryPath">
                   {t('login.libraryPath')}
                 </label>
-                <input
-                  id="libraryPath"
-                  className="input"
-                  value={libraryPath}
-                  onChange={(e) => setLibraryPath(e.target.value)}
-                  placeholder="/library"
-                  required
-                />
+                <div className="flex gap-2">
+                  <input
+                    id="libraryPath"
+                    className="input flex-1"
+                    value={libraryPath}
+                    onChange={(e) => setLibraryPath(e.target.value)}
+                    placeholder="/library"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary shrink-0"
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    <IconFolder width={16} height={16} />
+                    {t('picker.browse')}
+                  </button>
+                </div>
                 <p className="mt-1.5 text-xs text-slate-500">{t('login.libraryPathHelp')}</p>
+                <DirectoryPicker
+                  open={pickerOpen}
+                  initialPath={libraryPath}
+                  onClose={() => setPickerOpen(false)}
+                  onSelect={(p) => setLibraryPath(p)}
+                />
               </div>
             )}
 

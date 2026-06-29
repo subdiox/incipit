@@ -12,7 +12,7 @@ const PdfReader = lazy(() => import('./PdfReader').then((m) => ({ default: m.Pdf
 const EpubReader = lazy(() => import('./EpubReader').then((m) => ({ default: m.EpubReader })))
 
 const ReaderFallback = () => (
-  <div className="flex h-screen items-center justify-center bg-black">
+  <div className="dark flex h-screen items-center justify-center bg-black">
     <Spinner className="h-8 w-8 text-accent-400" />
   </div>
 )
@@ -50,7 +50,7 @@ export function ReaderPage() {
 
 function ReaderError({ onBack, text, back }: { onBack: () => void; text: string; back: string }) {
   return (
-    <div className="flex h-screen flex-col items-center justify-center gap-4 bg-black text-center">
+    <div className="dark flex h-screen flex-col items-center justify-center gap-4 bg-black text-center">
       <p className="text-slate-400">{text}</p>
       <button className="btn-secondary" onClick={onBack}>
         {back}
