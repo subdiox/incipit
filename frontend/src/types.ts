@@ -6,6 +6,7 @@ export interface User {
   canDownload: boolean
   canUpload: boolean
   canEdit: boolean
+  language: string
   createdAt: string
 }
 
@@ -104,10 +105,53 @@ export interface PagesResponse {
 
 export interface SetupStatus {
   needsSetup: boolean
+  needsLibrary: boolean
 }
 
 export type SortKey = 'title' | 'timestamp' | 'pubdate' | 'author' | 'series' | 'rating'
 export type SortOrder = 'asc' | 'desc'
+
+export interface LibrarySettings {
+  path: string
+  readOnly: boolean
+  configured: boolean
+}
+
+export interface LdapSettings {
+  enabled: boolean
+  url: string
+  startTLS: boolean
+  bindDN: string
+  bindPasswordSet: boolean
+  baseDN: string
+  userFilter: string
+  usernameAttribute: string
+  adminGroupDN: string
+}
+
+export interface LdapUpdate {
+  enabled: boolean
+  url: string
+  startTLS: boolean
+  bindDN: string
+  bindPassword?: string // omit/empty keeps the stored password
+  baseDN: string
+  userFilter: string
+  usernameAttribute: string
+  adminGroupDN: string
+}
+
+export interface LdapTestResult {
+  ok: boolean
+  error?: string
+}
+
+export interface LdapImportResult {
+  scanned: number
+  created: number
+  existing: number
+  createdUsernames: string[]
+}
 
 export interface BookUpdate {
   title?: string

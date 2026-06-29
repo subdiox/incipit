@@ -98,7 +98,7 @@ func (s *Server) handleShelfBooks(w http.ResponseWriter, r *http.Request) {
 	}
 	books := make([]calibre.Book, 0, len(ids))
 	for _, id := range ids {
-		if b, err := s.lib.GetBook(r.Context(), id); err == nil {
+		if b, err := s.lib().GetBook(r.Context(), id); err == nil {
 			books = append(books, *b)
 		}
 	}
@@ -124,7 +124,7 @@ func (s *Server) handleAddToShelf(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, err := s.lib.GetBook(r.Context(), bookID); err != nil {
+	if _, err := s.lib().GetBook(r.Context(), bookID); err != nil {
 		writeError(w, http.StatusNotFound, "book not found")
 		return
 	}

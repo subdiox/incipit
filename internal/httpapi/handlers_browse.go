@@ -8,7 +8,7 @@ import (
 
 func (s *Server) facetHandler(load func(*calibre.Adapter, *http.Request) ([]calibre.Facet, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		facets, err := load(s.lib, r)
+		facets, err := load(s.lib(), r)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "load facets")
 			return
@@ -51,7 +51,7 @@ func (s *Server) handleLanguages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := s.lib.Stats(r.Context())
+	stats, err := s.lib().Stats(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "stats")
 		return

@@ -18,11 +18,14 @@ func (s *Store) CreateUser(ctx context.Context, u User) (*User, error) {
 	if u.Source == "" {
 		u.Source = SourceLocal
 	}
+	if u.Language == "" {
+		u.Language = "en"
+	}
 	res, err := s.db.ExecContext(ctx, `INSERT INTO users
-		(username, password_hash, is_admin, source, can_download, can_upload, can_edit, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		(username, password_hash, is_admin, source, can_download, can_upload, can_edit, language, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.Username, u.PasswordHash, b2i(u.IsAdmin), string(u.Source),
-		b2i(u.CanDownload), b2i(u.CanUpload), b2i(u.CanEdit), u.CreatedAt.Format(timeLayout))
+		b2i(u.CanDownload), b2i(u.CanUpload), b2i(u.CanEdit), u.Language, u.CreatedAt.Format(timeLayout))
 	if err != nil {
 		return nil, err
 	}
@@ -30,13 +33,13 @@ func (s *Store) CreateUser(ctx context.Context, u User) (*User, error) {
 	return &u, nil
 }
 
-const userCols = `id, username, password_hash, is_admin, source, can_download, can_upload, can_edit, created_at`
+const userCols = `id, username, password_hash, is_admin, source, can_download, can_upload, can_edit, language, created_at`
 
 func scanUser(sc interface{ Scan(...any) error }) (*User, error) {
 	var u User
-	var src, created string
+	var src, lang, created string
 	var admin, dl, up, ed int
-	if err := sc.Scan(&u.ID, &u.Username, &u.PasswordHash, &admin, &src, &dl, &up, &ed, &created); err != nil {
+	if err := sc.Scan(&u.ID, &u.Username, &u.PasswordHash, &admin, &src, &dl, &up, &ed, &lang, &created); err != nil {
 		return nil, err
 	}
 	u.IsAdmin = admin != 0
@@ -44,8 +47,15 @@ func scanUser(sc interface{ Scan(...any) error }) (*User, error) {
 	u.CanUpload = up != 0
 	u.CanEdit = ed != 0
 	u.Source = UserSource(src)
+	u.Language = lang
 	u.CreatedAt, _ = time.Parse(timeLayout, created)
 	return &u, nil
+}
+
+// SetUserLanguage updates a user's UI language preference.
+func (s *Store) SetUserLanguage(ctx context.Context, id int64, language string) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE users SET language=? WHERE id=?", language, id)
+	return err
 }
 
 // GetUserByUsername looks up a user by (case-insensitive) username.

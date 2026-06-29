@@ -1,5 +1,6 @@
 # Go
 /incipit
+/seed
 *.test
 *.out
 

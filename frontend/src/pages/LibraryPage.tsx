@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api, type BookQuery } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
+import { useI18n } from '@/i18n'
+import type { TranslationKey } from '@/i18n/en'
 import { useDebounced } from '@/lib/hooks'
 import type { Facet, SortKey, SortOrder } from '@/types'
 import { BookCard, BookCardSkeleton, BookGrid } from '@/components/BookCard'
@@ -11,13 +13,13 @@ import { IconChevronLeft, IconChevronRight, IconFilter, IconUpload, IconLibrary 
 
 const PAGE_SIZE = 36
 
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'timestamp', label: 'Recently added' },
-  { value: 'title', label: 'Title' },
-  { value: 'author', label: 'Author' },
-  { value: 'series', label: 'Series' },
-  { value: 'pubdate', label: 'Publication date' },
-  { value: 'rating', label: 'Rating' },
+const SORT_OPTIONS: { value: SortKey; labelKey: TranslationKey }[] = [
+  { value: 'timestamp', labelKey: 'library.sort.recentlyAdded' },
+  { value: 'title', labelKey: 'library.sort.title' },
+  { value: 'author', labelKey: 'library.sort.author' },
+  { value: 'series', labelKey: 'library.sort.series' },
+  { value: 'pubdate', labelKey: 'library.sort.pubdate' },
+  { value: 'rating', labelKey: 'library.sort.rating' },
 ]
 
 type FacetKind = 'author' | 'series' | 'tag'
@@ -35,6 +37,7 @@ function FacetSection({
   activeId: number | null
   onToggle: (kind: FacetKind, id: number) => void
 }) {
+  const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   if (!facets || facets.length === 0) return null
   const visible = expanded ? facets : facets.slice(0, 8)
@@ -60,7 +63,7 @@ function FacetSection({
             onClick={() => setExpanded((v) => !v)}
             className="chip border-transparent bg-transparent text-accent-300 hover:bg-transparent"
           >
-            {expanded ? 'Show less' : `+${facets.length - 8} more`}
+            {expanded ? t('library.showLess') : t('library.showMore', { count: facets.length - 8 })}
           </button>
         )}
       </div>
@@ -70,6 +73,7 @@ function FacetSection({
 
 export function LibraryPage() {
   const { user } = useAuth()
+  const { t } = useI18n()
   const [params, setParams] = useSearchParams()
   const [uploadOpen, setUploadOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -148,12 +152,12 @@ export function LibraryPage() {
           }
           className="text-xs font-medium text-accent-300 hover:text-accent-200"
         >
-          Clear filters
+          {t('library.clearFilters')}
         </button>
       )}
-      <FacetSection title="Authors" kind="author" facets={authors.data} activeId={authorId} onToggle={toggleFacet} />
-      <FacetSection title="Series" kind="series" facets={series.data} activeId={seriesId} onToggle={toggleFacet} />
-      <FacetSection title="Tags" kind="tag" facets={tags.data} activeId={tagId} onToggle={toggleFacet} />
+      <FacetSection title={t('library.authors')} kind="author" facets={authors.data} activeId={authorId} onToggle={toggleFacet} />
+      <FacetSection title={t('library.series')} kind="series" facets={series.data} activeId={seriesId} onToggle={toggleFacet} />
+      <FacetSection title={t('library.tags')} kind="tag" facets={tags.data} activeId={tagId} onToggle={toggleFacet} />
     </div>
   )
 
@@ -168,9 +172,13 @@ export function LibraryPage() {
         {/* Header / controls */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">Library</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-white">{t('library.title')}</h1>
             <p className="mt-0.5 text-sm text-slate-500">
-              {isLoading ? 'Loading…' : `${total.toLocaleString()} ${total === 1 ? 'book' : 'books'}`}
+              {isLoading
+                ? t('common.loading')
+                : t(total === 1 ? 'common.books_one' : 'common.books_other', {
+                    count: total.toLocaleString(),
+                  })}
             </p>
           </div>
 
@@ -181,7 +189,7 @@ export function LibraryPage() {
               className="btn-secondary xl:hidden"
             >
               <IconFilter width={16} height={16} />
-              Filters
+              {t('library.filters')}
             </button>
 
             <select
@@ -191,7 +199,7 @@ export function LibraryPage() {
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
-                  {o.label}
+                  {t(o.labelKey)}
                 </option>
               ))}
             </select>
@@ -200,7 +208,7 @@ export function LibraryPage() {
               type="button"
               onClick={() => update((p) => p.set('order', order === 'desc' ? 'asc' : 'desc'))}
               className="btn-secondary"
-              title={order === 'desc' ? 'Descending' : 'Ascending'}
+              title={order === 'desc' ? t('library.descending') : t('library.ascending')}
             >
               {order === 'desc' ? '↓' : '↑'}
             </button>
@@ -208,7 +216,7 @@ export function LibraryPage() {
             {user?.canUpload && (
               <button type="button" onClick={() => setUploadOpen(true)} className="btn-primary">
                 <IconUpload width={16} height={16} />
-                <span className="hidden sm:inline">Upload</span>
+                <span className="hidden sm:inline">{t('library.upload')}</span>
               </button>
             )}
           </div>
@@ -224,7 +232,7 @@ export function LibraryPage() {
         {/* Content */}
         {isError ? (
           <div className="card p-8 text-center text-sm text-red-300">
-            {(error as Error)?.message ?? 'Failed to load library.'}
+            {(error as Error)?.message ?? t('library.failedToLoad')}
           </div>
         ) : isLoading ? (
           <BookGrid>
@@ -251,10 +259,10 @@ export function LibraryPage() {
                   onClick={() => goToPage(currentPage - 1)}
                 >
                   <IconChevronLeft width={16} height={16} />
-                  Prev
+                  {t('library.prev')}
                 </button>
                 <span className="px-3 text-sm text-slate-400">
-                  Page {currentPage} of {totalPages}
+                  {t('library.pageOf', { current: currentPage, total: totalPages })}
                 </span>
                 <button
                   type="button"
@@ -262,7 +270,7 @@ export function LibraryPage() {
                   disabled={currentPage >= totalPages}
                   onClick={() => goToPage(currentPage + 1)}
                 >
-                  Next
+                  {t('library.next')}
                   <IconChevronRight width={16} height={16} />
                 </button>
               </div>
@@ -275,20 +283,20 @@ export function LibraryPage() {
             </span>
             <div>
               <h2 className="text-lg font-medium text-white">
-                {hasFilters ? 'No matching books' : 'Your library is empty'}
+                {hasFilters ? t('library.emptyNoMatch') : t('library.emptyTitle')}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
                 {hasFilters
-                  ? 'Try adjusting your search or filters.'
+                  ? t('library.emptyNoMatchHint')
                   : user?.canUpload
-                    ? 'Upload your first comic to get started.'
-                    : 'No comics have been added yet.'}
+                    ? t('library.emptyUploadHint')
+                    : t('library.emptyNoneHint')}
               </p>
             </div>
             {!hasFilters && user?.canUpload && (
               <button type="button" onClick={() => setUploadOpen(true)} className="btn-primary">
                 <IconUpload width={16} height={16} />
-                Upload a comic
+                {t('library.uploadFirst')}
               </button>
             )}
           </div>

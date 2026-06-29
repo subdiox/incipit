@@ -20,22 +20,30 @@ func generateToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// handleSetupStatus reports whether first-run admin setup is needed.
+// handleSetupStatus reports whether first-run admin setup is needed, and
+// whether that setup must also collect the Calibre library path (i.e. it was
+// not provided via INCIPIT_LIBRARY).
 func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
 	n, err := s.store.CountUsers(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "count users")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"needsSetup": n == 0})
+	writeJSON(w, http.StatusOK, map[string]bool{
+		"needsSetup":   n == 0,
+		"needsLibrary": !s.libraryConfigured(),
+	})
 }
 
 type credentials struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	LibraryPath string `json:"libraryPath"`
 }
 
-// handleSetup creates the first admin account (only when no users exist).
+// handleSetup creates the first admin account (only when no users exist) and,
+// when the library has not been configured yet, opens and persists the Calibre
+// library at the supplied path.
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	n, err := s.store.CountUsers(r.Context())
 	if err != nil {
@@ -55,6 +63,25 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "username required and password must be at least 8 characters")
 		return
 	}
+
+	// Configure the library first so a bad path fails before any account is
+	// created (the admin can simply retry).
+	if !s.libraryConfigured() {
+		path := strings.TrimSpace(c.LibraryPath)
+		if path == "" {
+			writeError(w, http.StatusBadRequest, "library path is required")
+			return
+		}
+		if err := s.openLibrary(path); err != nil {
+			writeError(w, http.StatusBadRequest, "cannot open library at that path: "+err.Error())
+			return
+		}
+		if err := s.store.SetSetting(r.Context(), LibraryPathKey, path); err != nil {
+			writeError(w, http.StatusInternalServerError, "save library path")
+			return
+		}
+	}
+
 	hash, err := auth.HashPassword(c.Password)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "hash password")
@@ -138,4 +165,41 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 // handleMe returns the authenticated user.
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, currentUser(r))
+}
+
+// updateMeBody holds the self-service account fields a user may change.
+type updateMeBody struct {
+	Language *string `json:"language"`
+}
+
+// handleUpdateMe lets the authenticated user change their own preferences
+// (currently just the UI language). Admin-only fields stay in handleUpdateUser.
+func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
+	cur := currentUser(r)
+	if cur == nil {
+		writeError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	var body updateMeBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if body.Language != nil {
+		lang := strings.ToLower(strings.TrimSpace(*body.Language))
+		if lang != "en" && lang != "ja" {
+			writeError(w, http.StatusBadRequest, "unsupported language")
+			return
+		}
+		if err := s.store.SetUserLanguage(r.Context(), cur.ID, lang); err != nil {
+			writeError(w, http.StatusInternalServerError, "update language")
+			return
+		}
+	}
+	u, err := s.store.GetUser(r.Context(), cur.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load user")
+		return
+	}
+	writeJSON(w, http.StatusOK, u)
 }

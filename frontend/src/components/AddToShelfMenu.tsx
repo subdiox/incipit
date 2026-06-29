@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useI18n } from '@/i18n'
 import { Spinner } from './Spinner'
 import { IconCheck, IconPlus, IconShelf } from './icons'
 
 export function AddToShelfMenu({ bookId }: { bookId: number }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
@@ -40,7 +42,7 @@ export function AddToShelfMenu({ bookId }: { bookId: number }) {
     <div className="relative" ref={ref}>
       <button type="button" className="btn-secondary" onClick={() => setOpen((v) => !v)}>
         <IconShelf width={16} height={16} />
-        Add to shelf
+        {t('addToShelf.button')}
       </button>
       {open && (
         <div className="absolute right-0 z-20 mt-2 w-60 animate-fade-in rounded-xl border border-ink-700 bg-ink-800 p-1.5 shadow-soft">
@@ -70,7 +72,7 @@ export function AddToShelfMenu({ bookId }: { bookId: number }) {
             </ul>
           ) : (
             <p className="px-3 py-3 text-center text-xs text-slate-500">
-              No shelves yet. Create one on the Shelves page.
+              {t('addToShelf.empty')}
             </p>
           )}
         </div>

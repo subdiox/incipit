@@ -1,4 +1,4 @@
-.PHONY: all build frontend test test-go vet run docker clean tidy
+.PHONY: all build frontend test test-go vet run seed docker clean tidy
 
 BINARY := incipit
 
@@ -21,9 +21,14 @@ test-go:
 vet:
 	go vet ./...
 
-## Run locally against ./library and ./config.
+## Run locally against ./config. The Calibre library path is chosen during
+## first-run setup (or set INCIPIT_LIBRARY=./library to pre-configure it).
 run: build
-	INCIPIT_LIBRARY=./library INCIPIT_CONFIG=./config ./$(BINARY)
+	INCIPIT_CONFIG=./config ./$(BINARY)
+
+## Populate ./library with a few sample CBZ comics (use ARGS="-reset" to replace).
+seed:
+	INCIPIT_LIBRARY=./library go run ./cmd/seed $(ARGS)
 
 ## Build the single-container Docker image.
 docker:

@@ -97,7 +97,7 @@ func navEntry(id, title, summary, href string) opdsEntry {
 }
 
 func (s *Server) handleOPDSNew(w http.ResponseWriter, r *http.Request) {
-	res, err := s.lib.ListBooks(r.Context(), calibre.ListOptions{Sort: "timestamp", Desc: true, Limit: 50})
+	res, err := s.lib().ListBooks(r.Context(), calibre.ListOptions{Sort: "timestamp", Desc: true, Limit: 50})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "list books")
 		return
@@ -107,7 +107,7 @@ func (s *Server) handleOPDSNew(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleOPDSSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
-	res, err := s.lib.ListBooks(r.Context(), calibre.ListOptions{Search: q, Limit: 100})
+	res, err := s.lib().ListBooks(r.Context(), calibre.ListOptions{Search: q, Limit: 100})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "search")
 		return
@@ -116,7 +116,7 @@ func (s *Server) handleOPDSSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleOPDSAuthors(w http.ResponseWriter, r *http.Request) {
-	authors, err := s.lib.Authors(r.Context())
+	authors, err := s.lib().Authors(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "authors")
 		return
@@ -137,7 +137,7 @@ func (s *Server) handleOPDSAuthors(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleOPDSAuthor(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	res, err := s.lib.ListBooks(r.Context(), calibre.ListOptions{AuthorID: id, Sort: "series", Limit: 500})
+	res, err := s.lib().ListBooks(r.Context(), calibre.ListOptions{AuthorID: id, Sort: "series", Limit: 500})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "author books")
 		return
@@ -146,7 +146,7 @@ func (s *Server) handleOPDSAuthor(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleOPDSSeries(w http.ResponseWriter, r *http.Request) {
-	series, err := s.lib.SeriesList(r.Context())
+	series, err := s.lib().SeriesList(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "series")
 		return
@@ -167,7 +167,7 @@ func (s *Server) handleOPDSSeries(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleOPDSSeriesBooks(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	res, err := s.lib.ListBooks(r.Context(), calibre.ListOptions{SeriesID: id, Sort: "series", Limit: 500})
+	res, err := s.lib().ListBooks(r.Context(), calibre.ListOptions{SeriesID: id, Sort: "series", Limit: 500})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "series books")
 		return

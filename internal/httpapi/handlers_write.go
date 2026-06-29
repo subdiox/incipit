@@ -15,7 +15,27 @@ import (
 
 const maxUpload = 1 << 30 // 1 GiB
 
-// handleAddBook imports an uploaded CBZ with metadata from a multipart form.
+// uploadableFormats are the file types accepted by the uploader. Only CBZ is
+// readable in-browser today; the rest are stored, listed and downloadable.
+var uploadableFormats = map[string]bool{
+	"CBZ": true, "CBR": true, "EPUB": true, "PDF": true,
+	"MOBI": true, "AZW3": true, "FB2": true, "TXT": true,
+}
+
+// formatContentType maps a stored format to a download Content-Type.
+var formatContentType = map[string]string{
+	"CBZ":  "application/vnd.comicbook+zip",
+	"CBR":  "application/vnd.comicbook-rar",
+	"EPUB": "application/epub+zip",
+	"PDF":  "application/pdf",
+	"MOBI": "application/x-mobipocket-ebook",
+	"AZW3": "application/vnd.amazon.ebook",
+	"FB2":  "application/x-fictionbook+xml",
+	"TXT":  "text/plain; charset=utf-8",
+}
+
+// handleAddBook imports an uploaded book (one of uploadableFormats) with
+// metadata from a multipart form.
 func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if u == nil || !u.CanUpload {
@@ -37,14 +57,14 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	format := strings.ToUpper(strings.TrimPrefix(extOf(header.Filename), "."))
-	if format != "CBZ" {
-		writeError(w, http.StatusBadRequest, "only CBZ uploads are supported")
+	if !uploadableFormats[format] {
+		writeError(w, http.StatusBadRequest, "unsupported file type")
 		return
 	}
 
-	// Persist to a temp file so we can both generate a cover and stream into the
-	// library without buffering the whole archive in memory.
-	tmp, err := os.CreateTemp("", "incipit-upload-*.cbz")
+	// Persist to a temp file (with the right extension) so we can both generate
+	// a cover and stream into the library without buffering it in memory.
+	tmp, err := os.CreateTemp("", "incipit-upload-*."+strings.ToLower(format))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "temp file")
 		return
@@ -58,12 +78,9 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 	}
 	tmp.Close()
 
-	var cover []byte
-	if data, err := s.reader.FirstPageJPEG(tmpName, 600); err == nil {
-		cover = data
-	} else if !errors.Is(err, reader.ErrPageOutOfRange) {
-		// A malformed archive should be rejected early.
-		writeError(w, http.StatusBadRequest, "not a valid CBZ archive")
+	cover, err := s.generateCover(tmpName, format)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -89,7 +106,7 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 		Languages:   splitList(r.FormValue("languages")),
 		Rating:      atoi(r.FormValue("rating")),
 		Comments:    r.FormValue("comments"),
-		Format:      "CBZ",
+		Format:      format,
 		Data:        dataFile,
 		Cover:       cover,
 	}
@@ -99,7 +116,7 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	book, err := s.lib.AddBook(r.Context(), in)
+	book, err := s.lib().AddBook(r.Context(), in)
 	if err != nil {
 		if errors.Is(err, calibre.ErrReadOnly) {
 			writeError(w, http.StatusForbidden, "library is read-only")
@@ -109,6 +126,30 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, book)
+}
+
+// generateCover best-effort extracts a cover image (JPEG) for the uploaded
+// file. A malformed CBZ is rejected (returns an error); for every other format
+// a missing cover is not fatal (returns nil, nil).
+func (s *Server) generateCover(path, format string) ([]byte, error) {
+	switch format {
+	case "CBZ":
+		data, err := s.reader.FirstPageJPEG(path, 600)
+		if err == nil {
+			return data, nil
+		}
+		if errors.Is(err, reader.ErrPageOutOfRange) {
+			return nil, nil // empty but valid archive
+		}
+		return nil, errors.New("not a valid CBZ archive")
+	case "EPUB":
+		if data, err := s.reader.EpubCoverJPEG(path, 600); err == nil {
+			return data, nil
+		}
+		return nil, nil // no embedded cover; not fatal
+	default:
+		return nil, nil // PDF/CBR/MOBI/… : no auto cover
+	}
 }
 
 type updateBookBody struct {
@@ -158,7 +199,7 @@ func (s *Server) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 			in.PubDate = &t
 		}
 	}
-	updated, err := s.lib.UpdateBook(r.Context(), b.ID, in)
+	updated, err := s.lib().UpdateBook(r.Context(), b.ID, in)
 	if err != nil {
 		if errors.Is(err, calibre.ErrReadOnly) {
 			writeError(w, http.StatusForbidden, "library is read-only")
@@ -181,7 +222,7 @@ func (s *Server) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.lib.DeleteBook(r.Context(), b.ID); err != nil {
+	if err := s.lib().DeleteBook(r.Context(), b.ID); err != nil {
 		if errors.Is(err, calibre.ErrReadOnly) {
 			writeError(w, http.StatusForbidden, "library is read-only")
 			return

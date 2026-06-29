@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -14,25 +15,31 @@ import (
 	"incipit/web"
 )
 
+// LibraryPathKey is the app.db settings key holding the Calibre library path
+// chosen during first-run setup (when INCIPIT_LIBRARY is not set).
+const LibraryPathKey = "library_path"
+
 // Server holds the HTTP dependencies and builds the router.
 type Server struct {
 	cfg      *config.Config
-	lib      *calibre.Adapter
+	libPtr   atomic.Pointer[calibre.Adapter] // set at boot or during setup
 	store    *appdb.Store
 	auth     *auth.Service
 	reader   *reader.Service
+	ldap     *auth.LDAPManager
 	proxyCfg auth.ProxyConfig
 	limiter  *rateLimiter
 }
 
-// New constructs a Server.
-func New(cfg *config.Config, lib *calibre.Adapter, store *appdb.Store, authSvc *auth.Service, rd *reader.Service) *Server {
-	return &Server{
+// New constructs a Server. lib may be nil when the library has not been
+// configured yet (it is then opened during first-run setup).
+func New(cfg *config.Config, lib *calibre.Adapter, store *appdb.Store, authSvc *auth.Service, rd *reader.Service, ldap *auth.LDAPManager) *Server {
+	s := &Server{
 		cfg:    cfg,
-		lib:    lib,
 		store:  store,
 		auth:   authSvc,
 		reader: rd,
+		ldap:   ldap,
 		proxyCfg: auth.ProxyConfig{
 			Enabled:     cfg.ProxyAuth.Enabled,
 			UserHeader:  cfg.ProxyAuth.UserHeader,
@@ -41,6 +48,30 @@ func New(cfg *config.Config, lib *calibre.Adapter, store *appdb.Store, authSvc *
 		},
 		limiter: newRateLimiter(10, time.Minute),
 	}
+	if lib != nil {
+		s.libPtr.Store(lib)
+	}
+	return s
+}
+
+// lib returns the current Calibre adapter, or nil if the library has not been
+// configured yet.
+func (s *Server) lib() *calibre.Adapter { return s.libPtr.Load() }
+
+// libraryConfigured reports whether a Calibre library is open.
+func (s *Server) libraryConfigured() bool { return s.libPtr.Load() != nil }
+
+// openLibrary opens the Calibre library at path and makes it the live one,
+// closing the previously-open adapter (if any) to release its handle.
+func (s *Server) openLibrary(path string) error {
+	a, err := calibre.Open(path, s.cfg.ReadOnly)
+	if err != nil {
+		return err
+	}
+	if old := s.libPtr.Swap(a); old != nil {
+		_ = old.Close()
+	}
+	return nil
 }
 
 // Router builds the complete HTTP handler.
@@ -61,6 +92,7 @@ func (s *Server) Router() http.Handler {
 			r.Use(s.csrfProtect)
 
 			r.Get("/auth/me", s.handleMe)
+			r.Put("/auth/me", s.handleUpdateMe)
 			r.Post("/auth/logout", s.handleLogout)
 
 			r.Get("/books", s.handleListBooks)
@@ -71,6 +103,7 @@ func (s *Server) Router() http.Handler {
 			r.Get("/books/{id}/cover", s.handleCover)
 			r.Get("/books/{id}/thumbnail", s.handleThumbnail)
 			r.Get("/books/{id}/file", s.handleDownload)
+			r.Get("/books/{id}/content", s.handleContent)
 			r.Get("/books/{id}/pages", s.handlePageList)
 			r.Get("/books/{id}/pages/{n}", s.handlePage)
 			r.Get("/books/{id}/progress", s.handleGetProgress)
@@ -96,6 +129,14 @@ func (s *Server) Router() http.Handler {
 				r.Post("/users", s.handleCreateUser)
 				r.Put("/users/{id}", s.handleUpdateUser)
 				r.Delete("/users/{id}", s.handleDeleteUser)
+
+				r.Get("/library", s.handleGetLibrary)
+				r.Put("/library", s.handleUpdateLibrary)
+
+				r.Get("/ldap", s.handleGetLDAP)
+				r.Put("/ldap", s.handleUpdateLDAP)
+				r.Post("/ldap/test", s.handleTestLDAP)
+				r.Post("/ldap/import", s.handleImportLDAP)
 			})
 		})
 	})

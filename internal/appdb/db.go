@@ -77,6 +77,8 @@ var migrations = []string{
 		key   TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	);`,
+	// Per-account UI language preference ('en' | 'ja').
+	`ALTER TABLE users ADD COLUMN language TEXT NOT NULL DEFAULT 'en';`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

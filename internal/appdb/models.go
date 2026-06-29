@@ -22,6 +22,7 @@ type User struct {
 	CanDownload  bool       `json:"canDownload"`
 	CanUpload    bool       `json:"canUpload"`
 	CanEdit      bool       `json:"canEdit"`
+	Language     string     `json:"language"` // UI language preference: "en" | "ja"
 	CreatedAt    time.Time  `json:"createdAt"`
 }
 

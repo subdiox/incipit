@@ -7,6 +7,7 @@ import { BookDetailPage } from '@/pages/BookDetailPage'
 import { ReaderPage } from '@/pages/ReaderPage'
 import { ShelvesPage } from '@/pages/ShelvesPage'
 import { AdminPage } from '@/pages/AdminPage'
+import { AccountPage } from '@/pages/AccountPage'
 
 export function App() {
   return (
@@ -33,6 +34,7 @@ export function App() {
         <Route path="/" element={<LibraryPage />} />
         <Route path="/books/:id" element={<BookDetailPage />} />
         <Route path="/shelves" element={<ShelvesPage />} />
+        <Route path="/account" element={<AccountPage />} />
         <Route
           path="/admin"
           element={

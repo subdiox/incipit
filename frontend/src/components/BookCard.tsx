@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { Book } from '@/types'
 import { authorNames } from '@/lib/format'
+import { useI18n } from '@/i18n'
 import { Cover } from './Cover'
 
 interface BookCardProps {
@@ -9,6 +10,7 @@ interface BookCardProps {
 }
 
 export function BookCard({ book, action }: BookCardProps) {
+  const { t } = useI18n()
   return (
     <div className="group relative">
       <Link to={`/books/${book.id}`} className="block">
@@ -25,7 +27,9 @@ export function BookCard({ book, action }: BookCardProps) {
           <h3 className="line-clamp-1 text-sm font-medium text-slate-100 transition-colors group-hover:text-white">
             {book.title}
           </h3>
-          <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{authorNames(book.authors)}</p>
+          <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
+            {authorNames(book.authors) || t('common.unknownAuthor')}
+          </p>
           {book.series && (
             <p className="mt-0.5 line-clamp-1 text-[11px] text-accent-300/80">
               {book.series.name}

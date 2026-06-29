@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -64,26 +65,30 @@ func run() error {
 		return err
 	}
 
-	lib, err := calibre.Open(cfg.LibraryPath, cfg.ReadOnly)
-	if err != nil {
-		return err
-	}
-	defer lib.Close()
-
 	store, err := appdb.Open(cfg.AppDBPath())
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 
-	var external auth.ExternalAuthenticator
-	if ldap := auth.NewLDAPAuthenticator(cfg.LDAP); ldap != nil {
-		external = ldap
+	ctx := context.Background()
+
+	// The library path may come from app.db (chosen during first-run setup) or
+	// INCIPIT_LIBRARY; when neither is set the server starts unconfigured and
+	// setup collects it.
+	lib, err := openConfiguredLibrary(ctx, store, cfg)
+	if err != nil {
+		return err
 	}
-	authSvc := auth.NewService(store, external)
+	if lib != nil {
+		defer lib.Close()
+	}
+
+	ldapMgr := auth.NewLDAPManager(loadLDAPSettings(ctx, store, cfg))
+	authSvc := auth.NewService(store, ldapMgr)
 	rd := reader.NewService(cfg.CacheDir)
 
-	srv := httpapi.New(cfg, lib, store, authSvc, rd)
+	srv := httpapi.New(cfg, lib, store, authSvc, rd, ldapMgr)
 
 	// Periodically purge expired sessions.
 	stopJanitor := startJanitor(store)
@@ -111,6 +116,53 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return httpServer.Shutdown(ctx)
+}
+
+// openConfiguredLibrary resolves the Calibre library path (app.db setting from
+// first-run setup, else INCIPIT_LIBRARY) and opens it. It returns (nil, nil)
+// when no path is configured yet, so the server can start and let setup choose
+// one.
+func openConfiguredLibrary(ctx context.Context, store *appdb.Store, cfg *config.Config) (*calibre.Adapter, error) {
+	path, _ := store.GetSetting(ctx, httpapi.LibraryPathKey)
+	fromSetting := path != ""
+	if path == "" {
+		path = cfg.LibraryPath // INCIPIT_LIBRARY
+	}
+	if path == "" {
+		slog.Info("no library configured; first-run setup will prompt for the path")
+		return nil, nil
+	}
+	lib, err := calibre.Open(path, cfg.ReadOnly)
+	if err != nil {
+		return nil, err
+	}
+	// Persist an env-provided path so the library stays configured even if
+	// INCIPIT_LIBRARY is later removed (avoids a locked-out, setup-complete-but-
+	// library-missing state).
+	if !fromSetting {
+		_ = store.SetSetting(ctx, httpapi.LibraryPathKey, path)
+	}
+	return lib, nil
+}
+
+// loadLDAPSettings reads the admin-editable LDAP settings from app.db, falling
+// back to the connection-related environment variables on first run so existing
+// env-based deployments keep working (and become editable in the admin UI).
+func loadLDAPSettings(ctx context.Context, store *appdb.Store, cfg *config.Config) auth.LDAPSettings {
+	if raw, _ := store.GetSetting(ctx, httpapi.LDAPSettingKey); raw != "" {
+		var s auth.LDAPSettings
+		if json.Unmarshal([]byte(raw), &s) == nil {
+			return s
+		}
+	}
+	return auth.LDAPSettings{
+		Enabled:      cfg.LDAP.Enabled,
+		URL:          cfg.LDAP.URL,
+		StartTLS:     cfg.LDAP.StartTLS,
+		BaseDN:       cfg.LDAP.BaseDN,
+		UserFilter:   cfg.LDAP.UserFilter,
+		AdminGroupDN: cfg.LDAP.AdminGroupDN,
+	}
 }
 
 // startJanitor runs a background session cleanup until the returned stop func is

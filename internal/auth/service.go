@@ -69,17 +69,13 @@ func (s *Service) Login(ctx context.Context, username, password string) (*appdb.
 	return s.provisionExternal(ctx, username, appdb.SourceLDAP, isAdmin)
 }
 
-// provisionExternal creates or updates the local record mirroring an external
-// user, returning the resolved account.
+// provisionExternal creates the local record mirroring an external user on
+// first sight, returning the resolved account. Existing accounts are returned
+// as-is: the directory sets initial admin status, but an Incipit admin's later
+// permission overrides are preserved across logins and imports.
 func (s *Service) provisionExternal(ctx context.Context, username string, source appdb.UserSource, isAdmin bool) (*appdb.User, error) {
 	existing, err := s.store.GetUserByUsername(ctx, username)
 	if err == nil {
-		if existing.IsAdmin != isAdmin {
-			existing.IsAdmin = isAdmin
-			if uerr := s.store.UpdateUser(ctx, existing); uerr != nil {
-				return nil, uerr
-			}
-		}
 		return existing, nil
 	}
 	if !errors.Is(err, appdb.ErrNotFound) {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
+import { useI18n } from '@/i18n'
 import type { Shelf } from '@/types'
 import { BookCard, BookGrid } from '@/components/BookCard'
 import { Modal } from '@/components/Modal'
@@ -9,6 +10,7 @@ import { IconChevronLeft, IconClose, IconPlus, IconShelf, IconTrash } from '@/co
 
 function CreateShelfModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient()
+  const { t } = useI18n()
   const [name, setName] = useState('')
   const [isPublic, setIsPublic] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -21,11 +23,11 @@ function CreateShelfModal({ open, onClose }: { open: boolean; onClose: () => voi
       setIsPublic(false)
       onClose()
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : 'Failed to create shelf.'),
+    onError: (e) => setError(e instanceof ApiError ? e.message : t('shelves.failedToCreate')),
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="Create shelf">
+    <Modal open={open} onClose={onClose} title={t('shelves.createTitle')}>
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -35,7 +37,7 @@ function CreateShelfModal({ open, onClose }: { open: boolean; onClose: () => voi
         className="space-y-4"
       >
         <div>
-          <label className="label">Name</label>
+          <label className="label">{t('shelves.name')}</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
         </div>
         <label className="flex items-center gap-2.5 text-sm text-slate-300">
@@ -45,7 +47,7 @@ function CreateShelfModal({ open, onClose }: { open: boolean; onClose: () => voi
             onChange={(e) => setIsPublic(e.target.checked)}
             className="h-4 w-4 rounded border-ink-600 bg-ink-800 text-accent-500 focus:ring-accent-500/40"
           />
-          Make this shelf public
+          {t('shelves.makePublic')}
         </label>
         {error && (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
@@ -54,11 +56,11 @@ function CreateShelfModal({ open, onClose }: { open: boolean; onClose: () => voi
         )}
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="submit" className="btn-primary" disabled={mutation.isPending || !name.trim()}>
             {mutation.isPending && <Spinner className="h-4 w-4" />}
-            Create
+            {t('common.create')}
           </button>
         </div>
       </form>
@@ -68,6 +70,7 @@ function CreateShelfModal({ open, onClose }: { open: boolean; onClose: () => voi
 
 function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
   const queryClient = useQueryClient()
+  const { t } = useI18n()
   const { data, isLoading } = useQuery({
     queryKey: ['shelf-books', shelf.id],
     queryFn: () => api.shelfBooks(shelf.id),
@@ -85,14 +88,14 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
     <div>
       <button type="button" className="btn-ghost mb-4 -ml-2 inline-flex" onClick={onBack}>
         <IconChevronLeft width={18} height={18} />
-        Shelves
+        {t('shelves.title')}
       </button>
 
       <div className="mb-5 flex items-center gap-2">
         <h1 className="text-2xl font-semibold tracking-tight text-white">{shelf.name}</h1>
         {shelf.isPublic && (
           <span className="rounded-full bg-accent-500/15 px-2.5 py-0.5 text-xs font-medium text-accent-200">
-            Public
+            {t('shelves.public')}
           </span>
         )}
       </div>
@@ -113,8 +116,8 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
                     removeMutation.mutate(book.id)
                   }}
                   className="rounded-lg bg-black/60 p-1.5 text-slate-200 opacity-0 backdrop-blur transition-opacity hover:bg-red-500/80 hover:text-white group-hover:opacity-100"
-                  aria-label="Remove from shelf"
-                  title="Remove from shelf"
+                  aria-label={t('shelves.removeFromShelf')}
+                  title={t('shelves.removeFromShelf')}
                 >
                   <IconClose width={14} height={14} />
                 </button>
@@ -124,7 +127,7 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
         </BookGrid>
       ) : (
         <div className="card px-6 py-16 text-center text-sm text-slate-500">
-          This shelf is empty. Add books from their detail page.
+          {t('shelves.emptyDetail')}
         </div>
       )}
     </div>
@@ -133,6 +136,7 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
 
 export function ShelvesPage() {
   const queryClient = useQueryClient()
+  const { t } = useI18n()
   const [createOpen, setCreateOpen] = useState(false)
   const [selected, setSelected] = useState<Shelf | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Shelf | null>(null)
@@ -157,12 +161,12 @@ export function ShelvesPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Shelves</h1>
-          <p className="mt-0.5 text-sm text-slate-500">Organize books into collections.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">{t('shelves.title')}</h1>
+          <p className="mt-0.5 text-sm text-slate-500">{t('shelves.subtitle')}</p>
         </div>
         <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
           <IconPlus width={16} height={16} />
-          <span className="hidden sm:inline">New shelf</span>
+          <span className="hidden sm:inline">{t('shelves.newShelf')}</span>
         </button>
       </div>
 
@@ -182,8 +186,10 @@ export function ShelvesPage() {
               <div className="min-w-0 flex-1">
                 <h3 className="truncate font-medium text-white">{shelf.name}</h3>
                 <p className="text-xs text-slate-500">
-                  {shelf.bookCount} {shelf.bookCount === 1 ? 'book' : 'books'}
-                  {shelf.isPublic ? ' · Public' : ''}
+                  {t(shelf.bookCount === 1 ? 'common.books_one' : 'common.books_other', {
+                    count: shelf.bookCount,
+                  })}
+                  {shelf.isPublic ? ` · ${t('shelves.public')}` : ''}
                 </p>
               </div>
               <button
@@ -193,7 +199,7 @@ export function ShelvesPage() {
                   setConfirmDelete(shelf)
                 }}
                 className="rounded-lg p-2 text-slate-500 opacity-0 transition-all hover:bg-red-500/10 hover:text-red-300 group-hover:opacity-100"
-                aria-label="Delete shelf"
+                aria-label={t('shelves.deleteTitle')}
               >
                 <IconTrash width={18} height={18} />
               </button>
@@ -206,31 +212,32 @@ export function ShelvesPage() {
             <IconShelf width={28} height={28} />
           </span>
           <div>
-            <h2 className="text-lg font-medium text-white">No shelves yet</h2>
-            <p className="mt-1 text-sm text-slate-500">Create a shelf to start grouping your comics.</p>
+            <h2 className="text-lg font-medium text-white">{t('shelves.noneTitle')}</h2>
+            <p className="mt-1 text-sm text-slate-500">{t('shelves.noneHint')}</p>
           </div>
           <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
             <IconPlus width={16} height={16} />
-            New shelf
+            {t('shelves.newShelf')}
           </button>
         </div>
       )}
 
       <CreateShelfModal open={createOpen} onClose={() => setCreateOpen(false)} />
 
-      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="Delete shelf">
+      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title={t('shelves.deleteTitle')}>
         <p className="text-sm text-slate-300">
-          Delete <span className="font-medium text-white">{confirmDelete?.name}</span>? The books themselves
-          won't be removed from your library.
+          {t('shelves.deleteConfirmPrefix')}
+          <span className="font-medium text-white">{confirmDelete?.name}</span>
+          {t('shelves.deleteConfirmSuffix')}
         </p>
         {deleteMutation.isError && (
           <p className="mt-3 text-sm text-red-300">
-            {(deleteMutation.error as Error)?.message ?? 'Failed to delete shelf.'}
+            {(deleteMutation.error as Error)?.message ?? t('shelves.failedToDelete')}
           </p>
         )}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={() => setConfirmDelete(null)}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -239,7 +246,7 @@ export function ShelvesPage() {
             disabled={deleteMutation.isPending}
           >
             {deleteMutation.isPending && <Spinner className="h-4 w-4" />}
-            Delete
+            {t('common.delete')}
           </button>
         </div>
       </Modal>

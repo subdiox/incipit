@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
+import { useI18n } from '@/i18n'
 import {
   IconAdmin,
   IconBook,
@@ -44,6 +45,7 @@ function NavItem({
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { user, logout } = useAuth()
+  const { t } = useI18n()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
@@ -65,30 +67,37 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </Link>
 
       <nav className="flex-1 space-y-1 px-2">
-        <NavItem to="/" icon={<IconLibrary width={18} height={18} />} label="Library" onClick={onNavigate} />
-        <NavItem to="/shelves" icon={<IconShelf width={18} height={18} />} label="Shelves" onClick={onNavigate} />
+        <NavItem to="/" icon={<IconLibrary width={18} height={18} />} label={t('nav.library')} onClick={onNavigate} />
+        <NavItem to="/shelves" icon={<IconShelf width={18} height={18} />} label={t('nav.shelves')} onClick={onNavigate} />
         {user?.isAdmin && (
-          <NavItem to="/admin" icon={<IconAdmin width={18} height={18} />} label="Admin" onClick={onNavigate} />
+          <NavItem to="/admin" icon={<IconAdmin width={18} height={18} />} label={t('nav.admin')} onClick={onNavigate} />
         )}
       </nav>
 
       <div className="border-t border-ink-700 p-2">
-        <div className="flex items-center gap-3 rounded-xl px-3 py-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-700 text-sm font-semibold uppercase text-accent-300">
-            {user?.username?.[0] ?? '?'}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-slate-200">{user?.username}</p>
-            <p className="truncate text-[11px] text-slate-500">
-              {user?.isAdmin ? 'Administrator' : 'Member'}
-            </p>
-          </div>
+        <div className="flex items-center gap-1">
+          <Link
+            to="/account"
+            onClick={onNavigate}
+            title={t('nav.account')}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-ink-800"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-700 text-sm font-semibold uppercase text-accent-300">
+              {user?.username?.[0] ?? '?'}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-slate-200">{user?.username}</p>
+              <p className="truncate text-[11px] text-slate-500">
+                {user?.isAdmin ? t('nav.administrator') : t('nav.member')}
+              </p>
+            </div>
+          </Link>
           <button
             type="button"
             onClick={handleLogout}
             className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-ink-700 hover:text-white"
-            aria-label="Log out"
-            title="Log out"
+            aria-label={t('nav.logout')}
+            title={t('nav.logout')}
           >
             <IconLogout width={18} height={18} />
           </button>
@@ -101,6 +110,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 function TopBar({ onMenu }: { onMenu: () => void }) {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
+  const { t } = useI18n()
   const [value, setValue] = useState(params.get('search') ?? '')
 
   // Keep input in sync when navigating between pages.
@@ -125,7 +135,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
         type="button"
         onClick={onMenu}
         className="rounded-lg p-2 text-slate-300 hover:bg-ink-800 hover:text-white lg:hidden"
-        aria-label="Open menu"
+        aria-label={t('nav.openMenu')}
       >
         <IconMenu />
       </button>
@@ -148,7 +158,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
             next.delete('offset')
             setParams(next, { replace: true })
           }}
-          placeholder="Search your library…"
+          placeholder={t('nav.searchPlaceholder')}
           className="input pl-10"
         />
       </form>
@@ -157,6 +167,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
 }
 
 export function Layout() {
+  const { t } = useI18n()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
@@ -179,7 +190,7 @@ export function Layout() {
               type="button"
               onClick={() => setMobileOpen(false)}
               className="absolute right-3 top-3 rounded-lg p-1.5 text-slate-400 hover:bg-ink-700 hover:text-white"
-              aria-label="Close menu"
+              aria-label={t('nav.closeMenu')}
             >
               <IconClose width={18} height={18} />
             </button>

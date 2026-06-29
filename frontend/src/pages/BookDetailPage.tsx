@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, mediaUrl } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
+import { useI18n } from '@/i18n'
 import type { Book, BookUpdate } from '@/types'
 import { authorNames, formatBytes, formatDate, languageLabel } from '@/lib/format'
 import { Cover } from '@/components/Cover'
@@ -29,6 +30,7 @@ function Meta({ label, children }: { label: string; children: React.ReactNode })
 
 function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient()
+  const { t } = useI18n()
   const [form, setForm] = useState({
     title: book.title,
     authors: book.authors.map((a) => a.name).join(', '),
@@ -51,7 +53,7 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
       queryClient.invalidateQueries({ queryKey: ['facets'] })
       onClose()
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : 'Failed to save changes.'),
+    onError: (e) => setError(e instanceof ApiError ? e.message : t('book.failedToSave')),
   })
 
   const split = (v: string) =>
@@ -79,23 +81,23 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit metadata" maxWidth="max-w-xl">
+    <Modal open={open} onClose={onClose} title={t('book.editMetadata')} maxWidth="max-w-xl">
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="label">Title</label>
+            <label className="label">{t('book.fieldTitle')}</label>
             <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Authors (comma separated)</label>
+            <label className="label">{t('book.fieldAuthors')}</label>
             <input className="input" value={form.authors} onChange={(e) => setForm({ ...form, authors: e.target.value })} />
           </div>
           <div>
-            <label className="label">Series</label>
+            <label className="label">{t('book.fieldSeries')}</label>
             <input className="input" value={form.series} onChange={(e) => setForm({ ...form, series: e.target.value })} />
           </div>
           <div>
-            <label className="label">Series index</label>
+            <label className="label">{t('book.fieldSeriesIndex')}</label>
             <input
               className="input"
               type="number"
@@ -105,15 +107,15 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
             />
           </div>
           <div>
-            <label className="label">Tags (comma separated)</label>
+            <label className="label">{t('book.fieldTags')}</label>
             <input className="input" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
           </div>
           <div>
-            <label className="label">Publisher</label>
+            <label className="label">{t('book.fieldPublisher')}</label>
             <input className="input" value={form.publisher} onChange={(e) => setForm({ ...form, publisher: e.target.value })} />
           </div>
           <div>
-            <label className="label">Languages (comma separated)</label>
+            <label className="label">{t('book.fieldLanguages')}</label>
             <input
               className="input"
               value={form.languages}
@@ -121,7 +123,7 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
             />
           </div>
           <div>
-            <label className="label">Publication date</label>
+            <label className="label">{t('book.fieldPubdate')}</label>
             <input
               className="input"
               type="date"
@@ -130,11 +132,11 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Rating</label>
+            <label className="label">{t('book.fieldRating')}</label>
             <Rating value={form.rating} onChange={(v) => setForm({ ...form, rating: v })} />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Comments</label>
+            <label className="label">{t('book.fieldComments')}</label>
             <textarea
               className="input min-h-[100px] resize-y"
               value={form.comments}
@@ -151,11 +153,11 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
 
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="submit" className="btn-primary" disabled={mutation.isPending}>
             {mutation.isPending && <Spinner className="h-4 w-4" />}
-            Save changes
+            {t('common.saveChanges')}
           </button>
         </div>
       </form>
@@ -169,6 +171,7 @@ export function BookDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user } = useAuth()
+  const { t } = useI18n()
 
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -198,18 +201,20 @@ export function BookDetailPage() {
   if (isError || !book)
     return (
       <div className="card p-8 text-center text-sm text-red-300">
-        {(error as Error)?.message ?? 'Book not found.'}
+        {(error as Error)?.message ?? t('book.notFound')}
       </div>
     )
 
   const hasProgress = progress && progress.page > 0 && progress.totalPages > 0
-  const cbz = book.formats.find((f) => f.format.toLowerCase() === 'cbz') ?? book.formats[0]
+  // Formats with an in-browser reader (CBZ image reader, PDF viewer, EPUB).
+  const readable = book.formats.some((f) => ['cbz', 'pdf', 'epub'].includes(f.format.toLowerCase()))
+  const downloadable = book.formats.length > 0
 
   return (
     <div>
       <Link to="/" className="btn-ghost mb-4 -ml-2 inline-flex">
         <IconChevronLeft width={18} height={18} />
-        Library
+        {t('nav.library')}
       </Link>
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[300px_1fr]">
@@ -220,15 +225,23 @@ export function BookDetailPage() {
           </div>
 
           <div className="mt-4 space-y-2">
-            <Link to={`/books/${book.id}/read`} className="btn-primary w-full">
-              <IconBook width={18} height={18} />
-              {hasProgress ? `Resume · ${progress!.page + 1}/${progress!.totalPages}` : 'Read'}
-            </Link>
+            {readable && (
+              <Link to={`/books/${book.id}/read`} className="btn-primary w-full">
+                <IconBook width={18} height={18} />
+                {hasProgress
+                  ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
+                  : t('book.read')}
+              </Link>
+            )}
 
-            {user?.canDownload && cbz && (
-              <a href={mediaUrl.file(book.id)} className="btn-secondary w-full" download>
+            {user?.canDownload && downloadable && (
+              <a
+                href={mediaUrl.file(book.id)}
+                className={`w-full ${readable ? 'btn-secondary' : 'btn-primary'}`}
+                download
+              >
                 <IconDownload width={18} height={18} />
-                Download
+                {t('book.download')}
               </a>
             )}
 
@@ -240,7 +253,7 @@ export function BookDetailPage() {
               <div className="flex gap-2 pt-1">
                 <button type="button" className="btn-secondary flex-1" onClick={() => setEditing(true)}>
                   <IconEdit width={16} height={16} />
-                  Edit
+                  {t('book.edit')}
                 </button>
                 <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>
                   <IconTrash width={16} height={16} />
@@ -253,12 +266,14 @@ export function BookDetailPage() {
         {/* Details */}
         <div className="min-w-0">
           <h1 className="text-3xl font-semibold tracking-tight text-white">{book.title}</h1>
-          <p className="mt-1.5 text-lg text-slate-400">{authorNames(book.authors)}</p>
+          <p className="mt-1.5 text-lg text-slate-400">
+            {authorNames(book.authors) || t('common.unknownAuthor')}
+          </p>
 
           {book.series && (
             <p className="mt-1 text-sm text-accent-300">
               {book.series.name}
-              {book.seriesIndex ? ` · Book ${book.seriesIndex}` : ''}
+              {book.seriesIndex ? ` · ${t('book.volume', { index: book.seriesIndex })}` : ''}
             </p>
           )}
 
@@ -279,19 +294,19 @@ export function BookDetailPage() {
           )}
 
           <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-            {book.publisher && <Meta label="Publisher">{book.publisher.name}</Meta>}
-            {formatDate(book.pubdate) && <Meta label="Published">{formatDate(book.pubdate)}</Meta>}
+            {book.publisher && <Meta label={t('book.publisher')}>{book.publisher.name}</Meta>}
+            {formatDate(book.pubdate) && <Meta label={t('book.published')}>{formatDate(book.pubdate)}</Meta>}
             {book.languages.length > 0 && (
-              <Meta label="Languages">{book.languages.map(languageLabel).join(', ')}</Meta>
+              <Meta label={t('book.languages')}>{book.languages.map(languageLabel).join(', ')}</Meta>
             )}
-            {formatDate(book.timestamp) && <Meta label="Added">{formatDate(book.timestamp)}</Meta>}
+            {formatDate(book.timestamp) && <Meta label={t('book.added')}>{formatDate(book.timestamp)}</Meta>}
             {book.formats.length > 0 && (
-              <Meta label="Formats">
+              <Meta label={t('book.formats')}>
                 {book.formats.map((f) => `${f.format} (${formatBytes(f.size)})`).join(', ')}
               </Meta>
             )}
             {Object.keys(book.identifiers).length > 0 && (
-              <Meta label="Identifiers">
+              <Meta label={t('book.identifiers')}>
                 <div className="flex flex-col gap-0.5">
                   {Object.entries(book.identifiers).map(([k, v]) => (
                     <span key={k} className="text-xs text-slate-400">
@@ -306,7 +321,7 @@ export function BookDetailPage() {
           {book.comments && (
             <div className="mt-8">
               <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Description
+                {t('book.description')}
               </h2>
               <div
                 className="prose-comments space-y-3 text-sm leading-relaxed text-slate-300 [&_a]:text-accent-300 [&_p]:mb-3"
@@ -319,19 +334,20 @@ export function BookDetailPage() {
 
       {editing && <EditModal book={book} open={editing} onClose={() => setEditing(false)} />}
 
-      <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete book">
+      <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title={t('book.deleteTitle')}>
         <p className="text-sm text-slate-300">
-          Are you sure you want to permanently delete <span className="font-medium text-white">{book.title}</span>?
-          This cannot be undone.
+          {t('book.deleteConfirmPrefix')}
+          <span className="font-medium text-white">{book.title}</span>
+          {t('book.deleteConfirmSuffix')}
         </p>
         {deleteMutation.isError && (
           <p className="mt-3 text-sm text-red-300">
-            {(deleteMutation.error as Error)?.message ?? 'Failed to delete.'}
+            {(deleteMutation.error as Error)?.message ?? t('book.failedToDelete')}
           </p>
         )}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={() => setConfirmDelete(false)}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -340,7 +356,7 @@ export function BookDetailPage() {
             disabled={deleteMutation.isPending}
           >
             {deleteMutation.isPending && <Spinner className="h-4 w-4" />}
-            Delete
+            {t('common.delete')}
           </button>
         </div>
       </Modal>

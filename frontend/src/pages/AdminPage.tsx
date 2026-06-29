@@ -2,19 +2,23 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
+import { useI18n } from '@/i18n'
+import type { TranslationKey } from '@/i18n/en'
 import type { User } from '@/types'
 import { formatDate } from '@/lib/format'
 import { Modal } from '@/components/Modal'
 import { Spinner, FullPageSpinner } from '@/components/Spinner'
+import { LibrarySettings } from '@/components/LibrarySettings'
+import { LdapSettings } from '@/components/LdapSettings'
 import { IconCheck, IconEdit, IconPlus, IconTrash } from '@/components/icons'
 
 type Perm = 'isAdmin' | 'canDownload' | 'canUpload' | 'canEdit'
 
-const PERM_LABELS: { key: Perm; label: string }[] = [
-  { key: 'isAdmin', label: 'Admin' },
-  { key: 'canDownload', label: 'Download' },
-  { key: 'canUpload', label: 'Upload' },
-  { key: 'canEdit', label: 'Edit' },
+const PERM_LABELS: { key: Perm; labelKey: TranslationKey }[] = [
+  { key: 'isAdmin', labelKey: 'admin.permAdmin' },
+  { key: 'canDownload', labelKey: 'admin.permDownload' },
+  { key: 'canUpload', labelKey: 'admin.permUpload' },
+  { key: 'canEdit', labelKey: 'admin.permEdit' },
 ]
 
 function PermBadge({ active, label }: { active: boolean; label: string }) {
@@ -54,6 +58,7 @@ function Checkbox({
 
 function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient()
+  const { t } = useI18n()
   const [form, setForm] = useState({
     username: '',
     password: '',
@@ -71,17 +76,17 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
       setForm({ username: '', password: '', isAdmin: false, canDownload: true, canUpload: false, canEdit: false })
       onClose()
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : 'Failed to create user.'),
+    onError: (e) => setError(e instanceof ApiError ? e.message : t('admin.failedToCreate')),
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="Create user">
+    <Modal open={open} onClose={onClose} title={t('admin.createTitle')}>
       <form
         onSubmit={(e) => {
           e.preventDefault()
           setError(null)
           if (form.password.length < 8) {
-            setError('Password must be at least 8 characters.')
+            setError(t('admin.passwordTooShort'))
             return
           }
           mutation.mutate()
@@ -89,7 +94,7 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
         className="space-y-4"
       >
         <div>
-          <label className="label">Username</label>
+          <label className="label">{t('admin.username')}</label>
           <input
             className="input"
             value={form.username}
@@ -99,7 +104,7 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
           />
         </div>
         <div>
-          <label className="label">Password</label>
+          <label className="label">{t('admin.password')}</label>
           <input
             className="input"
             type="password"
@@ -107,13 +112,13 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             required
           />
-          <p className="mt-1.5 text-xs text-slate-500">At least 8 characters.</p>
+          <p className="mt-1.5 text-xs text-slate-500">{t('admin.atLeast8')}</p>
         </div>
         <div className="grid grid-cols-2 gap-3 rounded-xl border border-ink-700 bg-ink-900 p-4">
-          {PERM_LABELS.map(({ key, label }) => (
+          {PERM_LABELS.map(({ key, labelKey }) => (
             <Checkbox
               key={key}
-              label={label}
+              label={t(labelKey)}
               checked={form[key]}
               onChange={(v) => setForm({ ...form, [key]: v })}
             />
@@ -126,11 +131,11 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
         )}
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="submit" className="btn-primary" disabled={mutation.isPending}>
             {mutation.isPending && <Spinner className="h-4 w-4" />}
-            Create user
+            {t('admin.createUser')}
           </button>
         </div>
       </form>
@@ -140,6 +145,7 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
 
 function EditUserModal({ user, open, onClose }: { user: User; open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient()
+  const { t } = useI18n()
   const [form, setForm] = useState({
     password: '',
     isAdmin: user.isAdmin,
@@ -162,17 +168,17 @@ function EditUserModal({ user, open, onClose }: { user: User; open: boolean; onC
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       onClose()
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : 'Failed to update user.'),
+    onError: (e) => setError(e instanceof ApiError ? e.message : t('admin.failedToUpdate')),
   })
 
   return (
-    <Modal open={open} onClose={onClose} title={`Edit ${user.username}`}>
+    <Modal open={open} onClose={onClose} title={t('admin.editTitle', { username: user.username })}>
       <form
         onSubmit={(e) => {
           e.preventDefault()
           setError(null)
           if (form.password && form.password.length < 8) {
-            setError('Password must be at least 8 characters.')
+            setError(t('admin.passwordTooShort'))
             return
           }
           mutation.mutate()
@@ -180,20 +186,20 @@ function EditUserModal({ user, open, onClose }: { user: User; open: boolean; onC
         className="space-y-4"
       >
         <div>
-          <label className="label">Reset password (optional)</label>
+          <label className="label">{t('admin.resetPassword')}</label>
           <input
             className="input"
             type="password"
-            placeholder="Leave blank to keep current"
+            placeholder={t('admin.leaveBlank')}
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
         </div>
         <div className="grid grid-cols-2 gap-3 rounded-xl border border-ink-700 bg-ink-900 p-4">
-          {PERM_LABELS.map(({ key, label }) => (
+          {PERM_LABELS.map(({ key, labelKey }) => (
             <Checkbox
               key={key}
-              label={label}
+              label={t(labelKey)}
               checked={form[key]}
               onChange={(v) => setForm({ ...form, [key]: v })}
             />
@@ -206,11 +212,11 @@ function EditUserModal({ user, open, onClose }: { user: User; open: boolean; onC
         )}
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="submit" className="btn-primary" disabled={mutation.isPending}>
             {mutation.isPending && <Spinner className="h-4 w-4" />}
-            Save
+            {t('common.save')}
           </button>
         </div>
       </form>
@@ -221,6 +227,7 @@ function EditUserModal({ user, open, onClose }: { user: User; open: boolean; onC
 export function AdminPage() {
   const queryClient = useQueryClient()
   const { user: me } = useAuth()
+  const { t } = useI18n()
   const [createOpen, setCreateOpen] = useState(false)
   const [editUser, setEditUser] = useState<User | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null)
@@ -239,12 +246,12 @@ export function AdminPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Users</h1>
-          <p className="mt-0.5 text-sm text-slate-500">Manage accounts and permissions.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">{t('admin.title')}</h1>
+          <p className="mt-0.5 text-sm text-slate-500">{t('admin.subtitle')}</p>
         </div>
         <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
           <IconPlus width={16} height={16} />
-          <span className="hidden sm:inline">New user</span>
+          <span className="hidden sm:inline">{t('admin.newUser')}</span>
         </button>
       </div>
 
@@ -256,10 +263,10 @@ export function AdminPage() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3 font-medium">User</th>
-                  <th className="px-4 py-3 font-medium">Permissions</th>
-                  <th className="px-4 py-3 font-medium">Source</th>
-                  <th className="hidden px-4 py-3 font-medium md:table-cell">Created</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.colUser')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.colPermissions')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.colSource')}</th>
+                  <th className="hidden px-4 py-3 font-medium md:table-cell">{t('admin.colCreated')}</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -273,14 +280,14 @@ export function AdminPage() {
                         </span>
                         <span className="font-medium text-slate-100">
                           {u.username}
-                          {u.id === me?.id && <span className="ml-1.5 text-xs text-slate-500">(you)</span>}
+                          {u.id === me?.id && <span className="ml-1.5 text-xs text-slate-500">{t('admin.you')}</span>}
                         </span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {PERM_LABELS.map(({ key, label }) => (
-                          <PermBadge key={key} active={u[key]} label={label} />
+                        {PERM_LABELS.map(({ key, labelKey }) => (
+                          <PermBadge key={key} active={u[key]} label={t(labelKey)} />
                         ))}
                       </div>
                     </td>
@@ -292,7 +299,7 @@ export function AdminPage() {
                           type="button"
                           onClick={() => setEditUser(u)}
                           className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-ink-700 hover:text-white"
-                          aria-label="Edit user"
+                          aria-label={t('admin.editUser')}
                         >
                           <IconEdit width={16} height={16} />
                         </button>
@@ -301,8 +308,8 @@ export function AdminPage() {
                           onClick={() => setConfirmDelete(u)}
                           disabled={u.id === me?.id}
                           className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-300 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                          aria-label="Delete user"
-                          title={u.id === me?.id ? 'You cannot delete yourself' : 'Delete user'}
+                          aria-label={t('admin.deleteUser')}
+                          title={u.id === me?.id ? t('admin.cannotDeleteSelf') : t('admin.deleteUser')}
                         >
                           <IconTrash width={16} height={16} />
                         </button>
@@ -316,22 +323,26 @@ export function AdminPage() {
         </div>
       )}
 
+      <LibrarySettings />
+      <LdapSettings />
+
       <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} />
       {editUser && <EditUserModal user={editUser} open={!!editUser} onClose={() => setEditUser(null)} />}
 
-      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="Delete user">
+      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title={t('admin.deleteTitle')}>
         <p className="text-sm text-slate-300">
-          Delete user <span className="font-medium text-white">{confirmDelete?.username}</span>? This cannot be
-          undone.
+          {t('admin.deleteConfirmPrefix')}
+          <span className="font-medium text-white">{confirmDelete?.username}</span>
+          {t('admin.deleteConfirmSuffix')}
         </p>
         {deleteMutation.isError && (
           <p className="mt-3 text-sm text-red-300">
-            {(deleteMutation.error as Error)?.message ?? 'Failed to delete user.'}
+            {(deleteMutation.error as Error)?.message ?? t('admin.failedToDeleteUser')}
           </p>
         )}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={() => setConfirmDelete(null)}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -340,7 +351,7 @@ export function AdminPage() {
             disabled={deleteMutation.isPending}
           >
             {deleteMutation.isPending && <Spinner className="h-4 w-4" />}
-            Delete
+            {t('common.delete')}
           </button>
         </div>
       </Modal>

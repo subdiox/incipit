@@ -72,8 +72,10 @@ type ProxyAuthConfig struct {
 // cache directory and persisting a generated session secret when needed.
 func Load() (*Config, error) {
 	c := &Config{
-		Addr:          envOr("INCIPIT_ADDR", ":8080"),
-		LibraryPath:   envOr("INCIPIT_LIBRARY", "/library"),
+		Addr: envOr("INCIPIT_ADDR", ":8080"),
+		// LibraryPath has no built-in default: when INCIPIT_LIBRARY is unset the
+		// path is configured during first-run admin setup (stored in app.db).
+		LibraryPath:   os.Getenv("INCIPIT_LIBRARY"),
 		ConfigDir:     envOr("INCIPIT_CONFIG", "/config"),
 		ReadOnly:      envBool("INCIPIT_READONLY", false),
 		SecureCookies: envBool("INCIPIT_SECURE_COOKIES", false),

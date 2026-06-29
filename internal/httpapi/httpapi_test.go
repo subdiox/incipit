@@ -59,7 +59,8 @@ func newHarness(t *testing.T) *harness {
 		CacheDir:      cacheDir,
 		SessionSecret: []byte("test-secret-test-secret-test-secret"),
 	}
-	srv := New(cfg, lib, store, auth.NewService(store, nil), reader.NewService(cacheDir))
+	ldapMgr := auth.NewLDAPManager(auth.LDAPSettings{})
+	srv := New(cfg, lib, store, auth.NewService(store, ldapMgr), reader.NewService(cacheDir), ldapMgr)
 	ts := httptest.NewServer(srv.Router())
 	t.Cleanup(ts.Close)
 

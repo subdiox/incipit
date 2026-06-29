@@ -3,6 +3,11 @@ import type {
   BooksResponse,
   BookUpdate,
   Facet,
+  LdapImportResult,
+  LdapSettings,
+  LdapTestResult,
+  LdapUpdate,
+  LibrarySettings,
   PagesResponse,
   Progress,
   SetupStatus,
@@ -107,17 +112,23 @@ export const mediaUrl = {
   page: (id: number, n: number, w?: number) =>
     `/api/books/${id}/pages/${n}${w ? `?w=${w}` : ''}`,
   file: (id: number) => `/api/books/${id}/file`,
+  content: (id: number) => `/api/books/${id}/content`,
 }
 
 export const api = {
   // Setup & auth
   setupStatus: () => request<SetupStatus>('/setup/status'),
-  setup: (username: string, password: string) =>
-    request<User>('/setup', { method: 'POST', ...jsonBody({ username, password }) }),
+  setup: (username: string, password: string, libraryPath?: string) =>
+    request<User>('/setup', {
+      method: 'POST',
+      ...jsonBody({ username, password, libraryPath }),
+    }),
   login: (username: string, password: string) =>
     request<User>('/auth/login', { method: 'POST', ...jsonBody({ username, password }) }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   me: () => request<User>('/auth/me'),
+  setLanguage: (language: string) =>
+    request<User>('/auth/me', { method: 'PUT', ...jsonBody({ language }) }),
 
   // Books
   books: (q: BookQuery = {}) => request<BooksResponse>(`/books${bookQueryString(q)}`),
@@ -173,4 +184,16 @@ export const api = {
     },
   ) => request<User>(`/admin/users/${id}`, { method: 'PUT', ...jsonBody(body) }),
   deleteUser: (id: number) => request<void>(`/admin/users/${id}`, { method: 'DELETE' }),
+
+  // Admin · Library
+  library: () => request<LibrarySettings>('/admin/library'),
+  updateLibrary: (path: string) =>
+    request<LibrarySettings>('/admin/library', { method: 'PUT', ...jsonBody({ path }) }),
+
+  // Admin · LDAP
+  ldap: () => request<LdapSettings>('/admin/ldap'),
+  updateLdap: (body: LdapUpdate) =>
+    request<LdapSettings>('/admin/ldap', { method: 'PUT', ...jsonBody(body) }),
+  testLdap: () => request<LdapTestResult>('/admin/ldap/test', { method: 'POST' }),
+  importLdap: () => request<LdapImportResult>('/admin/ldap/import', { method: 'POST' }),
 }

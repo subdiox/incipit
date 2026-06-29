@@ -22,7 +22,7 @@ func (s *Server) bookFromURL(w http.ResponseWriter, r *http.Request) (*calibre.B
 		writeError(w, http.StatusBadRequest, "invalid book id")
 		return nil, false
 	}
-	b, err := s.lib.GetBook(r.Context(), id)
+	b, err := s.lib().GetBook(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "book not found")
 		return nil, false
@@ -45,7 +45,7 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 		Limit:       atoi(q.Get("limit")),
 		Offset:      atoi(q.Get("offset")),
 	}
-	res, err := s.lib.ListBooks(r.Context(), opts)
+	res, err := s.lib().ListBooks(r.Context(), opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "list books")
 		return
@@ -72,7 +72,7 @@ func (s *Server) handleCover(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "no cover")
 		return
 	}
-	coverPath := filepath.Join(s.lib.BookFolder(b), "cover.jpg")
+	coverPath := filepath.Join(s.lib().BookFolder(b), "cover.jpg")
 	f, err := os.Open(coverPath)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no cover")
@@ -106,7 +106,7 @@ func (s *Server) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if b.HasCover {
-		coverPath := filepath.Join(s.lib.BookFolder(b), "cover.jpg")
+		coverPath := filepath.Join(s.lib().BookFolder(b), "cover.jpg")
 		if data, err := os.ReadFile(coverPath); err == nil {
 			serveCachedBytes(w, r, "image/jpeg", data, "")
 			return
@@ -126,22 +126,75 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	cbz, _, _, err := s.resolveCBZ(b)
+	path, format, err := s.resolvePrimaryFile(b)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no downloadable file")
 		return
 	}
-	f, err := os.Open(cbz)
+	f, err := os.Open(path)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "file missing")
 		return
 	}
 	defer f.Close()
 	info, _ := f.Stat()
-	filename := sanitizeFilename(b.Title) + ".cbz"
-	w.Header().Set("Content-Type", "application/vnd.comicbook+zip")
+	filename := sanitizeFilename(b.Title) + "." + strings.ToLower(format)
+	ct := formatContentType[format]
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	http.ServeContent(w, r, filename, info.ModTime(), f)
+}
+
+// handleContent streams a book's primary file inline for in-browser reading
+// (PDF/EPUB). Unlike handleDownload it requires only authentication, not the
+// download permission, and uses an inline disposition + range support.
+func (s *Server) handleContent(w http.ResponseWriter, r *http.Request) {
+	b, ok := s.bookFromURL(w, r)
+	if !ok {
+		return
+	}
+	path, format, err := s.resolvePrimaryFile(b)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "no readable file")
+		return
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "file missing")
+		return
+	}
+	defer f.Close()
+	info, _ := f.Stat()
+	ct := formatContentType[format]
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Content-Disposition", "inline")
+	http.ServeContent(w, r, "book."+strings.ToLower(format), info.ModTime(), f)
+}
+
+// resolvePrimaryFile returns the absolute path and format of a book's file
+// (preferring CBZ when present, else the first available format).
+func (s *Server) resolvePrimaryFile(b *calibre.Book) (path, format string, err error) {
+	if len(b.Formats) == 0 {
+		return "", "", os.ErrNotExist
+	}
+	chosen := b.Formats[0]
+	for _, f := range b.Formats {
+		if strings.EqualFold(f.Format, "CBZ") {
+			chosen = f
+			break
+		}
+	}
+	p := filepath.Join(s.lib().BookFolder(b), chosen.FormatFile())
+	if _, serr := os.Stat(p); serr != nil {
+		return "", "", serr
+	}
+	return p, strings.ToUpper(chosen.Format), nil
 }
 
 // handlePageList returns the page count (and names) of the CBZ, using the cache.
@@ -243,7 +296,7 @@ func (s *Server) handleSetProgress(w http.ResponseWriter, r *http.Request) {
 func (s *Server) resolveCBZ(b *calibre.Book) (path string, mtime, size int64, err error) {
 	for _, f := range b.Formats {
 		if strings.EqualFold(f.Format, "CBZ") {
-			p := filepath.Join(s.lib.BookFolder(b), f.FormatFile())
+			p := filepath.Join(s.lib().BookFolder(b), f.FormatFile())
 			info, serr := os.Stat(p)
 			if serr != nil {
 				return "", 0, 0, serr

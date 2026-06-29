@@ -149,6 +149,30 @@ export const IconCheck = (p: IconProps) => (
   </svg>
 )
 
+export const IconSettings = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 7h3M11 7h9" />
+    <circle cx="9" cy="7" r="2" />
+    <path d="M4 12h9M17 12h3" />
+    <circle cx="15" cy="12" r="2" />
+    <path d="M4 17h3M11 17h9" />
+    <circle cx="9" cy="17" r="2" />
+  </svg>
+)
+
+export const IconSinglePage = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="7" y="4" width="10" height="16" rx="1" />
+  </svg>
+)
+
+export const IconSpread = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="3" y="5" width="8" height="14" rx="1" />
+    <rect x="13" y="5" width="8" height="14" rx="1" />
+  </svg>
+)
+
 export const IconFitWidth = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M3 12h18M3 12l4-4M3 12l4 4M21 12l-4-4M21 12l-4 4" />

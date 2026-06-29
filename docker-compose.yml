@@ -14,18 +14,21 @@ services:
       - ./config:/config
     environment:
       INCIPIT_ADDR: ":8080"
-      INCIPIT_LIBRARY: "/library"
       INCIPIT_CONFIG: "/config"
+      # The Calibre library path is chosen during first-run setup (enter the
+      # in-container path, e.g. /library). Uncomment to pre-configure it instead:
+      # INCIPIT_LIBRARY: "/library"
       # Set to true to never write to the Calibre library.
       INCIPIT_READONLY: "false"
       # Set when terminating TLS upstream so cookies are marked Secure.
       INCIPIT_SECURE_COOKIES: "false"
 
-      # --- Optional: LDAP authentication ---
+      # --- LDAP authentication ---
+      # Configure (and import users) in the admin UI under Admin → LDAP.
+      # These env vars only seed the initial connection values on first run:
       # INCIPIT_LDAP_ENABLED: "true"
-      # INCIPIT_LDAP_URL: "ldap://ldap.example.com:389"
-      # INCIPIT_LDAP_BIND_DN: "uid=%s,ou=people,dc=example,dc=com"
-      # INCIPIT_LDAP_BASE_DN: "dc=example,dc=com"
+      # INCIPIT_LDAP_URL: "ldaps://ldap.example.com:636"
+      # INCIPIT_LDAP_BASE_DN: "ou=people,dc=example,dc=com"
       # INCIPIT_LDAP_ADMIN_GROUP_DN: "cn=admins,ou=groups,dc=example,dc=com"
       # INCIPIT_LDAP_STARTTLS: "false"
 
