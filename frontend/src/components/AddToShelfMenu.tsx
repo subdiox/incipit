@@ -39,13 +39,13 @@ export function AddToShelfMenu({ bookId }: { bookId: number }) {
   }, [open])
 
   return (
-    <div className="relative" ref={ref}>
-      <button type="button" className="btn-secondary" onClick={() => setOpen((v) => !v)}>
+    <div className="relative w-full" ref={ref}>
+      <button type="button" className="btn-secondary w-full" onClick={() => setOpen((v) => !v)}>
         <IconShelf width={16} height={16} />
         {t('addToShelf.button')}
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-2 w-60 animate-fade-in rounded-xl border border-ink-700 bg-ink-800 p-1.5 shadow-soft">
+        <div className="absolute inset-x-0 z-20 mt-2 animate-fade-in rounded-xl border border-ink-700 bg-ink-800 p-1.5 shadow-soft">
           {isLoading ? (
             <div className="flex justify-center py-4">
               <Spinner className="h-4 w-4 text-accent-400" />

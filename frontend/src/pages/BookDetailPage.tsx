@@ -245,12 +245,10 @@ export function BookDetailPage() {
               </a>
             )}
 
-            <div className="flex gap-2">
-              <AddToShelfMenu bookId={book.id} />
-            </div>
+            <AddToShelfMenu bookId={book.id} />
 
             {user?.canEdit && (
-              <div className="flex gap-2 pt-1">
+              <div className="flex gap-2 border-t border-ink-700 pt-3">
                 <button type="button" className="btn-secondary flex-1" onClick={() => setEditing(true)}>
                   <IconEdit width={16} height={16} />
                   {t('book.edit')}
