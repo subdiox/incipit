@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -9,7 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/disintegration/imaging"
+
 	"incipit/internal/calibre"
+	"incipit/internal/metadata"
 	"incipit/internal/reader"
 )
 
@@ -78,6 +83,8 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 	}
 	tmp.Close()
 
+	// Always validate the archive and keep a first-page/embedded fallback cover,
+	// even when metadata fetch later supplies a nicer one.
 	cover, err := s.generateCover(tmpName, format)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -108,13 +115,36 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 		Comments:    r.FormValue("comments"),
 		Format:      format,
 		Data:        dataFile,
-		Cover:       cover,
 	}
 	if pd := r.FormValue("pubdate"); pd != "" {
 		if t, err := time.Parse("2006-01-02", pd); err == nil {
 			in.PubDate = t
 		}
 	}
+
+	// Optional: derive metadata from the (file)name via an external source
+	// (コミックシーモア). On a match we overlay non-empty fields and prefer the
+	// official cover; on no match we keep the filename-derived metadata and tell
+	// the client via a response header so it can flag the file.
+	if isTrue(r.FormValue("fetchMeta")) {
+		m, err := s.meta.Fetch(r.Context(), title, r.FormValue("genre"),
+			strings.TrimSpace(r.FormValue("metaAdd")), strings.TrimSpace(r.FormValue("metaExclude")))
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "metadata lookup failed: "+err.Error())
+			return
+		}
+		if m != nil {
+			applyMeta(&in, m)
+			if m.CoverURL != "" {
+				if c := s.coverFromURL(r.Context(), m.CoverURL); len(c) > 0 {
+					cover = c
+				}
+			}
+		} else {
+			w.Header().Set("X-Metadata-Matched", "false")
+		}
+	}
+	in.Cover = cover
 
 	book, err := s.lib().AddBook(r.Context(), in)
 	if err != nil {
@@ -253,4 +283,79 @@ func extOf(name string) string {
 		return name[i:]
 	}
 	return ""
+}
+
+func isTrue(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "1", "true", "on", "yes":
+		return true
+	}
+	return false
+}
+
+// handleMetadataGenres returns the cmoa search-genre choices so the uploader UI
+// can offer them. The backend stays the single source of truth for the keys.
+func (s *Server) handleMetadataGenres(w http.ResponseWriter, r *http.Request) {
+	type genre struct {
+		Key   string `json:"key"`
+		Label string `json:"label"`
+	}
+	out := make([]genre, 0, len(metadata.GenreChoices))
+	for _, g := range metadata.GenreChoices {
+		out = append(out, genre{Key: g.Key, Label: g.Label})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// applyMeta overlays non-empty fetched metadata onto the add-book input,
+// leaving filename/form-derived values in place for fields the source lacked.
+func applyMeta(in *calibre.AddBookInput, m *metadata.Meta) {
+	if m.Title != "" {
+		in.Title = m.Title
+	}
+	if len(m.Authors) > 0 {
+		in.Authors = m.Authors
+	}
+	if m.Series != "" {
+		in.Series = m.Series
+	}
+	if m.SeriesIndex > 0 {
+		in.SeriesIndex = m.SeriesIndex
+	}
+	if len(m.Tags) > 0 {
+		in.Tags = m.Tags
+	}
+	if m.Publisher != "" {
+		in.Publisher = m.Publisher
+	}
+	if len(m.Languages) > 0 {
+		in.Languages = m.Languages
+	}
+	if m.Rating > 0 {
+		in.Rating = m.Rating
+	}
+	if m.Comments != "" {
+		in.Comments = m.Comments
+	}
+	if !m.PubDate.IsZero() {
+		in.PubDate = m.PubDate
+	}
+}
+
+// coverFromURL downloads and re-encodes a cover image as JPEG. It returns nil on
+// any failure so the caller falls back to the generated cover.
+func (s *Server) coverFromURL(ctx context.Context, url string) []byte {
+	raw, err := s.meta.FetchCover(ctx, url)
+	if err != nil || len(raw) == 0 {
+		return nil
+	}
+	img, err := imaging.Decode(bytes.NewReader(raw), imaging.AutoOrientation(true))
+	if err != nil {
+		return nil
+	}
+	var buf bytes.Buffer
+	if err := imaging.Encode(&buf, img, imaging.JPEG, imaging.JPEGQuality(90)); err != nil {
+		return nil
+	}
+	return buf.Bytes()
 }

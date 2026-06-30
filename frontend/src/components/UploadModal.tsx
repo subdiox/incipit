@@ -1,5 +1,6 @@
 import { useRef, useState, type DragEvent } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 import { formatBytes } from '@/lib/format'
 import { useI18n } from '@/i18n'
 import { Modal } from './Modal'
@@ -20,6 +21,7 @@ interface Item {
   status: Status
   progress: number
   error?: string
+  metaMatched?: boolean
 }
 
 function extOf(name: string): string {
@@ -47,9 +49,22 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
   const [seriesIndex, setSeriesIndex] = useState('')
   const [tags, setTags] = useState('')
   const [publisher, setPublisher] = useState('')
+  const [fetchMeta, setFetchMeta] = useState(false)
+  const [genre, setGenre] = useState('comic')
+  const [metaAdd, setMetaAdd] = useState('')
+  const [metaExclude, setMetaExclude] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Search genres are fetched lazily; the backend is the source of truth.
+  const genresQuery = useQuery({
+    queryKey: ['metadata-genres'],
+    queryFn: api.metadataGenres,
+    enabled: open,
+    staleTime: Infinity,
+  })
+  const genres = genresQuery.data ?? []
 
   const single = items.length === 1
 
@@ -61,6 +76,10 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
     setSeriesIndex('')
     setTags('')
     setPublisher('')
+    setFetchMeta(false)
+    setGenre('comic')
+    setMetaAdd('')
+    setMetaExclude('')
     setError(null)
     setUploading(false)
   }
@@ -112,11 +131,19 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
       form.append('file', item.file)
       const bookTitle = isSingle ? title || stripExt(item.file.name) : stripExt(item.file.name)
       if (bookTitle) form.append('title', bookTitle)
-      if (authors) form.append('authors', authors)
-      if (series) form.append('series', series)
-      if (seriesIndex) form.append('seriesIndex', seriesIndex)
-      if (tags) form.append('tags', tags)
-      if (publisher) form.append('publisher', publisher)
+      if (fetchMeta) {
+        // Server fetches metadata + cover from cmoa using the title/filename.
+        form.append('fetchMeta', 'true')
+        form.append('genre', genre)
+        if (metaAdd) form.append('metaAdd', metaAdd)
+        if (metaExclude) form.append('metaExclude', metaExclude)
+      } else {
+        if (authors) form.append('authors', authors)
+        if (series) form.append('series', series)
+        if (seriesIndex) form.append('seriesIndex', seriesIndex)
+        if (tags) form.append('tags', tags)
+        if (publisher) form.append('publisher', publisher)
+      }
 
       const xhr = new XMLHttpRequest()
       xhr.open('POST', '/api/books')
@@ -124,13 +151,15 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
       const csrf = csrfToken()
       if (csrf) xhr.setRequestHeader('X-CSRF-Token', csrf)
 
-      patch(item.id, { status: 'uploading', progress: 0, error: undefined })
+      patch(item.id, { status: 'uploading', progress: 0, error: undefined, metaMatched: undefined })
       xhr.upload.onprogress = (ev) => {
         if (ev.lengthComputable) patch(item.id, { progress: Math.round((ev.loaded / ev.total) * 100) })
       }
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          patch(item.id, { status: 'done', progress: 100 })
+          // The server flags an enrichment miss so the user can fix it later.
+          const matched = fetchMeta ? xhr.getResponseHeader('X-Metadata-Matched') !== 'false' : undefined
+          patch(item.id, { status: 'done', progress: 100, metaMatched: matched })
           resolve(true)
         } else {
           let msg = t('upload.failed', { status: xhr.status })
@@ -238,6 +267,9 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
                     {it.status === 'error' && it.error && (
                       <span className="text-red-400"> · {it.error}</span>
                     )}
+                    {it.status === 'done' && it.metaMatched === false && (
+                      <span className="text-amber-400"> · {t('upload.metaUnmatched')}</span>
+                    )}
                   </p>
                   {it.status === 'uploading' && (
                     <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-ink-700">
@@ -268,42 +300,102 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
 
         {/* Metadata */}
         {items.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {single ? (
-              <div className="sm:col-span-2">
-                <label className="label">{t('book.fieldTitle')}</label>
-                <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
-              </div>
-            ) : (
-              <p className="sm:col-span-2 text-xs text-slate-500">{t('upload.titleFromName')}</p>
-            )}
-            <div className="sm:col-span-2">
-              <label className="label">{t('book.fieldAuthors')}</label>
-              <input className="input" value={authors} onChange={(e) => setAuthors(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">{t('book.fieldSeries')}</label>
-              <input className="input" value={series} onChange={(e) => setSeries(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">{t('book.fieldSeriesIndex')}</label>
+          <div className="space-y-4">
+            {/* Auto-fetch from filename */}
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-ink-700 bg-ink-900 px-3.5 py-3">
               <input
-                className="input"
-                type="number"
-                step="0.1"
-                value={seriesIndex}
-                onChange={(e) => setSeriesIndex(e.target.value)}
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-accent-500"
+                checked={fetchMeta}
+                onChange={(e) => setFetchMeta(e.target.checked)}
               />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-slate-200">{t('upload.fetchMeta')}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">{t('upload.fetchMetaHint')}</span>
+              </span>
+            </label>
+
+            {fetchMeta && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="label">{t('upload.genre')}</label>
+                  <select className="input" value={genre} onChange={(e) => setGenre(e.target.value)}>
+                    {genres.map((g) => (
+                      <option key={g.key} value={g.key}>
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-slate-600">{t('upload.genreHint')}</p>
+                </div>
+                <div>
+                  <label className="label">{t('upload.metaAdd')}</label>
+                  <input className="input" value={metaAdd} onChange={(e) => setMetaAdd(e.target.value)} />
+                </div>
+                <div>
+                  <label className="label">{t('upload.metaExclude')}</label>
+                  <input
+                    className="input"
+                    placeholder={t('upload.metaExcludePlaceholder')}
+                    value={metaExclude}
+                    onChange={(e) => setMetaExclude(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {single ? (
+                <div className="sm:col-span-2">
+                  <label className="label">{fetchMeta ? t('upload.searchTitle') : t('book.fieldTitle')}</label>
+                  <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+                  {fetchMeta && (
+                    <p className="mt-1 text-[11px] text-slate-600">{t('upload.searchTitleHint')}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="sm:col-span-2 text-xs text-slate-500">
+                  {fetchMeta ? t('upload.searchFromName') : t('upload.titleFromName')}
+                </p>
+              )}
+
+              {!fetchMeta && (
+                <>
+                  <div className="sm:col-span-2">
+                    <label className="label">{t('book.fieldAuthors')}</label>
+                    <input className="input" value={authors} onChange={(e) => setAuthors(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">{t('book.fieldSeries')}</label>
+                    <input className="input" value={series} onChange={(e) => setSeries(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">{t('book.fieldSeriesIndex')}</label>
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.1"
+                      value={seriesIndex}
+                      onChange={(e) => setSeriesIndex(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">{t('book.fieldTags')}</label>
+                    <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">{t('book.fieldPublisher')}</label>
+                    <input className="input" value={publisher} onChange={(e) => setPublisher(e.target.value)} />
+                  </div>
+                </>
+              )}
             </div>
-            <div>
-              <label className="label">{t('book.fieldTags')}</label>
-              <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">{t('book.fieldPublisher')}</label>
-              <input className="input" value={publisher} onChange={(e) => setPublisher(e.target.value)} />
-            </div>
-            {!single && <p className="sm:col-span-2 text-[11px] text-slate-600">{t('upload.appliedToAll')}</p>}
+
+            {fetchMeta ? (
+              <p className="text-[11px] text-slate-600">{t('upload.metaFromSource')}</p>
+            ) : (
+              !single && <p className="text-[11px] text-slate-600">{t('upload.appliedToAll')}</p>
+            )}
           </div>
         )}
 

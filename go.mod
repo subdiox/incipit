@@ -3,16 +3,19 @@ module incipit
 go 1.26.3
 
 require (
+	github.com/PuerkitoBio/goquery v1.12.0
 	github.com/disintegration/imaging v1.6.2
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-ldap/ldap/v3 v3.4.13
 	golang.org/x/crypto v0.53.0
 	golang.org/x/image v0.42.0
+	golang.org/x/net v0.55.0
 	modernc.org/sqlite v1.52.0
 )
 
 require (
 	github.com/Azure/go-ntlmssp v0.1.0 // indirect
+	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 // indirect
 	github.com/google/uuid v1.6.0 // indirect

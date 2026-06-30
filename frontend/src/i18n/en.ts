@@ -175,6 +175,18 @@ export const en = {
   'upload.upload': 'Upload',
   'upload.uploadCount': 'Upload {{count}}',
   'upload.someFailed': '{{failed}} of {{total}} upload(s) failed.',
+  'upload.fetchMeta': 'Auto-fetch metadata from filename',
+  'upload.fetchMetaHint': 'Searches コミックシーモア (cmoa.jp) by filename and fills in authors, publisher, description, tags, rating and cover.',
+  'upload.genre': 'Search genre',
+  'upload.genreHint': 'Specifying a genre avoids matching a same-named work in the wrong category.',
+  'upload.metaAdd': 'Add search term (optional)',
+  'upload.metaExclude': 'Exclude search term (optional)',
+  'upload.metaExcludePlaceholder': 'e.g. 単話版',
+  'upload.searchTitle': 'Search title',
+  'upload.searchTitleHint': 'This title is used as the コミックシーモア search query.',
+  'upload.searchFromName': 'Each file name is used as the コミックシーモア search query.',
+  'upload.metaFromSource': 'Title, authors, series, publisher, description, tags, rating and cover come from コミックシーモア.',
+  'upload.metaUnmatched': 'No metadata match — kept the filename',
 
   // Shelves
   'shelves.title': 'Shelves',

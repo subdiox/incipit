@@ -177,6 +177,18 @@ export const ja: Record<TranslationKey, string> = {
   'upload.upload': 'アップロード',
   'upload.uploadCount': '{{count}}件をアップロード',
   'upload.someFailed': '{{total}}件中{{failed}}件のアップロードが失敗しました。',
+  'upload.fetchMeta': 'ファイル名からメタデータを自動取得',
+  'upload.fetchMetaHint': 'コミックシーモアでファイル名を検索し、著者・出版社・あらすじ・タグ・評価・表紙を自動で付与します。',
+  'upload.genre': '検索ジャンル',
+  'upload.genreHint': 'ジャンルを指定すると、同名の別作品への誤ヒットを避けられます。',
+  'upload.metaAdd': '検索語を追加（任意）',
+  'upload.metaExclude': '検索語を除外（任意）',
+  'upload.metaExcludePlaceholder': '例: 単話版',
+  'upload.searchTitle': '検索タイトル',
+  'upload.searchTitleHint': 'このタイトルでコミックシーモアを検索します。',
+  'upload.searchFromName': '各ファイル名でコミックシーモアを検索します。',
+  'upload.metaFromSource': 'タイトル・著者・シリーズ・出版社・あらすじ・タグ・評価・表紙はコミックシーモアから取得されます。',
+  'upload.metaUnmatched': 'メタデータが見つからず、ファイル名のまま登録しました',
 
   // Shelves
   'shelves.title': '本棚',

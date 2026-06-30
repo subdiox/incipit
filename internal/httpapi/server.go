@@ -11,6 +11,7 @@ import (
 	"incipit/internal/auth"
 	"incipit/internal/calibre"
 	"incipit/internal/config"
+	"incipit/internal/metadata"
 	"incipit/internal/reader"
 	"incipit/web"
 )
@@ -29,6 +30,7 @@ type Server struct {
 	ldap     *auth.LDAPManager
 	proxyCfg auth.ProxyConfig
 	limiter  *rateLimiter
+	meta     *metadata.Client
 }
 
 // New constructs a Server. lib may be nil when the library has not been
@@ -47,6 +49,7 @@ func New(cfg *config.Config, lib *calibre.Adapter, store *appdb.Store, authSvc *
 			AutoCreate:  cfg.ProxyAuth.AutoCreate,
 		},
 		limiter: newRateLimiter(10, time.Minute),
+		meta:    metadata.NewClient(),
 	}
 	if lib != nil {
 		s.libPtr.Store(lib)
@@ -96,6 +99,8 @@ func (s *Server) Router() http.Handler {
 			r.Get("/auth/me", s.handleMe)
 			r.Put("/auth/me", s.handleUpdateMe)
 			r.Post("/auth/logout", s.handleLogout)
+
+			r.Get("/metadata/genres", s.handleMetadataGenres)
 
 			r.Get("/books", s.handleListBooks)
 			r.Post("/books", s.handleAddBook)

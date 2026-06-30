@@ -30,6 +30,13 @@ Registration is via `sqlite.MustRegister[Deterministic]ScalarFunction` (global t
 - Single pages are extracted on demand; `?w=` resizes via `disintegration/imaging` (pure Go) and caches JPEGs on disk keyed by `(path, entry, width, mtime)`.
 - Page-list is cached in `app.db` (`page_cache`), invalidated by CBZ mtime/size.
 
+## Metadata fetch (`internal/metadata`)
+- Clean-room Go port of the original Python "ookamura" uploader: scrapes **コミックシーモア (cmoa.jp)** public HTML (via `goquery`, pure Go) to enrich an upload from its (file)name — authors, publisher, pubdate, comments, tags, rating, official cover.
+- Genre filtering (`GenreChoices`, the single source of truth; frontend mirrors the keys) avoids matching a same-named work in the wrong category. `"comic"` fans out across manga genres and takes the first hit; `"all"` is unfiltered.
+- `Fetch()` distinguishes **transport failure (`ErrFetch`)** from **no match (`nil, nil`)** — 404 is cmoa's "no result in this genre", so the search step tolerates it and tries the next genre.
+- Rating is stored on Calibre's ×2 scale (4.5 stars → 9). Cover is downloaded from cmoa and re-encoded JPEG, overriding the CBZ first-page cover (falls back to it on failure).
+- Wired into upload via `handleAddBook` form fields `fetchMeta`/`genre`/`metaAdd`/`metaExclude`; a no-match still uploads (filename metadata) and sets the `X-Metadata-Matched: false` response header. Genres are served at `GET /api/metadata/genres`. The calibre-web-specific cover color-correction LUT was intentionally **not** ported (incipit does no ImageMagick transform).
+
 ## Auth (`internal/auth`)
 - Local: argon2id PHC-encoded hashes. Sessions: server-side tokens in `app.db`, httpOnly SameSite cookie.
 - **CSRF**: double-submit. Server sets a readable `incipit_csrf` cookie = HMAC(session-seed, secret); mutations must echo it in `X-CSRF-Token`. Enforced in `csrfProtect` for unsafe methods only.

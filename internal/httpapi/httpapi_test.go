@@ -30,6 +30,7 @@ type harness struct {
 	t      *testing.T
 	server *httptest.Server
 	client *http.Client
+	srv    *Server
 }
 
 func newHarness(t *testing.T) *harness {
@@ -65,7 +66,7 @@ func newHarness(t *testing.T) *harness {
 	t.Cleanup(ts.Close)
 
 	jar, _ := cookiejar.New(nil)
-	return &harness{t: t, server: ts, client: &http.Client{Jar: jar}}
+	return &harness{t: t, server: ts, client: &http.Client{Jar: jar}, srv: srv}
 }
 
 // do performs a request, attaching the CSRF header for unsafe methods.

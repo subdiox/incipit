@@ -9,6 +9,7 @@ import type {
   LdapTestResult,
   LdapUpdate,
   LibrarySettings,
+  MetadataGenre,
   PagesResponse,
   Progress,
   SetupStatus,
@@ -138,6 +139,9 @@ export const api = {
     request<User>('/auth/me', { method: 'PUT', ...jsonBody({ language }) }),
   setPageSize: (pageSize: number) =>
     request<User>('/auth/me', { method: 'PUT', ...jsonBody({ pageSize }) }),
+
+  // Metadata
+  metadataGenres: () => request<MetadataGenre[]>('/metadata/genres'),
 
   // Books
   books: (q: BookQuery = {}) => request<BooksResponse>(`/books${bookQueryString(q)}`),

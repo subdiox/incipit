@@ -116,6 +116,11 @@ export interface SiteConfig {
   title: string
 }
 
+export interface MetadataGenre {
+  key: string
+  label: string
+}
+
 export interface FsEntry {
   name: string
   path: string
