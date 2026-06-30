@@ -12,6 +12,9 @@ export function Rating({ value, size = 18, onChange }: RatingProps) {
   const stars = value / 2 // 0-5
   const interactive = !!onChange
 
+  // Toggling the exact current value clears the rating.
+  const setVal = (v: number) => onChange?.(value === v ? 0 : v)
+
   return (
     <div className="inline-flex items-center gap-0.5" role={interactive ? 'radiogroup' : undefined}>
       {[1, 2, 3, 4, 5].map((star) => {
@@ -33,16 +36,29 @@ export function Rating({ value, size = 18, onChange }: RatingProps) {
           </span>
         )
         if (!interactive) return <span key={star}>{node}</span>
+        // Two half-width hit zones: the left half sets a half star (odd value),
+        // the right half a full star (even value) — so half stars are editable,
+        // matching what the display can already show.
         return (
-          <button
+          <span
             key={star}
-            type="button"
-            className="transition-transform hover:scale-110"
-            aria-label={`${star} star${star > 1 ? 's' : ''}`}
-            onClick={() => onChange?.(value === star * 2 ? 0 : star * 2)}
+            className="relative inline-flex transition-transform hover:scale-110"
+            style={{ width: size, height: size }}
           >
             {node}
-          </button>
+            <button
+              type="button"
+              className="absolute inset-y-0 left-0 z-10 w-1/2 cursor-pointer"
+              aria-label={`${star - 0.5} stars`}
+              onClick={() => setVal(star * 2 - 1)}
+            />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-0 z-10 w-1/2 cursor-pointer"
+              aria-label={`${star} star${star > 1 ? 's' : ''}`}
+              onClick={() => setVal(star * 2)}
+            />
+          </span>
         )
       })}
     </div>
