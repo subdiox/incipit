@@ -1,3 +1,15 @@
+# Example/template compose for running incipit. Copy it next to a `config/`
+# directory and adjust the library path, port, and user, or point a deployment's
+# own compose at this repo as the build context:
+#
+#   services:
+#     incipit:
+#       build:
+#         context: /path/to/incipit   # this repo is the single source of truth
+#       ...
+#
+# This repository is the source of truth for the incipit binary; real
+# deployments keep their own compose + config outside the repo and build from it.
 services:
   incipit:
     build: .
@@ -5,22 +17,21 @@ services:
     # image: ghcr.io/incipit/incipit:latest
     container_name: incipit
     restart: unless-stopped
-    # Run as the host user that owns the Calibre library (uid 1000 = subdiox), so
-    # incipit can move/rename book folders and write covers. The library's
-    # per-author folders are 0755 owned by 1000, so the default nonroot uid 65532
-    # gets "permission denied" on edits — match the owner instead. ./config must
-    # also be owned by this uid (chown -R 1000:1000 ./config after switching).
+    # Run as the host user that owns the Calibre library, so incipit can move/
+    # rename book folders and write covers. Per-author folders are typically
+    # 0755 owned by that user, so the default nonroot uid 65532 gets "permission
+    # denied" on edits — match the owner instead (use "0:0" if the tree is
+    # root-owned). ./config must be owned by the same uid.
     user: "1000:1000"
-    # Resolve host.docker.internal on plain Linux Docker (needed to reach the
+    # Resolve host.docker.internal on plain Linux Docker (needed to reach an
     # LDAP server published on the host, e.g. ldap://host.docker.internal:389).
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      # Host 8080 is taken by nextcloud, so map to 8085.
-      - "8085:8080"
+      - "8080:8080"
     volumes:
       # Existing Calibre library (contains metadata.db).
-      - /mnt/data/calibre:/library
+      - ./library:/library
       # Incipit's own state: app.db, image cache, generated secrets.
       - ./config:/config
     environment:
@@ -30,15 +41,16 @@ services:
       INCIPIT_LIBRARY: "/library"
       # Set to true to never write to the Calibre library.
       INCIPIT_READONLY: "false"
-      # Leave false: cookies are marked Secure automatically per-request when the
-      # browser-facing connection is HTTPS (via X-Forwarded-Proto from nginx), so
-      # https://comic.ooka.me gets Secure cookies while direct http://host:8085
-      # LAN access still works. Set true only to force Secure on every request.
+      # Leave false behind a TLS-terminating reverse proxy: cookies are marked
+      # Secure per-request when X-Forwarded-Proto is https, so HTTPS gets Secure
+      # cookies while direct http LAN access still works. Set true to force
+      # Secure on every request.
       INCIPIT_SECURE_COOKIES: "false"
 
       # --- LDAP authentication ---
       # Configure (and import users) in the admin UI under Admin → LDAP.
-      # These env vars only seed the initial connection values on first run:
+      # These env vars only seed the initial connection values on first run
+      # (the bind password is set in the UI and stored in app.db):
       # INCIPIT_LDAP_ENABLED: "true"
       # INCIPIT_LDAP_URL: "ldaps://ldap.example.com:636"
       # INCIPIT_LDAP_BASE_DN: "ou=people,dc=example,dc=com"
