@@ -169,6 +169,19 @@ func (s *Server) csrfToken(seed string) string {
 	return hex.EncodeToString(mac.Sum(nil))[:32]
 }
 
+// cookieSecure decides whether to mark cookies Secure for this request. A
+// Secure cookie is only sent back over HTTPS, so forcing it on a plain-HTTP
+// request (e.g. direct LAN access to :8085) would silently drop the session.
+// We mark Secure when the browser-facing connection is HTTPS — detected via a
+// direct TLS connection or the proxy's X-Forwarded-Proto — or when explicitly
+// forced via INCIPIT_SECURE_COOKIES.
+func (s *Server) cookieSecure(r *http.Request) bool {
+	if s.cfg.SecureCookies || r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+}
+
 func (s *Server) ensureCSRFCookie(w http.ResponseWriter, r *http.Request, token string) {
 	if c, err := r.Cookie(csrfCookie); err == nil && c.Value == token {
 		return
@@ -178,27 +191,27 @@ func (s *Server) ensureCSRFCookie(w http.ResponseWriter, r *http.Request, token 
 		Value:    token,
 		Path:     "/",
 		HttpOnly: false, // readable by the SPA to echo in the CSRF header
-		Secure:   s.cfg.SecureCookies,
+		Secure:   s.cookieSecure(r),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func (s *Server) setSessionCookie(w http.ResponseWriter, token string, expires time.Time) {
+func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, token string, expires time.Time) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
 		Value:    token,
 		Path:     "/",
 		Expires:  expires,
 		HttpOnly: true,
-		Secure:   s.cfg.SecureCookies,
+		Secure:   s.cookieSecure(r),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func (s *Server) clearCookie(w http.ResponseWriter, name string) {
+func (s *Server) clearCookie(w http.ResponseWriter, r *http.Request, name string) {
 	http.SetCookie(w, &http.Cookie{
 		Name: name, Value: "", Path: "/", MaxAge: -1,
-		HttpOnly: name == sessionCookie, Secure: s.cfg.SecureCookies, SameSite: http.SameSiteLaxMode,
+		HttpOnly: name == sessionCookie, Secure: s.cookieSecure(r), SameSite: http.SameSiteLaxMode,
 	})
 }
 

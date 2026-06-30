@@ -147,7 +147,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *appdb.U
 	}); err != nil {
 		return err
 	}
-	s.setSessionCookie(w, token, expires)
+	s.setSessionCookie(w, r, token, expires)
 	s.ensureCSRFCookie(w, r, s.csrfToken("session:"+token))
 	return nil
 }
@@ -157,8 +157,8 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
 		_ = s.store.DeleteSession(r.Context(), c.Value)
 	}
-	s.clearCookie(w, sessionCookie)
-	s.clearCookie(w, csrfCookie)
+	s.clearCookie(w, r, sessionCookie)
+	s.clearCookie(w, r, csrfCookie)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "logged out"})
 }
 
