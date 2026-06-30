@@ -200,6 +200,7 @@ type updateBookBody struct {
 	Series      *string            `json:"series"`
 	SeriesIndex *float64           `json:"seriesIndex"`
 	Tags        *[]string          `json:"tags"`
+	AddTags     *[]string          `json:"addTags"`
 	Publisher   *string            `json:"publisher"`
 	Languages   *[]string          `json:"languages"`
 	Rating      *int               `json:"rating"`
@@ -230,6 +231,7 @@ func (s *Server) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		Series:      body.Series,
 		SeriesIndex: body.SeriesIndex,
 		Tags:        body.Tags,
+		AddTags:     body.AddTags,
 		Publisher:   body.Publisher,
 		Languages:   body.Languages,
 		Rating:      body.Rating,
@@ -361,6 +363,12 @@ func (s *Server) coverFromURL(ctx context.Context, url string) []byte {
 	if err != nil || len(raw) == 0 {
 		return nil
 	}
+	return reencodeJPEG(raw)
+}
+
+// reencodeJPEG decodes any supported image and re-encodes it as JPEG (auto
+// EXIF-orientation). Returns nil when the bytes aren't a decodable image.
+func reencodeJPEG(raw []byte) []byte {
 	img, err := imaging.Decode(bytes.NewReader(raw), imaging.AutoOrientation(true))
 	if err != nil {
 		return nil
@@ -370,4 +378,57 @@ func (s *Server) coverFromURL(ctx context.Context, url string) []byte {
 		return nil
 	}
 	return buf.Bytes()
+}
+
+// handleSetCover replaces a book's cover. The image can come from an uploaded
+// file (multipart "file"), a URL to fetch ("coverUrl", e.g. an official cover),
+// or a reviewed metadata preview ("metaToken").
+func (s *Server) handleSetCover(w http.ResponseWriter, r *http.Request) {
+	u := currentUser(r)
+	if u == nil || !u.CanEdit {
+		writeError(w, http.StatusForbidden, "editing not permitted")
+		return
+	}
+	b, ok := s.bookFromURL(w, r)
+	if !ok {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid upload")
+		return
+	}
+	defer r.MultipartForm.RemoveAll()
+
+	var cover []byte
+	if f, _, err := r.FormFile("file"); err == nil {
+		defer f.Close()
+		raw, err := io.ReadAll(f)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "read upload")
+			return
+		}
+		cover = reencodeJPEG(raw)
+	} else if url := strings.TrimSpace(r.FormValue("coverUrl")); url != "" {
+		cover = s.coverFromURL(r.Context(), url)
+	} else if tok := strings.TrimSpace(r.FormValue("metaToken")); tok != "" {
+		if e, ok := s.previews.get(tok); ok {
+			cover = e.cover
+		}
+	}
+	if len(cover) == 0 {
+		writeError(w, http.StatusBadRequest, "no usable cover image provided")
+		return
+	}
+
+	updated, err := s.lib().UpdateBook(r.Context(), b.ID, calibre.UpdateBookInput{Cover: cover})
+	if err != nil {
+		if errors.Is(err, calibre.ErrReadOnly) {
+			writeError(w, http.StatusForbidden, "library is read-only")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "set cover: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }

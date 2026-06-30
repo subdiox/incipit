@@ -82,6 +82,7 @@ type metaPreviewResponse struct {
 	Publisher   string   `json:"publisher,omitempty"`
 	Pubdate     string   `json:"pubdate,omitempty"`
 	Rating      int      `json:"rating,omitempty"`
+	Comments    string   `json:"comments,omitempty"`
 	HasCover    bool     `json:"hasCover"`
 }
 
@@ -137,6 +138,7 @@ func (s *Server) handleMetadataPreview(w http.ResponseWriter, r *http.Request) {
 		Tags:        m.Tags,
 		Publisher:   m.Publisher,
 		Rating:      m.Rating,
+		Comments:    m.Comments,
 		HasCover:    len(cover) > 0,
 	}
 	if !m.PubDate.IsZero() {

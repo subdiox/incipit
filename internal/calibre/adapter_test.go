@@ -224,6 +224,87 @@ func TestUpdateBookMovesFolder(t *testing.T) {
 	}
 }
 
+// TestRelocateRollbackRestoresFilesAndFolder verifies that when a relocate is
+// rolled back (e.g. the surrounding tx fails to commit), the filesystem is
+// restored completely — folder back in place AND files under their old names —
+// so disk stays consistent with the rolled-back DB.
+func TestRelocateRollbackRestoresFilesAndFolder(t *testing.T) {
+	a := newTestAdapter(t)
+	ctx := context.Background()
+	b := addSample(t, a, "Old Title", []string{"Jane Doe"})
+
+	oldFolder := filepath.Join(a.libraryPath, filepath.FromSlash(b.Path))
+	if len(b.Formats) == 0 {
+		t.Fatal("sample book has no formats")
+	}
+	f := b.Formats[0]
+	oldFile := filepath.Join(oldFolder, f.Name+"."+strings.ToLower(f.Format))
+	if _, err := os.Stat(oldFile); err != nil {
+		t.Fatalf("precondition: old file missing: %v", err)
+	}
+
+	newRel, newBase := bookRelPath(b.ID, "Brand New Title", []string{"Jane Doe"})
+	if newRel == b.Path {
+		t.Fatal("expected the new title to change the path")
+	}
+
+	tx, err := a.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rb, err := a.relocateBook(ctx, tx, b, newRel, newBase)
+	if err != nil {
+		t.Fatalf("relocateBook: %v", err)
+	}
+	// Simulate a commit failure: undo the filesystem move, then the DB tx.
+	rb()
+	_ = tx.Rollback()
+
+	if _, err := os.Stat(oldFile); err != nil {
+		t.Errorf("old file not restored to its original name/location: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(oldFolder, newBase+".cbz")); err == nil {
+		t.Error("a renamed file was left behind in the old folder")
+	}
+	if _, err := os.Stat(filepath.Join(a.libraryPath, filepath.FromSlash(newRel))); !os.IsNotExist(err) {
+		t.Errorf("new folder should not exist after rollback (stat err=%v)", err)
+	}
+	got, err := a.GetBook(ctx, b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Path != b.Path {
+		t.Errorf("DB path = %q, want %q (tx should have rolled back)", got.Path, b.Path)
+	}
+}
+
+// TestUpdateBookAddTagsPreservesExisting verifies AddTags unions with existing
+// tags (no delete), so a cmoa re-enrich keeps user-added tags.
+func TestUpdateBookAddTagsPreservesExisting(t *testing.T) {
+	a := newTestAdapter(t)
+	ctx := context.Background()
+	b := addSample(t, a, "Tagged", []string{"Jane Doe"}) // tags: scifi, classic
+
+	add := []string{"漫画BANK", "scifi"} // new tag + a duplicate of an existing one
+	updated, err := a.UpdateBook(ctx, b.ID, UpdateBookInput{AddTags: &add})
+	if err != nil {
+		t.Fatalf("UpdateBook: %v", err)
+	}
+
+	got := map[string]bool{}
+	for _, tg := range updated.Tags {
+		got[tg.Name] = true
+	}
+	for _, want := range []string{"scifi", "classic", "漫画BANK"} {
+		if !got[want] {
+			t.Errorf("tag %q missing after AddTags; got %v", want, updated.Tags)
+		}
+	}
+	if len(updated.Tags) != 3 {
+		t.Errorf("expected 3 unique tags (union, no dupes), got %d: %v", len(updated.Tags), updated.Tags)
+	}
+}
+
 func TestDeleteBook(t *testing.T) {
 	a := newTestAdapter(t)
 	b := addSample(t, a, "Doomed", []string{"Nobody"})

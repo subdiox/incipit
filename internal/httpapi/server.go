@@ -112,6 +112,7 @@ func (s *Server) Router() http.Handler {
 			r.Put("/books/{id}", s.handleUpdateBook)
 			r.Delete("/books/{id}", s.handleDeleteBook)
 			r.Get("/books/{id}/cover", s.handleCover)
+			r.Put("/books/{id}/cover", s.handleSetCover)
 			r.Get("/books/{id}/thumbnail", s.handleThumbnail)
 			r.Get("/books/{id}/file", s.handleDownload)
 			r.Get("/books/{id}/content", s.handleContent)

@@ -173,6 +173,12 @@ type UpdateBookInput struct {
 	Comments    *string
 	Identifiers *map[string]string
 	PubDate     *time.Time
+	// AddTags appends tags without removing existing ones (union), so a cmoa
+	// re-enrich keeps user-added tags. Mutually exclusive with Tags in practice.
+	AddTags *[]string
+	// Cover replaces cover.jpg (and sets has_cover) when non-empty. A nil/empty
+	// slice leaves the existing cover untouched.
+	Cover []byte
 }
 
 // UpdateBook applies metadata changes, moving the book folder and renaming its
@@ -246,6 +252,10 @@ func (a *Adapter) UpdateBook(ctx context.Context, id int64, in UpdateBookInput) 
 		assoc.tags, assoc.setTags = *in.Tags, true
 		apply = true
 	}
+	if in.AddTags != nil {
+		assoc.addTags, assoc.setAddTags = *in.AddTags, true
+		apply = true
+	}
 	if in.Publisher != nil {
 		assoc.publisher, assoc.setPublisher = *in.Publisher, true
 		apply = true
@@ -284,6 +294,12 @@ func (a *Adapter) UpdateBook(ctx context.Context, id int64, in UpdateBookInput) 
 		}
 	}
 
+	if len(in.Cover) > 0 {
+		if _, err := tx.ExecContext(ctx, "UPDATE books SET has_cover=1 WHERE id=?", id); err != nil {
+			return nil, err
+		}
+	}
+
 	if _, err := tx.ExecContext(ctx, "UPDATE books SET last_modified=? WHERE id=?",
 		formatCalibreTime(time.Now().UTC()), id); err != nil {
 		return nil, err
@@ -298,6 +314,11 @@ func (a *Adapter) UpdateBook(ctx context.Context, id int64, in UpdateBookInput) 
 	if err != nil {
 		return nil, err
 	}
+	// Write the new cover after commit (best-effort, like the OPF) so a failure
+	// can't leave a fresh cover.jpg on disk against rolled-back metadata.
+	if len(in.Cover) > 0 {
+		_ = os.WriteFile(filepath.Join(a.BookFolder(updated), "cover.jpg"), in.Cover, 0o644)
+	}
 	a.rewriteOPF(updated) // best-effort
 	return updated, nil
 }
@@ -309,6 +330,17 @@ func (a *Adapter) relocateBook(ctx context.Context, tx *sql.Tx, existing *Book, 
 	oldFolder := filepath.Join(a.libraryPath, filepath.FromSlash(existing.Path))
 	newFolder := filepath.Join(a.libraryPath, filepath.FromSlash(newRel))
 
+	// Accumulate undo steps so a failure (or a later tx-commit failure) restores
+	// the filesystem exactly. Running them in reverse first reverts the in-folder
+	// file renames, then moves the folder back — leaving disk == the rolled-back
+	// DB, instead of "folder restored but files keep their new names".
+	var undo []func()
+	rollback := func() {
+		for i := len(undo) - 1; i >= 0; i-- {
+			undo[i]()
+		}
+	}
+
 	if err := os.MkdirAll(filepath.Dir(newFolder), 0o755); err != nil {
 		return nil, err
 	}
@@ -316,10 +348,10 @@ func (a *Adapter) relocateBook(ctx context.Context, tx *sql.Tx, existing *Book, 
 		if err := os.Rename(oldFolder, newFolder); err != nil {
 			return nil, fmt.Errorf("move book folder: %w", err)
 		}
+		undo = append(undo, func() { _ = os.Rename(newFolder, oldFolder) })
 	} else if err := os.MkdirAll(newFolder, 0o755); err != nil {
 		return nil, err
 	}
-	rollback := func() { _ = os.Rename(newFolder, oldFolder) }
 
 	// Rename each format file to the new basename and update data.name.
 	for _, f := range existing.Formats {
@@ -331,6 +363,8 @@ func (a *Adapter) relocateBook(ctx context.Context, tx *sql.Tx, existing *Book, 
 					rollback()
 					return nil, fmt.Errorf("rename format file: %w", err)
 				}
+				of, nf := oldFile, newFile
+				undo = append(undo, func() { _ = os.Rename(nf, of) })
 			}
 		}
 	}

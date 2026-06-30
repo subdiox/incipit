@@ -8,6 +8,7 @@ import type { Book, BookUpdate } from '@/types'
 import { authorNames, formatBytes, formatDate, languageLabel } from '@/lib/format'
 import { Cover } from '@/components/Cover'
 import { Rating } from '@/components/Rating'
+import { EnrichModal } from '@/components/EnrichModal'
 import { Modal } from '@/components/Modal'
 import { Spinner, FullPageSpinner } from '@/components/Spinner'
 import { AddToShelfMenu } from '@/components/AddToShelfMenu'
@@ -16,6 +17,7 @@ import {
   IconChevronLeft,
   IconDownload,
   IconEdit,
+  IconSearch,
   IconTrash,
 } from '@/components/icons'
 
@@ -174,6 +176,7 @@ export function BookDetailPage() {
   const { t } = useI18n()
 
   const [editing, setEditing] = useState(false)
+  const [enriching, setEnriching] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const { data: book, isLoading, isError, error } = useQuery({
@@ -248,14 +251,20 @@ export function BookDetailPage() {
             <AddToShelfMenu bookId={book.id} />
 
             {user?.canEdit && (
-              <div className="flex gap-2 border-t border-ink-700 pt-3">
-                <button type="button" className="btn-secondary flex-1" onClick={() => setEditing(true)}>
-                  <IconEdit width={16} height={16} />
-                  {t('book.edit')}
+              <div className="space-y-2 border-t border-ink-700 pt-3">
+                <button type="button" className="btn-secondary w-full" onClick={() => setEnriching(true)}>
+                  <IconSearch width={16} height={16} />
+                  {t('enrich.button')}
                 </button>
-                <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>
-                  <IconTrash width={16} height={16} />
-                </button>
+                <div className="flex gap-2">
+                  <button type="button" className="btn-secondary flex-1" onClick={() => setEditing(true)}>
+                    <IconEdit width={16} height={16} />
+                    {t('book.edit')}
+                  </button>
+                  <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>
+                    <IconTrash width={16} height={16} />
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -331,6 +340,7 @@ export function BookDetailPage() {
       </div>
 
       {editing && <EditModal book={book} open={editing} onClose={() => setEditing(false)} />}
+      {enriching && <EnrichModal book={book} open={enriching} onClose={() => setEnriching(false)} />}
 
       <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title={t('book.deleteTitle')}>
         <p className="text-sm text-slate-300">

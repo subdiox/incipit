@@ -22,6 +22,11 @@ type associations struct {
 	tags    []string
 	setTags bool
 
+	// addTags appends tags without removing existing ones (union). Used when
+	// re-enriching from an external source so user-added tags are preserved.
+	addTags    []string
+	setAddTags bool
+
 	publisher    string
 	setPublisher bool
 
@@ -75,11 +80,15 @@ func (a *Adapter) applyAssociations(ctx context.Context, tx *sql.Tx, book int64,
 		}
 	}
 
+	// setTags replaces (delete then insert); setAddTags only inserts (union),
+	// preserving user-added tags. Both link via INSERT OR IGNORE.
 	if as.setTags {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM books_tags_link WHERE book=?", book); err != nil {
 			return err
 		}
-		for _, t := range as.tags {
+	}
+	if as.setTags || as.setAddTags {
+		for _, t := range append(append([]string{}, as.tags...), as.addTags...) {
 			t = strings.TrimSpace(t)
 			if t == "" {
 				continue

@@ -153,6 +153,8 @@ export const api = {
   createBook: (form: FormData) => request<Book>('/books', { method: 'POST', body: form }),
   updateBook: (id: number, body: BookUpdate) =>
     request<Book>(`/books/${id}`, { method: 'PUT', ...jsonBody(body) }),
+  setBookCover: (id: number, form: FormData) =>
+    request<Book>(`/books/${id}/cover`, { method: 'PUT', body: form }),
   deleteBook: (id: number) => request<void>(`/books/${id}`, { method: 'DELETE' }),
 
   // Reading

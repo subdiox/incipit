@@ -132,6 +132,7 @@ export interface MetaPreview {
   publisher?: string
   pubdate?: string
   rating?: number
+  comments?: string
   hasCover?: boolean
 }
 
@@ -196,6 +197,7 @@ export interface BookUpdate {
   series?: string
   seriesIndex?: number
   tags?: string[]
+  addTags?: string[] // append tags (union) without removing existing ones
   publisher?: string
   languages?: string[]
   rating?: number
