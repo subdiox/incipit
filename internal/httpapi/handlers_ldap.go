@@ -24,6 +24,7 @@ type ldapSettingsResponse struct {
 	UserFilter        string `json:"userFilter"`
 	UsernameAttribute string `json:"usernameAttribute"`
 	AdminGroupDN      string `json:"adminGroupDN"`
+	LoginGroupDN      string `json:"loginGroupDN"`
 }
 
 func toLDAPResponse(s auth.LDAPSettings) ldapSettingsResponse {
@@ -37,6 +38,7 @@ func toLDAPResponse(s auth.LDAPSettings) ldapSettingsResponse {
 		UserFilter:        s.UserFilter,
 		UsernameAttribute: s.UsernameAttribute,
 		AdminGroupDN:      s.AdminGroupDN,
+		LoginGroupDN:      s.LoginGroupDN,
 	}
 }
 
@@ -58,6 +60,7 @@ type ldapUpdateBody struct {
 	UserFilter        string  `json:"userFilter"`
 	UsernameAttribute string  `json:"usernameAttribute"`
 	AdminGroupDN      string  `json:"adminGroupDN"`
+	LoginGroupDN      string  `json:"loginGroupDN"`
 }
 
 // handleUpdateLDAP validates, persists and hot-swaps the LDAP settings.
@@ -79,6 +82,7 @@ func (s *Server) handleUpdateLDAP(w http.ResponseWriter, r *http.Request) {
 		UserFilter:        strings.TrimSpace(body.UserFilter),
 		UsernameAttribute: strings.TrimSpace(body.UsernameAttribute),
 		AdminGroupDN:      strings.TrimSpace(body.AdminGroupDN),
+		LoginGroupDN:      strings.TrimSpace(body.LoginGroupDN),
 	}
 	// Only replace the password when a non-empty value is supplied.
 	if body.BindPassword != nil && *body.BindPassword != "" {

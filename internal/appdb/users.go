@@ -21,11 +21,14 @@ func (s *Store) CreateUser(ctx context.Context, u User) (*User, error) {
 	if u.Language == "" {
 		u.Language = "en"
 	}
+	if u.PageSize == 0 {
+		u.PageSize = DefaultPageSize
+	}
 	res, err := s.db.ExecContext(ctx, `INSERT INTO users
-		(username, password_hash, is_admin, source, can_download, can_upload, can_edit, language, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(username, password_hash, is_admin, source, can_download, can_upload, can_edit, language, page_size, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.Username, u.PasswordHash, b2i(u.IsAdmin), string(u.Source),
-		b2i(u.CanDownload), b2i(u.CanUpload), b2i(u.CanEdit), u.Language, u.CreatedAt.Format(timeLayout))
+		b2i(u.CanDownload), b2i(u.CanUpload), b2i(u.CanEdit), u.Language, u.PageSize, u.CreatedAt.Format(timeLayout))
 	if err != nil {
 		return nil, err
 	}
@@ -33,13 +36,13 @@ func (s *Store) CreateUser(ctx context.Context, u User) (*User, error) {
 	return &u, nil
 }
 
-const userCols = `id, username, password_hash, is_admin, source, can_download, can_upload, can_edit, language, created_at`
+const userCols = `id, username, password_hash, is_admin, source, can_download, can_upload, can_edit, language, page_size, created_at`
 
 func scanUser(sc interface{ Scan(...any) error }) (*User, error) {
 	var u User
 	var src, lang, created string
 	var admin, dl, up, ed int
-	if err := sc.Scan(&u.ID, &u.Username, &u.PasswordHash, &admin, &src, &dl, &up, &ed, &lang, &created); err != nil {
+	if err := sc.Scan(&u.ID, &u.Username, &u.PasswordHash, &admin, &src, &dl, &up, &ed, &lang, &u.PageSize, &created); err != nil {
 		return nil, err
 	}
 	u.IsAdmin = admin != 0
@@ -55,6 +58,19 @@ func scanUser(sc interface{ Scan(...any) error }) (*User, error) {
 // SetUserLanguage updates a user's UI language preference.
 func (s *Store) SetUserLanguage(ctx context.Context, id int64, language string) error {
 	_, err := s.db.ExecContext(ctx, "UPDATE users SET language=? WHERE id=?", language, id)
+	return err
+}
+
+// Page-size bounds for the per-account library preference.
+const (
+	DefaultPageSize = 36
+	MinPageSize     = 12
+	MaxPageSize     = 200
+)
+
+// SetUserPageSize updates a user's library page-size preference.
+func (s *Store) SetUserPageSize(ctx context.Context, id int64, pageSize int) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE users SET page_size=? WHERE id=?", pageSize, id)
 	return err
 }
 

@@ -196,3 +196,15 @@ export const IconFitHeight = (p: IconProps) => (
     <path d="M12 3v18M12 3l-4 4M12 3l4 4M12 21l-4-4M12 21l4-4" />
   </svg>
 )
+
+export const IconFullscreen = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4" />
+  </svg>
+)
+
+export const IconFullscreenExit = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M9 4v4a1 1 0 0 1-1 1H4M15 4v4a1 1 0 0 0 1 1h4M9 20v-4a1 1 0 0 0-1-1H4M15 20v-4a1 1 0 0 1 1-1h4" />
+  </svg>
+)

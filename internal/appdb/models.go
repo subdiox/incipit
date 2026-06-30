@@ -23,6 +23,7 @@ type User struct {
 	CanUpload    bool       `json:"canUpload"`
 	CanEdit      bool       `json:"canEdit"`
 	Language     string     `json:"language"` // UI language preference: "en" | "ja"
+	PageSize     int        `json:"pageSize"` // library page size preference
 	CreatedAt    time.Time  `json:"createdAt"`
 }
 

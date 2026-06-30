@@ -162,6 +162,7 @@ func loadLDAPSettings(ctx context.Context, store *appdb.Store, cfg *config.Confi
 		BaseDN:       cfg.LDAP.BaseDN,
 		UserFilter:   cfg.LDAP.UserFilter,
 		AdminGroupDN: cfg.LDAP.AdminGroupDN,
+		LoginGroupDN: cfg.LDAP.LoginGroupDN,
 	}
 }
 

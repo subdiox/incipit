@@ -136,6 +136,8 @@ export const api = {
   me: () => request<User>('/auth/me'),
   setLanguage: (language: string) =>
     request<User>('/auth/me', { method: 'PUT', ...jsonBody({ language }) }),
+  setPageSize: (pageSize: number) =>
+    request<User>('/auth/me', { method: 'PUT', ...jsonBody({ pageSize }) }),
 
   // Books
   books: (q: BookQuery = {}) => request<BooksResponse>(`/books${bookQueryString(q)}`),

@@ -179,11 +179,12 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
           aria-label={t('reader.nextPage')}
           className="absolute inset-y-0 right-0 z-0 w-[28%] cursor-e-resize"
         />
+        {/* Hidden on touch-sized screens — the side tap zones handle turns. */}
         <button
           type="button"
           onClick={prev}
           aria-label={t('reader.prevPage')}
-          className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white backdrop-blur transition-colors hover:bg-black/70"
+          className="absolute left-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white backdrop-blur transition-colors hover:bg-black/70 sm:block"
         >
           <IconChevronLeft width={22} height={22} />
         </button>
@@ -191,7 +192,7 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
           type="button"
           onClick={next}
           aria-label={t('reader.nextPage')}
-          className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white backdrop-blur transition-colors hover:bg-black/70"
+          className="absolute right-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white backdrop-blur transition-colors hover:bg-black/70 sm:block"
         >
           <IconChevronRight width={22} height={22} />
         </button>

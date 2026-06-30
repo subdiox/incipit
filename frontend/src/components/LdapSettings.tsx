@@ -17,6 +17,7 @@ type FormState = {
   userFilter: string
   usernameAttribute: string
   adminGroupDN: string
+  loginGroupDN: string
 }
 
 const EMPTY: FormState = {
@@ -28,6 +29,7 @@ const EMPTY: FormState = {
   userFilter: '(uid=%s)',
   usernameAttribute: 'uid',
   adminGroupDN: '',
+  loginGroupDN: '',
 }
 
 export function LdapSettings() {
@@ -51,6 +53,7 @@ export function LdapSettings() {
       userFilter: data.userFilter,
       usernameAttribute: data.usernameAttribute,
       adminGroupDN: data.adminGroupDN,
+      loginGroupDN: data.loginGroupDN,
     })
     setPasswordSet(data.bindPasswordSet)
   }, [data])
@@ -73,6 +76,7 @@ export function LdapSettings() {
       form.userFilter === data.userFilter &&
       form.usernameAttribute === data.usernameAttribute &&
       form.adminGroupDN === data.adminGroupDN &&
+      form.loginGroupDN === data.loginGroupDN &&
       password === ''
     if (unchanged) return { ok: true, label }
     try {
@@ -177,6 +181,13 @@ export function LdapSettings() {
               value={form.adminGroupDN}
               onChange={(v) => setForm({ ...form, adminGroupDN: v })}
               placeholder="cn=admins,ou=groups,dc=example,dc=com"
+            />
+            <Text
+              label={t('ldap.loginGroupDN')}
+              help={t('ldap.loginGroupDNHelp')}
+              value={form.loginGroupDN}
+              onChange={(v) => setForm({ ...form, loginGroupDN: v })}
+              placeholder="cn=incipit-users,ou=groups,dc=example,dc=com"
             />
 
             <Text

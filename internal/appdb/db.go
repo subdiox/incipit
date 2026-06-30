@@ -79,6 +79,8 @@ var migrations = []string{
 	);`,
 	// Per-account UI language preference ('en' | 'ja').
 	`ALTER TABLE users ADD COLUMN language TEXT NOT NULL DEFAULT 'en';`,
+	// Per-account library page-size preference.
+	`ALTER TABLE users ADD COLUMN page_size INTEGER NOT NULL DEFAULT 36;`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

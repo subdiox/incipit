@@ -7,6 +7,7 @@ export interface User {
   canUpload: boolean
   canEdit: boolean
   language: string
+  pageSize: number
   createdAt: string
 }
 
@@ -142,6 +143,7 @@ export interface LdapSettings {
   userFilter: string
   usernameAttribute: string
   adminGroupDN: string
+  loginGroupDN: string
 }
 
 export interface LdapUpdate {
@@ -154,6 +156,7 @@ export interface LdapUpdate {
   userFilter: string
   usernameAttribute: string
   adminGroupDN: string
+  loginGroupDN: string
 }
 
 export interface LdapTestResult {

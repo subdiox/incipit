@@ -69,6 +69,7 @@ docker compose up --build
 | `INCIPIT_LDAP_URL` | | `ldap://host:389` or `ldaps://host:636` |
 | `INCIPIT_LDAP_BIND_DN` | | Bind DN template, `%s` = username (e.g. `uid=%s,ou=people,dc=example,dc=com`) |
 | `INCIPIT_LDAP_ADMIN_GROUP_DN` | | Members of this group become admins |
+| `INCIPIT_LDAP_LOGIN_GROUP_DN` | | When set, only members of this group may log in / be imported |
 | `INCIPIT_LDAP_STARTTLS` | `false` | Use StartTLS |
 | `INCIPIT_PROXY_AUTH_ENABLED` | `false` | Trust a reverse proxy for auth |
 | `INCIPIT_PROXY_AUTH_HEADER` | `X-Authenticated-User` | Header carrying the username |

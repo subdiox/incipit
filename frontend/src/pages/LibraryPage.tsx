@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api, type BookQuery } from '@/lib/api'
@@ -9,9 +9,18 @@ import { useDebounced } from '@/lib/hooks'
 import type { Facet, SortKey, SortOrder } from '@/types'
 import { BookCard, BookCardSkeleton, BookGrid } from '@/components/BookCard'
 import { UploadModal } from '@/components/UploadModal'
-import { IconChevronLeft, IconChevronRight, IconFilter, IconUpload, IconLibrary } from '@/components/icons'
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconClose,
+  IconFilter,
+  IconSearch,
+  IconUpload,
+  IconLibrary,
+} from '@/components/icons'
 
-const PAGE_SIZE = 36
+const DEFAULT_PAGE_SIZE = 36
+const PAGE_SIZE_OPTIONS = [12, 24, 36, 48, 60, 96]
 
 const SORT_OPTIONS: { value: SortKey; labelKey: TranslationKey }[] = [
   { value: 'timestamp', labelKey: 'library.sort.recentlyAdded' },
@@ -24,7 +33,13 @@ const SORT_OPTIONS: { value: SortKey; labelKey: TranslationKey }[] = [
 
 type FacetKind = 'author' | 'series' | 'tag'
 
-function FacetSection({
+// Rows rendered at once. Large libraries can have thousands of authors, so the
+// list is searchable and capped — never dumped into the DOM all at once.
+const FACET_LIMIT = 50
+// Below this size the search box is unnecessary; just show the list.
+const FACET_SEARCH_THRESHOLD = 8
+
+function FacetFilter({
   title,
   kind,
   facets,
@@ -38,41 +53,95 @@ function FacetSection({
   onToggle: (kind: FacetKind, id: number) => void
 }) {
   const { t } = useI18n()
-  const [expanded, setExpanded] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const active = activeId != null ? (facets?.find((f) => f.id === activeId) ?? null) : null
+
+  const { rows, total } = useMemo(() => {
+    const all = facets ?? []
+    const needle = query.trim().toLowerCase()
+    const matched = needle ? all.filter((f) => f.name.toLowerCase().includes(needle)) : all
+    // Most-used first for discoverability; the active one floats to the top.
+    const sorted = [...matched].sort((a, b) => {
+      if (a.id === activeId) return -1
+      if (b.id === activeId) return 1
+      return b.count - a.count || a.name.localeCompare(b.name)
+    })
+    return { rows: sorted.slice(0, FACET_LIMIT), total: sorted.length }
+  }, [facets, query, activeId])
+
   if (!facets || facets.length === 0) return null
-  const visible = expanded ? facets : facets.slice(0, 8)
+  const searchable = facets.length > FACET_SEARCH_THRESHOLD
 
   return (
     <div>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
-      <div className="flex flex-wrap gap-1.5">
-        {visible.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => onToggle(kind, f.id)}
-            className={`chip ${activeId === f.id ? 'chip-active' : ''}`}
-          >
-            <span className="max-w-[10rem] truncate">{f.name}</span>
-            <span className="text-[10px] text-slate-500">{f.count}</span>
-          </button>
-        ))}
-        {facets.length > 8 && (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="chip border-transparent bg-transparent text-accentSoft hover:bg-transparent"
-          >
-            {expanded ? t('library.showLess') : t('library.showMore', { count: facets.length - 8 })}
-          </button>
-        )}
+      <div className="mb-2 flex items-baseline justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+        <span className="text-[10px] tabular-nums text-slate-600">{facets.length.toLocaleString()}</span>
       </div>
+
+      {active && (
+        <button
+          type="button"
+          onClick={() => onToggle(kind, active.id)}
+          className="chip chip-active mb-2 max-w-full"
+          title={t('library.clearFilters')}
+        >
+          <span className="truncate">{active.name}</span>
+          <IconClose width={12} height={12} className="shrink-0" />
+        </button>
+      )}
+
+      {searchable && (
+        <div className="relative mb-2">
+          <IconSearch
+            width={14}
+            height={14}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
+          />
+          <input
+            className="input py-1.5 pl-8 text-sm"
+            placeholder={t('library.facetSearch')}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <p className="px-1 py-1.5 text-xs text-slate-600">{t('library.facetNoMatch')}</p>
+      ) : (
+        <ul className="-mr-1 max-h-60 space-y-0.5 overflow-y-auto pr-1">
+          {rows.map((f) => (
+            <li key={f.id}>
+              <button
+                type="button"
+                onClick={() => onToggle(kind, f.id)}
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1 text-left text-sm transition-colors ${
+                  f.id === activeId
+                    ? 'bg-accent-500/15 text-accentSoft'
+                    : 'text-slate-300 hover:bg-ink-800'
+                }`}
+              >
+                <span className="truncate">{f.name}</span>
+                <span className="shrink-0 text-[10px] tabular-nums text-slate-500">{f.count}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {total > rows.length && (
+        <p className="mt-1.5 px-1 text-[11px] text-slate-600">
+          {t('library.facetMore', { count: total - rows.length })}
+        </p>
+      )}
     </div>
   )
 }
 
 export function LibraryPage() {
-  const { user } = useAuth()
+  const { user, setUser } = useAuth()
   const { t } = useI18n()
   const [params, setParams] = useSearchParams()
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -86,6 +155,7 @@ export function LibraryPage() {
   const seriesId = params.get('series') ? Number(params.get('series')) : null
   const tagId = params.get('tag') ? Number(params.get('tag')) : null
   const offset = params.get('offset') ? Number(params.get('offset')) : 0
+  const pageSize = user?.pageSize ?? DEFAULT_PAGE_SIZE
 
   const update = (mut: (p: URLSearchParams) => void, resetOffset = true) => {
     const next = new URLSearchParams(params)
@@ -109,10 +179,10 @@ export function LibraryPage() {
       author: authorId ?? undefined,
       series: seriesId ?? undefined,
       tag: tagId ?? undefined,
-      limit: PAGE_SIZE,
+      limit: pageSize,
       offset,
     }),
-    [debouncedSearch, sort, order, authorId, seriesId, tagId, offset],
+    [debouncedSearch, sort, order, authorId, seriesId, tagId, offset, pageSize],
   )
 
   const { data, isLoading, isFetching, isError, error } = useQuery({
@@ -127,50 +197,68 @@ export function LibraryPage() {
 
   const total = data?.total ?? 0
   const hasFilters = authorId != null || seriesId != null || tagId != null || !!debouncedSearch
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const currentPage = Math.floor(offset / PAGE_SIZE) + 1
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const currentPage = Math.floor(offset / pageSize) + 1
+
+  const changePageSize = (size: number) => {
+    if (!user || size === user.pageSize) return
+    setUser({ ...user, pageSize: size }) // optimistic
+    update((p) => p.delete('offset')) // back to page 1
+    api.setPageSize(size).then(setUser).catch(() => setUser(user))
+  }
 
   const goToPage = (page: number) => {
     update((p) => {
-      const newOffset = (page - 1) * PAGE_SIZE
+      const newOffset = (page - 1) * pageSize
       if (newOffset > 0) p.set('offset', String(newOffset))
       else p.delete('offset')
     }, false)
   }
 
-  const facetSidebar = (
-    <div className="space-y-5">
-      {hasFilters && (
-        <button
-          type="button"
-          onClick={() =>
-            update((p) => {
-              p.delete('author')
-              p.delete('series')
-              p.delete('tag')
-            })
-          }
-          className="text-xs font-medium text-accentSoft hover:text-accentSoft"
-        >
-          {t('library.clearFilters')}
-        </button>
-      )}
-      <FacetSection title={t('library.authors')} kind="author" facets={authors.data} activeId={authorId} onToggle={toggleFacet} />
-      <FacetSection title={t('library.series')} kind="series" facets={series.data} activeId={seriesId} onToggle={toggleFacet} />
-      <FacetSection title={t('library.tags')} kind="tag" facets={tags.data} activeId={tagId} onToggle={toggleFacet} />
+  const activeFacetCount =
+    (authorId != null ? 1 : 0) + (seriesId != null ? 1 : 0) + (tagId != null ? 1 : 0)
+
+  // Close the filters dropdown on outside click / Escape.
+  const filtersRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!filtersOpen) return
+    const onPointer = (e: MouseEvent) => {
+      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) setFiltersOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFiltersOpen(false)
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [filtersOpen])
+
+  const clearFacets = () =>
+    update((p) => {
+      p.delete('author')
+      p.delete('series')
+      p.delete('tag')
+    })
+
+  const activeChips = [
+    { kind: 'author' as const, id: authorId, name: authors.data?.find((f) => f.id === authorId)?.name },
+    { kind: 'series' as const, id: seriesId, name: series.data?.find((f) => f.id === seriesId)?.name },
+    { kind: 'tag' as const, id: tagId, name: tags.data?.find((f) => f.id === tagId)?.name },
+  ].filter((c): c is { kind: FacetKind; id: number; name: string | undefined } => c.id != null)
+
+  const facetPanel = (
+    <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3">
+      <FacetFilter title={t('library.authors')} kind="author" facets={authors.data} activeId={authorId} onToggle={toggleFacet} />
+      <FacetFilter title={t('library.series')} kind="series" facets={series.data} activeId={seriesId} onToggle={toggleFacet} />
+      <FacetFilter title={t('library.tags')} kind="tag" facets={tags.data} activeId={tagId} onToggle={toggleFacet} />
     </div>
   )
 
   return (
-    <div className="flex gap-8">
-      {/* Filter sidebar (desktop) */}
-      <aside className="hidden w-56 shrink-0 xl:block">
-        <div className="sticky top-20">{facetSidebar}</div>
-      </aside>
-
       <div className="min-w-0 flex-1">
-        {/* Header / controls */}
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        {/* Header */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-white">{t('library.title')}</h1>
             <p className="mt-0.5 text-sm text-slate-500">
@@ -182,15 +270,79 @@ export function LibraryPage() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {user?.canUpload && (
+            <button type="button" onClick={() => setUploadOpen(true)} className="btn-primary">
+              <IconUpload width={16} height={16} />
+              <span className="hidden sm:inline">{t('library.upload')}</span>
+            </button>
+          )}
+        </div>
+
+        {/* Controls: filters + sort, sitting just under the search bar */}
+        <div className="mb-5 flex flex-wrap items-center gap-2">
+          <div className="relative" ref={filtersRef}>
             <button
               type="button"
               onClick={() => setFiltersOpen((v) => !v)}
-              className="btn-secondary xl:hidden"
+              className={`btn-secondary ${filtersOpen || activeFacetCount > 0 ? 'border-accent-500/60 text-accentSoft' : ''}`}
+              aria-expanded={filtersOpen}
             >
               <IconFilter width={16} height={16} />
               {t('library.filters')}
+              {activeFacetCount > 0 && (
+                <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-600 px-1 text-[10px] font-semibold text-onaccent">
+                  {activeFacetCount}
+                </span>
+              )}
             </button>
+
+            {filtersOpen && (
+              <div className="absolute left-0 z-30 mt-2 w-[min(92vw,44rem)] origin-top-left animate-fade-in rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-soft">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-white">{t('library.filters')}</h2>
+                  {activeFacetCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearFacets}
+                      className="text-xs font-medium text-accentSoft hover:text-white"
+                    >
+                      {t('library.clearFilters')}
+                    </button>
+                  )}
+                </div>
+                {facetPanel}
+              </div>
+            )}
+          </div>
+
+          {/* Active filter chips, visible while the dropdown is closed */}
+          {activeChips.map((c) => (
+            <button
+              key={`${c.kind}-${c.id}`}
+              type="button"
+              onClick={() => toggleFacet(c.kind, c.id)}
+              className="chip chip-active"
+              title={t('library.clearFilters')}
+            >
+              <span className="max-w-[12rem] truncate">{c.name ?? '…'}</span>
+              <IconClose width={12} height={12} className="shrink-0" />
+            </button>
+          ))}
+
+          <div className="ml-auto flex items-center gap-2">
+            <select
+              value={pageSize}
+              onChange={(e) => changePageSize(Number(e.target.value))}
+              className="input w-auto cursor-pointer py-2 pr-8"
+              title={t('library.perPage')}
+              aria-label={t('library.perPage')}
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {t('library.perPageOption', { count: n })}
+                </option>
+              ))}
+            </select>
 
             <select
               value={sort}
@@ -212,22 +364,8 @@ export function LibraryPage() {
             >
               {order === 'desc' ? '↓' : '↑'}
             </button>
-
-            {user?.canUpload && (
-              <button type="button" onClick={() => setUploadOpen(true)} className="btn-primary">
-                <IconUpload width={16} height={16} />
-                <span className="hidden sm:inline">{t('library.upload')}</span>
-              </button>
-            )}
           </div>
         </div>
-
-        {/* Mobile filters */}
-        {filtersOpen && (
-          <div className="mb-5 rounded-2xl border border-ink-700 bg-ink-850 p-4 xl:hidden">
-            {facetSidebar}
-          </div>
-        )}
 
         {/* Content */}
         {isError ? (
@@ -301,9 +439,8 @@ export function LibraryPage() {
             )}
           </div>
         )}
-      </div>
 
-      <UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
-    </div>
+        <UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
+      </div>
   )
 }

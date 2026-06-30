@@ -5,19 +5,25 @@ services:
     # image: ghcr.io/incipit/incipit:latest
     container_name: incipit
     restart: unless-stopped
+    # Container runs as nonroot (uid 65532); mounted dirs must be writable by it.
+    user: "65532:65532"
+    # Resolve host.docker.internal on plain Linux Docker (needed to reach the
+    # LDAP server published on the host, e.g. ldap://host.docker.internal:389).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      - "8080:8080"
+      # Host 8080 is taken by nextcloud, so map to 8085.
+      - "8085:8080"
     volumes:
-      # Your existing Calibre library (must contain, or will get, metadata.db).
-      - ./library:/library
+      # Existing Calibre library (contains metadata.db).
+      - /mnt/data/calibre:/library
       # Incipit's own state: app.db, image cache, generated secrets.
       - ./config:/config
     environment:
       INCIPIT_ADDR: ":8080"
       INCIPIT_CONFIG: "/config"
-      # The Calibre library path is chosen during first-run setup (enter the
-      # in-container path, e.g. /library). Uncomment to pre-configure it instead:
-      # INCIPIT_LIBRARY: "/library"
+      # Pre-configure the library path (skips first-run library picker).
+      INCIPIT_LIBRARY: "/library"
       # Set to true to never write to the Calibre library.
       INCIPIT_READONLY: "false"
       # Set when terminating TLS upstream so cookies are marked Secure.
@@ -30,6 +36,8 @@ services:
       # INCIPIT_LDAP_URL: "ldaps://ldap.example.com:636"
       # INCIPIT_LDAP_BASE_DN: "ou=people,dc=example,dc=com"
       # INCIPIT_LDAP_ADMIN_GROUP_DN: "cn=admins,ou=groups,dc=example,dc=com"
+      # Restrict login to members of one group (calibre-web-style group filter):
+      # INCIPIT_LDAP_LOGIN_GROUP_DN: "cn=incipit-users,ou=groups,dc=example,dc=com"
       # INCIPIT_LDAP_STARTTLS: "false"
 
       # --- Optional: reverse-proxy header auth (only behind a trusted proxy) ---

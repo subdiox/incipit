@@ -37,6 +37,11 @@ type LDAPSettings struct {
 
 	// Members of this group are imported / provisioned as admins.
 	AdminGroupDN string `json:"adminGroupDN"`
+
+	// When set, only members of this group may log in (and are imported).
+	// Empty = no group restriction. Membership is resolved the same way as the
+	// admin group (member / uniqueMember / memberUid).
+	LoginGroupDN string `json:"loginGroupDN"`
 }
 
 // withDefaults fills in conventional defaults for empty fields.
@@ -135,7 +140,18 @@ func (m *LDAPManager) Authenticate(_ context.Context, username, password string)
 		return false, false, fmt.Errorf("ldap user bind: %w", err)
 	}
 
-	isAdmin, err := isMemberOfAdminGroup(conn, s, entry.DN, username)
+	// Restrict login to the allowed group, when one is configured.
+	if dn := strings.TrimSpace(s.LoginGroupDN); dn != "" {
+		member, err := isMemberOfGroup(conn, dn, entry.DN, username)
+		if err != nil {
+			return false, false, err
+		}
+		if !member {
+			return false, false, nil // authenticated, but not permitted to log in
+		}
+	}
+
+	isAdmin, err := isMemberOfGroup(conn, s.AdminGroupDN, entry.DN, username)
 	if err != nil {
 		return false, false, err
 	}
@@ -192,9 +208,18 @@ func (m *LDAPManager) ImportUsers(ctx context.Context, store *appdb.Store) (*Imp
 		return nil, fmt.Errorf("bind: %w", err)
 	}
 
-	adminDNs, adminUIDs, err := adminGroupMembers(conn, s)
+	adminDNs, adminUIDs, err := groupMembers(conn, s.AdminGroupDN)
 	if err != nil {
 		return nil, err
+	}
+
+	// When a login group is configured, only its members are imported.
+	var loginDNs, loginUIDs map[string]bool
+	if strings.TrimSpace(s.LoginGroupDN) != "" {
+		loginDNs, loginUIDs, err = groupMembers(conn, s.LoginGroupDN)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Enumerate users: reuse the login filter with '*' in place of the username.
@@ -213,6 +238,10 @@ func (m *LDAPManager) ImportUsers(ctx context.Context, store *appdb.Store) (*Imp
 	for _, entry := range res.Entries {
 		username := strings.TrimSpace(entry.GetAttributeValue(s.UsernameAttribute))
 		if username == "" || !safeUsername.MatchString(username) {
+			continue
+		}
+		// Skip users outside the configured login group.
+		if loginDNs != nil && !loginDNs[strings.ToLower(entry.DN)] && !loginUIDs[username] {
 			continue
 		}
 		result.Scanned++
@@ -286,15 +315,16 @@ func findUser(conn *ldap.Conn, s LDAPSettings, username string) (*ldap.Entry, er
 	return res.Entries[0], nil
 }
 
-// isMemberOfAdminGroup reports whether a user (by DN or username) belongs to the
-// configured admin group. Handles groupOfNames/uniqueMember and posixGroup.
-func isMemberOfAdminGroup(conn *ldap.Conn, s LDAPSettings, userDN, username string) (bool, error) {
-	if strings.TrimSpace(s.AdminGroupDN) == "" {
+// isMemberOfGroup reports whether a user (by DN or username) belongs to the
+// given group DN. Handles groupOfNames/uniqueMember and posixGroup. An empty
+// groupDN reports false (no group => not a member).
+func isMemberOfGroup(conn *ldap.Conn, groupDN, userDN, username string) (bool, error) {
+	if strings.TrimSpace(groupDN) == "" {
 		return false, nil
 	}
 	filter := fmt.Sprintf("(|(member=%s)(uniqueMember=%s)(memberUid=%s))",
 		ldap.EscapeFilter(userDN), ldap.EscapeFilter(userDN), ldap.EscapeFilter(username))
-	req := ldap.NewSearchRequest(s.AdminGroupDN, ldap.ScopeBaseObject, ldap.NeverDerefAliases,
+	req := ldap.NewSearchRequest(groupDN, ldap.ScopeBaseObject, ldap.NeverDerefAliases,
 		1, 0, false, filter, []string{"dn"}, nil)
 	res, err := conn.Search(req)
 	if err != nil {
@@ -302,19 +332,20 @@ func isMemberOfAdminGroup(conn *ldap.Conn, s LDAPSettings, userDN, username stri
 		if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
 			return false, nil
 		}
-		return false, fmt.Errorf("ldap admin search: %w", err)
+		return false, fmt.Errorf("ldap group search: %w", err)
 	}
 	return len(res.Entries) > 0, nil
 }
 
-// adminGroupMembers reads the admin group's membership once, returning lowercase
-// member DNs and memberUid usernames for fast lookup during import.
-func adminGroupMembers(conn *ldap.Conn, s LDAPSettings) (dns map[string]bool, uids map[string]bool, err error) {
+// groupMembers reads a group's membership once, returning lowercase member DNs
+// and memberUid usernames for fast lookup during import. An empty groupDN
+// returns empty maps.
+func groupMembers(conn *ldap.Conn, groupDN string) (dns map[string]bool, uids map[string]bool, err error) {
 	dns, uids = map[string]bool{}, map[string]bool{}
-	if strings.TrimSpace(s.AdminGroupDN) == "" {
+	if strings.TrimSpace(groupDN) == "" {
 		return dns, uids, nil
 	}
-	req := ldap.NewSearchRequest(s.AdminGroupDN, ldap.ScopeBaseObject, ldap.NeverDerefAliases,
+	req := ldap.NewSearchRequest(groupDN, ldap.ScopeBaseObject, ldap.NeverDerefAliases,
 		1, 0, false, "(objectClass=*)", []string{"member", "uniqueMember", "memberUid"}, nil)
 	res, err := conn.Search(req)
 	if err != nil {
@@ -322,7 +353,7 @@ func adminGroupMembers(conn *ldap.Conn, s LDAPSettings) (dns map[string]bool, ui
 		if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
 			return dns, uids, nil
 		}
-		return nil, nil, fmt.Errorf("ldap admin group: %w", err)
+		return nil, nil, fmt.Errorf("ldap group: %w", err)
 	}
 	for _, e := range res.Entries {
 		for _, dn := range append(e.GetAttributeValues("member"), e.GetAttributeValues("uniqueMember")...) {

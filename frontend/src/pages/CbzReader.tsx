@@ -22,6 +22,8 @@ import {
   IconClose,
   IconFitHeight,
   IconFitWidth,
+  IconFullscreen,
+  IconFullscreenExit,
   IconSettings,
   IconSinglePage,
   IconSpread,
@@ -36,6 +38,8 @@ export function CbzReader({ bookId }: { bookId: number }) {
   const [chromeVisible, setChromeVisible] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [loadedPages, setLoadedPages] = useState<Record<number, boolean>>({})
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
   const restoredRef = useRef(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hideChromeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -119,11 +123,10 @@ export function CbzReader({ bookId }: { bookId: number }) {
     }
   }, [first, total, bookId])
 
-  // Reset per-page loaded state whenever the visible set changes.
-  const viewKey = view.join('-')
-  useEffect(() => {
-    setLoadedPages({})
-  }, [viewKey])
+  // Loaded state is keyed by page index and kept across view changes: a page
+  // that has loaded once stays loaded, so toggling to a spread (which keeps the
+  // already-shown <img> element mounted, so it never re-fires onLoad) doesn't
+  // leave the spinner hanging. Pages not yet in the map gate the spinner.
   const markLoaded = useCallback((n: number) => {
     setLoadedPages((prev) => (prev[n] ? prev : { ...prev, [n]: true }))
   }, [])
@@ -183,6 +186,30 @@ export function CbzReader({ bookId }: { bookId: number }) {
     }
   }, [revealChrome])
 
+  // Center tap toggles the UI chrome (and cancels any pending auto-hide).
+  const toggleChrome = useCallback(() => {
+    if (hideChromeTimer.current) clearTimeout(hideChromeTimer.current)
+    setChromeVisible((v) => !v)
+  }, [])
+
+  // Fullscreen mode. Track the browser's fullscreen state so the button icon and
+  // ours stay in sync even when the user exits via Esc.
+  useEffect(() => {
+    const sync = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', sync)
+    return () => document.removeEventListener('fullscreenchange', sync)
+  }, [])
+
+  const fullscreenSupported =
+    typeof document !== 'undefined' && !!document.fullscreenEnabled
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {})
+    } else {
+      containerRef.current?.requestFullscreen?.().catch(() => {})
+    }
+  }, [])
+
   // Display order: right-bound shows the higher page number on the left.
   const displayPages = rtl ? [...view].reverse() : view
 
@@ -222,8 +249,17 @@ export function CbzReader({ bookId }: { bookId: number }) {
 
   return (
     <div
-      className="dark relative h-screen w-screen select-none overflow-hidden bg-black"
-      onMouseMove={revealChrome}
+      ref={containerRef}
+      // Cursor auto-hides with the chrome (and reappears on mouse move). The
+      // descendant variant overrides the tap zones' own resize cursors.
+      className={`dark relative h-screen w-screen select-none overflow-hidden bg-black [-webkit-tap-highlight-color:transparent] ${
+        chromeVisible ? '' : 'cursor-none [&_*]:cursor-none'
+      }`}
+      // Only a real mouse reveals chrome on move; touch taps must not (they would
+      // fight the center-tap toggle via a synthesized mousemove).
+      onPointerMove={(e) => {
+        if (e.pointerType === 'mouse') revealChrome()
+      }}
     >
       {/* Top bar */}
       <div
@@ -242,22 +278,35 @@ export function CbzReader({ bookId }: { bookId: number }) {
         <div className="pointer-events-auto rounded-full bg-black/40 px-4 py-1.5 text-sm font-medium text-slate-200 backdrop-blur">
           {pageLabel}
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setSettingsOpen((o) => !o)
-            setChromeVisible(true)
-          }}
-          className={`pointer-events-auto rounded-lg p-2 backdrop-blur transition-colors ${
-            settingsOpen
-              ? 'bg-accent-600 text-onaccent'
-              : 'bg-black/40 text-slate-200 hover:bg-black/70 hover:text-white'
-          }`}
-          aria-label={t('reader.settings')}
-          title={t('reader.settings')}
-        >
-          <IconSettings />
-        </button>
+        <div className="flex items-center gap-2">
+          {fullscreenSupported && (
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="pointer-events-auto rounded-lg bg-black/40 p-2 text-slate-200 backdrop-blur transition-colors hover:bg-black/70 hover:text-white"
+              aria-label={isFullscreen ? t('reader.exitFullscreen') : t('reader.enterFullscreen')}
+              title={isFullscreen ? t('reader.exitFullscreen') : t('reader.enterFullscreen')}
+            >
+              {isFullscreen ? <IconFullscreenExit /> : <IconFullscreen />}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setSettingsOpen((o) => !o)
+              setChromeVisible(true)
+            }}
+            className={`pointer-events-auto rounded-lg p-2 backdrop-blur transition-colors ${
+              settingsOpen
+                ? 'bg-accent-600 text-onaccent'
+                : 'bg-black/40 text-slate-200 hover:bg-black/70 hover:text-white'
+            }`}
+            aria-label={t('reader.settings')}
+            title={t('reader.settings')}
+          >
+            <IconSettings />
+          </button>
+        </div>
       </div>
 
       {/* Settings panel + click-away backdrop */}
@@ -286,6 +335,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
             src={mediaUrl.page(bookId, n)}
             alt={`Page ${n + 1}`}
             onLoad={() => markLoaded(n)}
+            onError={() => markLoaded(n)}
             className={`object-contain transition-opacity duration-200 ${imgClass} ${
               loadedPages[n] ? 'opacity-100' : 'opacity-0'
             }`}
@@ -299,20 +349,28 @@ export function CbzReader({ bookId }: { bookId: number }) {
         type="button"
         onClick={onLeft}
         disabled={!canLeft}
-        className="absolute inset-y-0 left-0 z-10 w-[35%] cursor-w-resize disabled:cursor-default"
+        className="absolute inset-y-0 left-0 z-10 w-[35%] cursor-w-resize outline-none focus:outline-none disabled:cursor-default"
         aria-label={rtl ? t('reader.nextPage') : t('reader.prevPage')}
       />
       <button
         type="button"
         onClick={onRight}
         disabled={!canRight}
-        className="absolute inset-y-0 right-0 z-10 w-[35%] cursor-e-resize disabled:cursor-default"
+        className="absolute inset-y-0 right-0 z-10 w-[35%] cursor-e-resize outline-none focus:outline-none disabled:cursor-default"
         aria-label={rtl ? t('reader.prevPage') : t('reader.nextPage')}
       />
+      {/* Center tap toggles the UI chrome (top bar / arrows / progress). */}
+      <button
+        type="button"
+        onClick={toggleChrome}
+        className="absolute inset-y-0 left-[35%] right-[35%] z-10 cursor-default outline-none focus:outline-none"
+        aria-label={t('reader.toggleUi')}
+      />
 
-      {/* On-screen prev/next (physical sides) */}
+      {/* On-screen prev/next (physical sides). Hidden on touch-sized screens —
+          the left/right tap zones above handle page turns there. */}
       <div
-        className={`pointer-events-none absolute inset-y-0 left-0 z-20 flex items-center pl-3 transition-opacity duration-300 ${
+        className={`pointer-events-none absolute inset-y-0 left-0 z-20 hidden items-center pl-3 transition-opacity duration-300 sm:flex ${
           chromeVisible && canLeft ? 'opacity-100' : 'opacity-0'
         }`}
       >
@@ -326,7 +384,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
         </button>
       </div>
       <div
-        className={`pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center pr-3 transition-opacity duration-300 ${
+        className={`pointer-events-none absolute inset-y-0 right-0 z-20 hidden items-center pr-3 transition-opacity duration-300 sm:flex ${
           chromeVisible && canRight ? 'opacity-100' : 'opacity-0'
         }`}
       >

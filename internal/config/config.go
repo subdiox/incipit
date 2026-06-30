@@ -56,6 +56,7 @@ type LDAPConfig struct {
 	BaseDN       string
 	UserFilter   string // e.g. (uid=%s)
 	AdminGroupDN string // members of this group become admins
+	LoginGroupDN string // when set, only members of this group may log in
 	StartTLS     bool
 }
 
@@ -86,6 +87,7 @@ func Load() (*Config, error) {
 			BaseDN:       os.Getenv("INCIPIT_LDAP_BASE_DN"),
 			UserFilter:   envOr("INCIPIT_LDAP_USER_FILTER", "(uid=%s)"),
 			AdminGroupDN: os.Getenv("INCIPIT_LDAP_ADMIN_GROUP_DN"),
+			LoginGroupDN: os.Getenv("INCIPIT_LDAP_LOGIN_GROUP_DN"),
 			StartTLS:     envBool("INCIPIT_LDAP_STARTTLS", false),
 		},
 		ProxyAuth: ProxyAuthConfig{

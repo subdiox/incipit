@@ -170,6 +170,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 // updateMeBody holds the self-service account fields a user may change.
 type updateMeBody struct {
 	Language *string `json:"language"`
+	PageSize *int    `json:"pageSize"`
 }
 
 // handleUpdateMe lets the authenticated user change their own preferences
@@ -193,6 +194,17 @@ func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := s.store.SetUserLanguage(r.Context(), cur.ID, lang); err != nil {
 			writeError(w, http.StatusInternalServerError, "update language")
+			return
+		}
+	}
+	if body.PageSize != nil {
+		ps := *body.PageSize
+		if ps < appdb.MinPageSize || ps > appdb.MaxPageSize {
+			writeError(w, http.StatusBadRequest, "page size out of range")
+			return
+		}
+		if err := s.store.SetUserPageSize(r.Context(), cur.ID, ps); err != nil {
+			writeError(w, http.StatusInternalServerError, "update page size")
 			return
 		}
 	}
