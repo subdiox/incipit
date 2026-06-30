@@ -12,6 +12,7 @@ import { SettingsContainer } from '@/components/SettingsSaver'
 import { ServerSettings } from '@/components/ServerSettings'
 import { LibrarySettings } from '@/components/LibrarySettings'
 import { LdapSettings } from '@/components/LdapSettings'
+import { PanesSettings } from '@/components/PanesSettings'
 import { IconCheck, IconEdit, IconPlus, IconTrash } from '@/components/icons'
 
 type Perm = 'isAdmin' | 'canDownload' | 'canUpload' | 'canEdit'
@@ -226,7 +227,7 @@ function EditUserModal({ user, open, onClose }: { user: User; open: boolean; onC
   )
 }
 
-type TabKey = 'general' | 'library' | 'auth' | 'users'
+type TabKey = 'general' | 'library' | 'auth' | 'panes' | 'users'
 
 export function AdminPage() {
   const queryClient = useQueryClient()
@@ -241,6 +242,7 @@ export function AdminPage() {
     { key: 'general', label: t('settings.tabGeneral') },
     { key: 'library', label: t('settings.tabLibrary') },
     { key: 'auth', label: t('settings.tabAuth') },
+    { key: 'panes', label: t('settings.tabPanes') },
     { key: 'users', label: t('settings.tabUsers') },
   ]
 
@@ -362,7 +364,7 @@ export function AdminPage() {
 
       {/* General / Library / Authentication share one save bar; kept mounted so
           edits survive switching tabs. */}
-      <SettingsContainer showSaveBar={tab !== 'users'}>
+      <SettingsContainer showSaveBar={tab === 'general' || tab === 'library' || tab === 'auth'}>
         <div className={tab === 'general' ? '' : 'hidden'}>
           <ServerSettings />
         </div>
@@ -374,6 +376,7 @@ export function AdminPage() {
         </div>
       </SettingsContainer>
 
+      {tab === 'panes' && <PanesSettings />}
       {tab === 'users' && usersTable}
 
       <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} />

@@ -12,6 +12,7 @@ import type {
   MetadataGenre,
   MetaPreview,
   PagesResponse,
+  Pane,
   Progress,
   ReadingItem,
   SetupStatus,
@@ -195,6 +196,14 @@ export const api = {
     request<void>(`/shelves/${shelfId}/books/${bookId}`, { method: 'POST' }),
   removeFromShelf: (shelfId: number, bookId: number) =>
     request<void>(`/shelves/${shelfId}/books/${bookId}`, { method: 'DELETE' }),
+
+  // Panes (admin-defined saved tag filters under Library)
+  panes: () => request<Pane[]>('/panes'),
+  createPane: (name: string, tagIds: number[]) =>
+    request<Pane>('/admin/panes', { method: 'POST', ...jsonBody({ name, tagIds }) }),
+  updatePane: (id: number, body: { name: string; tagIds: number[]; position: number }) =>
+    request<void>(`/admin/panes/${id}`, { method: 'PUT', ...jsonBody(body) }),
+  deletePane: (id: number) => request<void>(`/admin/panes/${id}`, { method: 'DELETE' }),
 
   // Admin
   adminUsers: () => request<User[]>('/admin/users'),

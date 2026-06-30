@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
 import { useSiteTitle } from '@/lib/hooks'
 import {
   IconAdmin,
   IconBook,
+  IconFilter,
   IconHistory,
   IconLibrary,
   IconLogout,
@@ -50,6 +53,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useI18n()
   const siteTitle = useSiteTitle()
   const navigate = useNavigate()
+  const panes = useQuery({ queryKey: ['panes'], queryFn: api.panes }).data ?? []
 
   const handleLogout = async () => {
     await logout()
@@ -71,6 +75,16 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <nav className="flex-1 space-y-1 px-2">
         <NavItem to="/" icon={<IconLibrary width={18} height={18} />} label={t('nav.library')} onClick={onNavigate} />
+        {/* Admin-defined panes (saved filters) sit just under the library. */}
+        {panes.map((p) => (
+          <NavItem
+            key={p.id}
+            to={`/panes/${p.id}`}
+            icon={<IconFilter width={16} height={16} />}
+            label={p.name}
+            onClick={onNavigate}
+          />
+        ))}
         <NavItem to="/shelves" icon={<IconShelf width={18} height={18} />} label={t('nav.shelves')} onClick={onNavigate} />
         <NavItem to="/history" icon={<IconHistory width={18} height={18} />} label={t('nav.history')} onClick={onNavigate} />
         {user?.isAdmin && (
@@ -114,6 +128,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 function TopBar({ onMenu }: { onMenu: () => void }) {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { t } = useI18n()
   const [value, setValue] = useState(params.get('search') ?? '')
 
@@ -129,8 +144,9 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
     if (value.trim()) next.set('search', value.trim())
     else next.delete('search')
     next.delete('offset')
-    // Always land on the library when searching.
-    navigate({ pathname: '/', search: `?${next.toString()}` })
+    // Stay on the current pane page when searching there; otherwise the library.
+    const pathname = location.pathname.startsWith('/panes/') ? location.pathname : '/'
+    navigate({ pathname, search: `?${next.toString()}` })
   }
 
   return (

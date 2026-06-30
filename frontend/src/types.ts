@@ -111,6 +111,14 @@ export interface ReadingItem {
   updatedAt: string
 }
 
+export interface Pane {
+  id: number
+  name: string
+  tagIds: number[]
+  position: number
+  createdAt: string
+}
+
 export interface SetupStatus {
   needsSetup: boolean
   needsLibrary: boolean

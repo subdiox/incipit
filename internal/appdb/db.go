@@ -88,6 +88,15 @@ var migrations = []string{
 		views       INTEGER NOT NULL DEFAULT 0,
 		last_viewed TEXT NOT NULL
 	);`,
+	// Admin-defined library panes: a saved tag filter (AND) shown as its own nav
+	// entry under Library. tag_ids is a CSV of Calibre tag IDs.
+	`CREATE TABLE panes (
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		name       TEXT NOT NULL,
+		tag_ids    TEXT NOT NULL DEFAULT '',
+		position   INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL
+	);`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

@@ -2,6 +2,7 @@ package appdb
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -125,6 +126,43 @@ func TestShelvesAndProgress(t *testing.T) {
 	p, err := s.GetProgress(ctx, u.ID, 10, "CBZ")
 	if err != nil || p.Page != 42 {
 		t.Fatalf("GetProgress = %+v err=%v", p, err)
+	}
+}
+
+func TestPanes(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	a, err := s.CreatePane(ctx, "Action", []int64{1, 2})
+	if err != nil {
+		t.Fatalf("CreatePane: %v", err)
+	}
+	b, _ := s.CreatePane(ctx, "Comedy", []int64{3})
+	if b.Position <= a.Position {
+		t.Errorf("positions not increasing: %d, %d", a.Position, b.Position)
+	}
+
+	panes, _ := s.ListPanes(ctx)
+	if len(panes) != 2 || panes[0].Name != "Action" || len(panes[0].TagIDs) != 2 || panes[0].TagIDs[0] != 1 {
+		t.Fatalf("ListPanes = %+v", panes)
+	}
+
+	if err := s.UpdatePane(ctx, a.ID, "Action!", []int64{1, 2, 5}, 0); err != nil {
+		t.Fatalf("UpdatePane: %v", err)
+	}
+	got, _ := s.GetPane(ctx, a.ID)
+	if got.Name != "Action!" || len(got.TagIDs) != 3 {
+		t.Errorf("GetPane = %+v", got)
+	}
+
+	if err := s.DeletePane(ctx, a.ID); err != nil {
+		t.Fatalf("DeletePane: %v", err)
+	}
+	if panes, _ := s.ListPanes(ctx); len(panes) != 1 || panes[0].ID != b.ID {
+		t.Errorf("after delete = %+v", panes)
+	}
+	if _, err := s.GetPane(ctx, a.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("GetPane(deleted) err = %v", err)
 	}
 }
 

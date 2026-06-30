@@ -6,7 +6,7 @@ import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
 import type { TranslationKey } from '@/i18n/en'
 import { useDebounced } from '@/lib/hooks'
-import type { Facet, SortKey, SortOrder } from '@/types'
+import type { Facet, Pane, SortKey, SortOrder } from '@/types'
 import { BookCard, BookCardSkeleton, BookGrid } from '@/components/BookCard'
 import { ContinueReadingShelf } from '@/components/ReadingShelf'
 import { UploadModal } from '@/components/UploadModal'
@@ -150,7 +150,7 @@ function FacetFilter({
   )
 }
 
-export function LibraryPage() {
+export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   const { user, setUser } = useAuth()
   const { t } = useI18n()
   const [params, setParams] = useSearchParams()
@@ -164,9 +164,14 @@ export function LibraryPage() {
   const authorId = params.get('author') ? Number(params.get('author')) : null
   const seriesId = params.get('series') ? Number(params.get('series')) : null
   const tagIds = params.getAll('tag').map(Number).filter((n) => Number.isFinite(n) && n > 0)
-  const tagKey = tagIds.join(',') // stable dep / key for the tag set
   const offset = params.get('offset') ? Number(params.get('offset')) : 0
   const pageSize = user?.pageSize ?? DEFAULT_PAGE_SIZE
+
+  // On a pane page the pane's tags are a locked base filter, AND-combined with
+  // any tags the user adds interactively.
+  const baseTagIds = pane?.tagIds ?? []
+  const effectiveTagIds = Array.from(new Set([...baseTagIds, ...tagIds]))
+  const effectiveTagKey = effectiveTagIds.join(',')
 
   const update = (mut: (p: URLSearchParams) => void, resetOffset = true) => {
     const next = new URLSearchParams(params)
@@ -176,8 +181,10 @@ export function LibraryPage() {
   }
 
   // author/series are single-select (replace); tags are multi-select and
-  // AND-combined, so toggling adds/removes one tag from the set.
+  // AND-combined, so toggling adds/removes one tag from the set. A pane's base
+  // tags are locked and cannot be toggled off here.
   const toggleFacet = (kind: FacetKind, id: number) => {
+    if (kind === 'tag' && baseTagIds.includes(id)) return
     update((p) => {
       if (kind === 'tag') {
         const cur = p.getAll('tag')
@@ -201,11 +208,11 @@ export function LibraryPage() {
       order,
       author: authorId ?? undefined,
       series: seriesId ?? undefined,
-      tags: tagKey ? tagKey.split(',').map(Number) : undefined,
+      tags: effectiveTagKey ? effectiveTagKey.split(',').map(Number) : undefined,
       limit: pageSize,
       offset,
     }),
-    [debouncedSearch, sort, order, authorId, seriesId, tagKey, offset, pageSize],
+    [debouncedSearch, sort, order, authorId, seriesId, effectiveTagKey, offset, pageSize],
   )
 
   const { data, isLoading, isFetching, isError, error } = useQuery({
@@ -278,7 +285,7 @@ export function LibraryPage() {
     <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3">
       <FacetFilter title={t('library.authors')} kind="author" facets={authors.data} activeIds={authorId != null ? [authorId] : []} onToggle={toggleFacet} />
       <FacetFilter title={t('library.series')} kind="series" facets={series.data} activeIds={seriesId != null ? [seriesId] : []} onToggle={toggleFacet} />
-      <FacetFilter title={t('library.tags')} kind="tag" facets={tags.data} activeIds={tagIds} onToggle={toggleFacet} />
+      <FacetFilter title={t('library.tags')} kind="tag" facets={tags.data} activeIds={effectiveTagIds} onToggle={toggleFacet} />
     </div>
   )
 
@@ -287,7 +294,9 @@ export function LibraryPage() {
         {/* Header */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">{t('library.title')}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-white">
+              {pane ? pane.name : t('library.title')}
+            </h1>
             <p className="mt-0.5 text-sm text-slate-500">
               {isLoading
                 ? t('common.loading')
@@ -295,6 +304,17 @@ export function LibraryPage() {
                     count: total.toLocaleString(),
                   })}
             </p>
+            {/* Pane base tags: a locked filter the page is scoped to. */}
+            {pane && pane.tagIds.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <IconFilter width={13} height={13} className="shrink-0 text-slate-500" />
+                {pane.tagIds.map((id) => (
+                  <span key={id} className="chip py-0.5 text-xs text-slate-300">
+                    {tags.data?.find((f) => f.id === id)?.name ?? `#${id}`}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {user?.canUpload && (
@@ -305,8 +325,8 @@ export function LibraryPage() {
           )}
         </div>
 
-        {/* Continue reading: only on a fresh, unfiltered first page. */}
-        {!hasFilters && offset === 0 && <ContinueReadingShelf />}
+        {/* Continue reading: only on the library home, fresh & unfiltered. */}
+        {!pane && !hasFilters && offset === 0 && <ContinueReadingShelf />}
 
         {/* Controls: filters + sort, sitting just under the search bar */}
         <div className="mb-5 flex flex-wrap items-center gap-2">
