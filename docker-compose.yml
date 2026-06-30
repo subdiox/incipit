@@ -27,7 +27,8 @@ services:
       # Set to true to never write to the Calibre library.
       INCIPIT_READONLY: "false"
       # Set when terminating TLS upstream so cookies are marked Secure.
-      INCIPIT_SECURE_COOKIES: "false"
+      # Served behind nginx (https://comic.ooka.me) which terminates TLS.
+      INCIPIT_SECURE_COOKIES: "true"
 
       # --- LDAP authentication ---
       # Configure (and import users) in the admin UI under Admin → LDAP.

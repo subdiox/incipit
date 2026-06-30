@@ -17,24 +17,34 @@ func FS() (fs.FS, error) {
 	return fs.Sub(distFiles, "dist")
 }
 
+// IndexHTML returns the embedded index.html (empty if the frontend isn't built).
+func IndexHTML() []byte {
+	sub, err := FS()
+	if err != nil {
+		return nil
+	}
+	b, _ := fs.ReadFile(sub, "index.html")
+	return b
+}
+
 // Handler serves the SPA: real files are served directly with long-lived cache
-// headers for hashed assets; any other path falls back to index.html.
-func Handler() http.Handler {
+// headers for hashed assets; any other path falls back to serveIndex (so the
+// caller can inject the configured site title / Open Graph tags).
+func Handler(serveIndex http.HandlerFunc) http.Handler {
 	sub, err := FS()
 	if err != nil {
 		panic(err)
 	}
 	fileServer := http.FileServer(http.FS(sub))
-	index, _ := fs.ReadFile(sub, "index.html")
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := strings.TrimPrefix(r.URL.Path, "/")
 		if p == "" {
-			serveIndex(w, index)
+			serveIndex(w, r)
 			return
 		}
 		if info, err := fs.Stat(sub, p); err != nil || info.IsDir() {
-			serveIndex(w, index)
+			serveIndex(w, r)
 			return
 		}
 		if strings.HasPrefix(p, "assets/") {
@@ -42,13 +52,4 @@ func Handler() http.Handler {
 		}
 		fileServer.ServeHTTP(w, r)
 	})
-}
-
-func serveIndex(w http.ResponseWriter, index []byte) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
-	if len(index) == 0 {
-		index = []byte("<!doctype html><title>Incipit</title><p>Frontend not built.</p>")
-	}
-	w.Write(index)
 }

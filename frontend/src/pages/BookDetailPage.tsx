@@ -221,7 +221,7 @@ export function BookDetailPage() {
         {/* Cover + actions */}
         <div className="md:sticky md:top-20 md:self-start">
           <div className="mx-auto max-w-[300px] overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700">
-            <Cover bookId={book.id} title={book.title} hasCover={book.hasCover} full width={600} rounded="rounded-none" />
+            <Cover bookId={book.id} title={book.title} hasCover={book.hasCover} width={800} rounded="rounded-none" />
           </div>
 
           <div className="mt-4 space-y-2">

@@ -168,7 +168,17 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// spaHandler serves the embedded frontend.
+// spaHandler serves the embedded frontend, injecting the configured site title
+// and Open Graph tags into index.html so link previews show the right name.
 func (s *Server) spaHandler() http.Handler {
-	return web.Handler()
+	raw := web.IndexHTML()
+	return web.Handler(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		if len(raw) == 0 {
+			w.Write([]byte("<!doctype html><title>Incipit</title><p>Frontend not built.</p>"))
+			return
+		}
+		w.Write(renderIndex(raw, s.siteTitle(r.Context())))
+	})
 }
