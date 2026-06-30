@@ -1,6 +1,6 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import { Spinner } from '@/components/Spinner'
@@ -23,12 +23,20 @@ export function ReaderPage() {
   const bookId = Number(id)
   const navigate = useNavigate()
   const { t } = useI18n()
+  const qc = useQueryClient()
 
   const { data: book, isLoading, isError } = useQuery({
     queryKey: ['book', bookId],
     queryFn: () => api.book(bookId),
     enabled: Number.isFinite(bookId),
   })
+
+  // Count one view per reader open (anonymized, library-wide), then refresh the
+  // detail page's cached count.
+  useEffect(() => {
+    if (!Number.isFinite(bookId)) return
+    api.recordView(bookId).then(() => qc.invalidateQueries({ queryKey: ['views', bookId] })).catch(() => {})
+  }, [bookId, qc])
 
   const back = () => navigate(`/books/${bookId}`)
 

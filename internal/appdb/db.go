@@ -81,6 +81,13 @@ var migrations = []string{
 	`ALTER TABLE users ADD COLUMN language TEXT NOT NULL DEFAULT 'en';`,
 	// Per-account library page-size preference.
 	`ALTER TABLE users ADD COLUMN page_size INTEGER NOT NULL DEFAULT 36;`,
+	// Aggregate, anonymized per-book view counter (incremented when a book is
+	// opened in the reader). Backs the "view count" sort and detail display.
+	`CREATE TABLE book_views (
+		book_id     INTEGER PRIMARY KEY,
+		views       INTEGER NOT NULL DEFAULT 0,
+		last_viewed TEXT NOT NULL
+	);`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

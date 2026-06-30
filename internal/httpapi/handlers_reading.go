@@ -58,24 +58,32 @@ func (s *Server) handleMyReading(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, items)
 }
 
-// handleRecentlyRead returns books recently read across the library, anonymized
-// (the current user is excluded and no per-user information is exposed).
-func (s *Server) handleRecentlyRead(w http.ResponseWriter, r *http.Request) {
-	u := currentUser(r)
-	ids, err := s.store.RecentlyReadBookIDs(r.Context(), u.ID, atoi(r.URL.Query().Get("limit")))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "recently read")
+// handleBookViews returns a book's aggregate (anonymized) view count.
+func (s *Server) handleBookViews(w http.ResponseWriter, r *http.Request) {
+	b, ok := s.bookFromURL(w, r)
+	if !ok {
 		return
 	}
-	books, err := s.lib().BooksByIDs(r.Context(), ids)
+	v, err := s.store.BookViewCount(r.Context(), b.ID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load books")
+		writeError(w, http.StatusInternalServerError, "view count")
 		return
 	}
-	if books == nil {
-		books = []calibre.Book{}
+	writeJSON(w, http.StatusOK, map[string]int64{"views": v})
+}
+
+// handleRecordView increments a book's view counter (one per reader open).
+func (s *Server) handleRecordView(w http.ResponseWriter, r *http.Request) {
+	b, ok := s.bookFromURL(w, r)
+	if !ok {
+		return
 	}
-	writeJSON(w, http.StatusOK, books)
+	v, err := s.store.IncrementBookViews(r.Context(), b.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "record view")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"views": v})
 }
 
 // handleResetProgress clears the current user's reading position for a book.

@@ -128,18 +128,14 @@ func TestShelvesAndProgress(t *testing.T) {
 	}
 }
 
-func TestReadingListsAndRecentlyRead(t *testing.T) {
+func TestReadingListsAndViews(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	me, _ := s.CreateUser(ctx, User{Username: "me"})
-	other, _ := s.CreateUser(ctx, User{Username: "other"})
 
 	// me: book 10 finished, book 11 in progress.
 	s.SetProgress(ctx, Progress{UserID: me.ID, BookID: 10, Format: "CBZ", Page: 99, TotalPages: 100})
 	s.SetProgress(ctx, Progress{UserID: me.ID, BookID: 11, Format: "CBZ", Page: 5, TotalPages: 100})
-	// other: book 11 (shared with me) and book 12 (mine-untouched).
-	s.SetProgress(ctx, Progress{UserID: other.ID, BookID: 11, Format: "CBZ", Page: 7, TotalPages: 100})
-	s.SetProgress(ctx, Progress{UserID: other.ID, BookID: 12, Format: "CBZ", Page: 3, TotalPages: 100})
 
 	inProg, _ := s.ListReading(ctx, me.ID, ReadingInProgress, 0)
 	if len(inProg) != 1 || inProg[0].BookID != 11 {
@@ -153,24 +149,30 @@ func TestReadingListsAndRecentlyRead(t *testing.T) {
 		t.Errorf("all = %+v, want 2", all)
 	}
 
-	// "What others are reading" for me: every book another user read (11 and 12),
-	// including book 11 which I also read — it's about what others read. My own
-	// book 10 (no other reader) must not appear.
-	rec, _ := s.RecentlyReadBookIDs(ctx, me.ID, 0)
-	recSet := map[int64]bool{}
-	for _, id := range rec {
-		recSet[id] = true
-	}
-	if len(rec) != 2 || !recSet[11] || !recSet[12] {
-		t.Errorf("recently read = %v, want {11,12}", rec)
-	}
-
 	// Reset removes my position so book 10 leaves my finished list.
 	if err := s.DeleteProgress(ctx, me.ID, 10); err != nil {
 		t.Fatalf("DeleteProgress: %v", err)
 	}
 	if finished, _ := s.ListReading(ctx, me.ID, ReadingFinished, 0); len(finished) != 0 {
 		t.Errorf("finished after reset = %+v, want empty", finished)
+	}
+
+	// View counter: monotonic, independent of progress, 0 when never viewed.
+	if v, _ := s.BookViewCount(ctx, 10); v != 0 {
+		t.Errorf("unviewed count = %d, want 0", v)
+	}
+	s.IncrementBookViews(ctx, 10)
+	s.IncrementBookViews(ctx, 10)
+	v, _ := s.IncrementBookViews(ctx, 11)
+	if v != 1 {
+		t.Errorf("book 11 views = %d, want 1", v)
+	}
+	if v, _ := s.BookViewCount(ctx, 10); v != 2 {
+		t.Errorf("book 10 views = %d, want 2", v)
+	}
+	all, _ := s.AllBookViewCounts(ctx)
+	if all[10] != 2 || all[11] != 1 {
+		t.Errorf("AllBookViewCounts = %v, want {10:2, 11:1}", all)
 	}
 }
 

@@ -188,32 +188,49 @@ func (s *Store) ListReading(ctx context.Context, userID int64, status string, li
 	return out, rows.Err()
 }
 
-// RecentlyReadBookIDs returns book IDs recently read by OTHER users (excluding
-// excludeUserID), most recent first, for the "what others are reading" shelf.
-// Books the viewer has also read are still included — it's about what others
-// read, not what's new to the viewer. Anonymized: only books and their last-read
-// time are exposed, never which user read them.
-func (s *Store) RecentlyReadBookIDs(ctx context.Context, excludeUserID int64, limit int) ([]int64, error) {
-	if limit <= 0 || limit > 200 {
-		limit = 50
+// IncrementBookViews bumps a book's aggregate view counter (library-wide,
+// anonymized — no per-user record) and returns the new total. Called when a book
+// is opened in the reader.
+func (s *Store) IncrementBookViews(ctx context.Context, bookID int64) (int64, error) {
+	now := time.Now().UTC().Format(timeLayout)
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO book_views (book_id, views, last_viewed)
+		VALUES (?, 1, ?)
+		ON CONFLICT(book_id) DO UPDATE SET views = views + 1, last_viewed = excluded.last_viewed`,
+		bookID, now); err != nil {
+		return 0, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT book_id, MAX(updated_at) AS last
-		FROM read_progress WHERE user_id<>?
-		GROUP BY book_id ORDER BY last DESC LIMIT ?`, excludeUserID, limit)
+	var v int64
+	err := s.db.QueryRowContext(ctx, "SELECT views FROM book_views WHERE book_id=?", bookID).Scan(&v)
+	return v, err
+}
+
+// BookViewCount returns a single book's total view count (0 if never viewed).
+func (s *Store) BookViewCount(ctx context.Context, bookID int64) (int64, error) {
+	var v int64
+	err := s.db.QueryRowContext(ctx, "SELECT views FROM book_views WHERE book_id=?", bookID).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return v, err
+}
+
+// AllBookViewCounts returns every book's view count, keyed by book ID. Books
+// never viewed are absent (treat as 0). Used to rank the library by views.
+func (s *Store) AllBookViewCounts(ctx context.Context) (map[int64]int64, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT book_id, views FROM book_views")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var ids []int64
+	out := map[int64]int64{}
 	for rows.Next() {
-		var id int64
-		var last string
-		if err := rows.Scan(&id, &last); err != nil {
+		var id, v int64
+		if err := rows.Scan(&id, &v); err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
+		out[id] = v
 	}
-	return ids, rows.Err()
+	return out, rows.Err()
 }
 
 // DeleteProgress removes a user's reading position for a book (all formats),

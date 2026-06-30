@@ -76,20 +76,3 @@ export function ContinueReadingShelf() {
   )
 }
 
-// RecentlyReadShelf shows books recently read across the library, anonymized
-// (the current user is excluded server-side). Renders nothing when empty.
-export function RecentlyReadShelf() {
-  const { t } = useI18n()
-  const { data } = useQuery({
-    queryKey: ['reading', 'recent'],
-    queryFn: () => api.recentlyRead(20),
-  })
-  if (!data || data.length === 0) return null
-  return (
-    <Shelf title={t('history.recentlyRead')}>
-      {data.map((b) => (
-        <ShelfBook key={b.id} book={b} />
-      ))}
-    </Shelf>
-  )
-}

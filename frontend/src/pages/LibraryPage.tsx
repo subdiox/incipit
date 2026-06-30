@@ -8,7 +8,7 @@ import type { TranslationKey } from '@/i18n/en'
 import { useDebounced } from '@/lib/hooks'
 import type { Facet, SortKey, SortOrder } from '@/types'
 import { BookCard, BookCardSkeleton, BookGrid } from '@/components/BookCard'
-import { ContinueReadingShelf, RecentlyReadShelf } from '@/components/ReadingShelf'
+import { ContinueReadingShelf } from '@/components/ReadingShelf'
 import { UploadModal } from '@/components/UploadModal'
 import {
   IconChevronLeft,
@@ -30,6 +30,7 @@ const SORT_OPTIONS: { value: SortKey; labelKey: TranslationKey }[] = [
   { value: 'series', labelKey: 'library.sort.series' },
   { value: 'pubdate', labelKey: 'library.sort.pubdate' },
   { value: 'rating', labelKey: 'library.sort.rating' },
+  { value: 'views', labelKey: 'library.sort.views' },
 ]
 
 type FacetKind = 'author' | 'series' | 'tag'
@@ -279,13 +280,8 @@ export function LibraryPage() {
           )}
         </div>
 
-        {/* Reading shelves: only on a fresh, unfiltered first page. */}
-        {!hasFilters && offset === 0 && (
-          <>
-            <ContinueReadingShelf />
-            <RecentlyReadShelf />
-          </>
-        )}
+        {/* Continue reading: only on a fresh, unfiltered first page. */}
+        {!hasFilters && offset === 0 && <ContinueReadingShelf />}
 
         {/* Controls: filters + sort, sitting just under the search bar */}
         <div className="mb-5 flex flex-wrap items-center gap-2">

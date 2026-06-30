@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -45,12 +46,65 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 		Limit:       atoi(q.Get("limit")),
 		Offset:      atoi(q.Get("offset")),
 	}
+	if opts.Sort == "views" {
+		s.listBooksByViews(w, r, opts)
+		return
+	}
 	res, err := s.lib().ListBooks(r.Context(), opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "list books")
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// listBooksByViews ranks the filtered library by aggregate view count, which
+// lives in app.db and so can't be an ORDER BY in metadata.db. It pulls the
+// matching IDs and the view map separately, sorts in Go (stable, so equal counts
+// keep the newest-first tiebreak), then hydrates just the requested page.
+func (s *Server) listBooksByViews(w http.ResponseWriter, r *http.Request, opts calibre.ListOptions) {
+	ids, err := s.lib().FilteredIDs(r.Context(), opts)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list books")
+		return
+	}
+	views, err := s.store.AllBookViewCounts(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "view counts")
+		return
+	}
+	sort.SliceStable(ids, func(i, j int) bool {
+		vi, vj := views[ids[i]], views[ids[j]]
+		if opts.Desc {
+			return vi > vj // most-viewed first
+		}
+		return vi < vj
+	})
+	total := len(ids)
+	limit := opts.Limit
+	if limit <= 0 || limit > 500 {
+		limit = 50
+	}
+	start := opts.Offset
+	if start < 0 {
+		start = 0
+	}
+	if start > total {
+		start = total
+	}
+	end := start + limit
+	if end > total {
+		end = total
+	}
+	books, err := s.lib().BooksByIDs(r.Context(), ids[start:end])
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load books")
+		return
+	}
+	if books == nil {
+		books = []calibre.Book{}
+	}
+	writeJSON(w, http.StatusOK, calibre.ListResult{Books: books, Total: total})
 }
 
 // handleGetBook returns one fully-hydrated book.

@@ -174,8 +174,8 @@ export const api = {
     const s = status === 'continue' ? 'in-progress' : status
     return request<ReadingItem[]>(`/me/reading?status=${s}${limit ? `&limit=${limit}` : ''}`)
   },
-  recentlyRead: (limit?: number) =>
-    request<Book[]>(`/library/recent${limit ? `?limit=${limit}` : ''}`),
+  bookViews: (id: number) => request<{ views: number }>(`/books/${id}/views`),
+  recordView: (id: number) => request<{ views: number }>(`/books/${id}/views`, { method: 'POST' }),
 
   // Facets & stats
   authors: () => request<Facet[]>('/authors'),

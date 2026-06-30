@@ -184,6 +184,30 @@ func (a *Adapter) GetBook(ctx context.Context, id int64) (*Book, error) {
 	return &books[0], nil
 }
 
+// FilteredIDs returns the IDs of every book matching opts' filters (search,
+// author, series, tag, publisher, language), ignoring sort/limit/offset, in
+// newest-first order. It lets callers rank/paginate the matching set by data
+// that lives outside metadata.db (e.g. app.db view counts) without mixing the
+// two databases.
+func (a *Adapter) FilteredIDs(ctx context.Context, opts ListOptions) ([]int64, error) {
+	where, wargs := a.buildFilters(opts)
+	q := "SELECT b.id FROM books b" + where + " ORDER BY b.timestamp DESC, b.id DESC"
+	rows, err := a.db.QueryContext(ctx, q, wargs...)
+	if err != nil {
+		return nil, fmt.Errorf("filtered ids: %w", err)
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // BooksByIDs hydrates the given book IDs, preserving their order and silently
 // skipping IDs that no longer exist (e.g. a book deleted since it was read).
 // Used to turn an ordered list of IDs (reading history, recently read) into

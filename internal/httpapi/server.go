@@ -121,11 +121,11 @@ func (s *Server) Router() http.Handler {
 			r.Get("/books/{id}/progress", s.handleGetProgress)
 			r.Put("/books/{id}/progress", s.handleSetProgress)
 			r.Delete("/books/{id}/progress", s.handleResetProgress)
+			r.Get("/books/{id}/views", s.handleBookViews)
+			r.Post("/books/{id}/views", s.handleRecordView)
 
-			// Reading history (per-user) and the anonymized library-wide
-			// "recently read" shelf.
+			// Reading history (per-user).
 			r.Get("/me/reading", s.handleMyReading)
-			r.Get("/library/recent", s.handleRecentlyRead)
 
 			r.Get("/authors", s.handleAuthors)
 			r.Get("/series", s.handleSeries)

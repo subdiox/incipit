@@ -191,6 +191,12 @@ export function BookDetailPage() {
     enabled: Number.isFinite(bookId),
   })
 
+  const { data: views } = useQuery({
+    queryKey: ['views', bookId],
+    queryFn: () => api.bookViews(bookId),
+    enabled: Number.isFinite(bookId),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteBook(bookId),
     onSuccess: () => {
@@ -338,6 +344,7 @@ export function BookDetailPage() {
               <Meta label={t('book.languages')}>{book.languages.map(languageLabel).join(', ')}</Meta>
             )}
             {formatDate(book.timestamp) && <Meta label={t('book.added')}>{formatDate(book.timestamp)}</Meta>}
+            <Meta label={t('book.views')}>{(views?.views ?? 0).toLocaleString()}</Meta>
             {book.formats.length > 0 && (
               <Meta label={t('book.formats')}>
                 {book.formats.map((f) => `${f.format} (${formatBytes(f.size)})`).join(', ')}
