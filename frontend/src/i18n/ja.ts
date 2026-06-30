@@ -14,12 +14,14 @@ export const ja: Record<TranslationKey, string> = {
   'common.loading': '読み込み中…',
   'common.genericError': 'エラーが発生しました。もう一度お試しください。',
   'common.unknownAuthor': '著者不明',
+  'common.seeAll': 'すべて見る',
   'common.books_one': '{{count}}冊',
   'common.books_other': '{{count}}冊',
 
   // Navigation / app shell
   'nav.library': 'ライブラリ',
   'nav.shelves': '本棚',
+  'nav.history': '履歴',
   'nav.admin': 'サーバー設定',
   'nav.administrator': '管理者',
   'nav.member': 'メンバー',
@@ -29,6 +31,15 @@ export const ja: Record<TranslationKey, string> = {
   'nav.searchPlaceholder': 'ライブラリを検索…',
   'nav.language': '言語',
   'nav.account': 'アカウント',
+
+  // Reading history
+  'history.title': '履歴',
+  'history.continue': '続きを読む',
+  'history.all': '読んだ履歴',
+  'history.recentlyRead': '最近読まれている本',
+  'history.reset': '読んだ位置をリセット',
+  'history.empty': 'まだ履歴はありません。',
+  'history.pageOf': '{{total}}ページ中 {{page}}ページ目',
 
   // Account settings
   'account.title': 'アカウント',

@@ -6,6 +6,7 @@ import { useSiteTitle } from '@/lib/hooks'
 import {
   IconAdmin,
   IconBook,
+  IconHistory,
   IconLibrary,
   IconLogout,
   IconMenu,
@@ -71,6 +72,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <nav className="flex-1 space-y-1 px-2">
         <NavItem to="/" icon={<IconLibrary width={18} height={18} />} label={t('nav.library')} onClick={onNavigate} />
         <NavItem to="/shelves" icon={<IconShelf width={18} height={18} />} label={t('nav.shelves')} onClick={onNavigate} />
+        <NavItem to="/history" icon={<IconHistory width={18} height={18} />} label={t('nav.history')} onClick={onNavigate} />
         {user?.isAdmin && (
           <NavItem to="/admin" icon={<IconAdmin width={18} height={18} />} label={t('nav.admin')} onClick={onNavigate} />
         )}

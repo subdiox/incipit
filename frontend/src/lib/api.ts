@@ -13,6 +13,7 @@ import type {
   MetaPreview,
   PagesResponse,
   Progress,
+  ReadingItem,
   SetupStatus,
   Shelf,
   SiteConfig,
@@ -166,6 +167,14 @@ export const api = {
   progress: (id: number) => request<Progress>(`/books/${id}/progress`),
   saveProgress: (id: number, page: number, totalPages: number) =>
     request<void>(`/books/${id}/progress`, { method: 'PUT', ...jsonBody({ page, totalPages }) }),
+  resetProgress: (id: number) => request<void>(`/books/${id}/progress`, { method: 'DELETE' }),
+  // status 'continue' = unfinished only; 'all' = full history.
+  myReading: (status: 'continue' | 'all', limit?: number) =>
+    request<ReadingItem[]>(
+      `/me/reading?status=${status === 'all' ? 'all' : 'in-progress'}${limit ? `&limit=${limit}` : ''}`,
+    ),
+  recentlyRead: (limit?: number) =>
+    request<Book[]>(`/library/recent${limit ? `?limit=${limit}` : ''}`),
 
   // Facets & stats
   authors: () => request<Facet[]>('/authors'),

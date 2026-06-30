@@ -8,6 +8,7 @@ import type { TranslationKey } from '@/i18n/en'
 import { useDebounced } from '@/lib/hooks'
 import type { Facet, SortKey, SortOrder } from '@/types'
 import { BookCard, BookCardSkeleton, BookGrid } from '@/components/BookCard'
+import { ContinueReadingShelf, RecentlyReadShelf } from '@/components/ReadingShelf'
 import { UploadModal } from '@/components/UploadModal'
 import {
   IconChevronLeft,
@@ -277,6 +278,14 @@ export function LibraryPage() {
             </button>
           )}
         </div>
+
+        {/* Reading shelves: only on a fresh, unfiltered first page. */}
+        {!hasFilters && offset === 0 && (
+          <>
+            <ContinueReadingShelf />
+            <RecentlyReadShelf />
+          </>
+        )}
 
         {/* Controls: filters + sort, sitting just under the search bar */}
         <div className="mb-5 flex flex-wrap items-center gap-2">

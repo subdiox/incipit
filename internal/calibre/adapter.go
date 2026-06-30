@@ -184,6 +184,14 @@ func (a *Adapter) GetBook(ctx context.Context, id int64) (*Book, error) {
 	return &books[0], nil
 }
 
+// BooksByIDs hydrates the given book IDs, preserving their order and silently
+// skipping IDs that no longer exist (e.g. a book deleted since it was read).
+// Used to turn an ordered list of IDs (reading history, recently read) into
+// full book records.
+func (a *Adapter) BooksByIDs(ctx context.Context, ids []int64) ([]Book, error) {
+	return a.loadBooks(ctx, ids)
+}
+
 // loadBooks hydrates the given book IDs, preserving their order.
 func (a *Adapter) loadBooks(ctx context.Context, ids []int64) ([]Book, error) {
 	if len(ids) == 0 {

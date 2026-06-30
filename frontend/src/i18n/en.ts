@@ -12,12 +12,14 @@ export const en = {
   'common.loading': 'Loading…',
   'common.genericError': 'Something went wrong. Please try again.',
   'common.unknownAuthor': 'Unknown author',
+  'common.seeAll': 'See all',
   'common.books_one': '{{count}} book',
   'common.books_other': '{{count}} books',
 
   // Navigation / app shell
   'nav.library': 'Library',
   'nav.shelves': 'Shelves',
+  'nav.history': 'History',
   'nav.admin': 'Server settings',
   'nav.administrator': 'Administrator',
   'nav.member': 'Member',
@@ -27,6 +29,15 @@ export const en = {
   'nav.searchPlaceholder': 'Search your library…',
   'nav.language': 'Language',
   'nav.account': 'Account',
+
+  // Reading history
+  'history.title': 'History',
+  'history.continue': 'Continue reading',
+  'history.all': 'Reading history',
+  'history.recentlyRead': 'Recently read',
+  'history.reset': 'Reset position',
+  'history.empty': 'Nothing here yet.',
+  'history.pageOf': 'Page {{page}} of {{total}}',
 
   // Account settings
   'account.title': 'Account',

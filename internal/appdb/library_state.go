@@ -144,6 +144,73 @@ func (s *Store) GetProgress(ctx context.Context, userID, bookID int64, format st
 	return &p, nil
 }
 
+// ListReading returns a user's reading entries, most recently read first. When
+// inProgressOnly is true, finished books (page at/after the last page) are
+// excluded, leaving only "continue reading" candidates.
+func (s *Store) ListReading(ctx context.Context, userID int64, inProgressOnly bool, limit int) ([]Progress, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	q := `SELECT user_id, book_id, format, page, total_pages, updated_at
+		FROM read_progress WHERE user_id=?`
+	if inProgressOnly {
+		// Not finished: unknown length, or not yet at the final page.
+		q += ` AND (total_pages=0 OR page < total_pages-1)`
+	}
+	q += ` ORDER BY updated_at DESC LIMIT ?`
+	rows, err := s.db.QueryContext(ctx, q, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Progress
+	for rows.Next() {
+		var p Progress
+		var updated string
+		if err := rows.Scan(&p.UserID, &p.BookID, &p.Format, &p.Page, &p.TotalPages, &updated); err != nil {
+			return nil, err
+		}
+		p.UpdatedAt, _ = time.Parse(timeLayout, updated)
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// RecentlyReadBookIDs returns book IDs recently read across the library, most
+// recent first, EXCLUDING excludeUserID. It is anonymized: only the books and
+// their last-read time are exposed, never which user read them. Used for the
+// "recently read" / popular shelf.
+func (s *Store) RecentlyReadBookIDs(ctx context.Context, excludeUserID int64, limit int) ([]int64, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT book_id, MAX(updated_at) AS last
+		FROM read_progress WHERE user_id<>?
+		GROUP BY book_id ORDER BY last DESC LIMIT ?`, excludeUserID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		var last string
+		if err := rows.Scan(&id, &last); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// DeleteProgress removes a user's reading position for a book (all formats),
+// resetting it to unread.
+func (s *Store) DeleteProgress(ctx context.Context, userID, bookID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM read_progress WHERE user_id=? AND book_id=?", userID, bookID)
+	return err
+}
+
 // --- Page-list cache ---
 
 // GetPageCache returns the cached page list if present and still valid for the

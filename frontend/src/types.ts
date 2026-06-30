@@ -104,6 +104,13 @@ export interface PagesResponse {
   pages: string[]
 }
 
+export interface ReadingItem {
+  book: Book
+  page: number
+  totalPages: number
+  updatedAt: string
+}
+
 export interface SetupStatus {
   needsSetup: boolean
   needsLibrary: boolean

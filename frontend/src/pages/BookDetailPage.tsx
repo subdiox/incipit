@@ -5,7 +5,7 @@ import { api, ApiError, mediaUrl } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
 import type { Book, BookUpdate } from '@/types'
-import { authorNames, formatBytes, formatDate, languageLabel } from '@/lib/format'
+import { formatBytes, formatDate, languageLabel } from '@/lib/format'
 import { Cover } from '@/components/Cover'
 import { Rating } from '@/components/Rating'
 import { EnrichModal } from '@/components/EnrichModal'
@@ -200,6 +200,14 @@ export function BookDetailPage() {
     },
   })
 
+  const resetProgress = useMutation({
+    mutationFn: () => api.resetProgress(bookId),
+    onSuccess: () => {
+      queryClient.setQueryData(['progress', bookId], null)
+      queryClient.invalidateQueries({ queryKey: ['reading'] })
+    },
+  })
+
   if (isLoading) return <FullPageSpinner />
   if (isError || !book)
     return (
@@ -235,6 +243,18 @@ export function BookDetailPage() {
                   ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
                   : t('book.read')}
               </Link>
+            )}
+
+            {hasProgress && (
+              <button
+                type="button"
+                className="btn-ghost w-full text-sm text-slate-400 hover:text-white"
+                onClick={() => resetProgress.mutate()}
+                disabled={resetProgress.isPending}
+              >
+                {resetProgress.isPending && <Spinner className="h-4 w-4" />}
+                {t('history.reset')}
+              </button>
             )}
 
             {user?.canDownload && downloadable && (
@@ -274,12 +294,23 @@ export function BookDetailPage() {
         <div className="min-w-0">
           <h1 className="text-3xl font-semibold tracking-tight text-white">{book.title}</h1>
           <p className="mt-1.5 text-lg text-slate-400">
-            {authorNames(book.authors) || t('common.unknownAuthor')}
+            {book.authors.length > 0
+              ? book.authors.map((a, i) => (
+                  <span key={a.id}>
+                    {i > 0 && ', '}
+                    <Link to={`/?author=${a.id}`} className="hover:text-accentSoft hover:underline">
+                      {a.name}
+                    </Link>
+                  </span>
+                ))
+              : t('common.unknownAuthor')}
           </p>
 
           {book.series && (
             <p className="mt-1 text-sm text-accentSoft">
-              {book.series.name}
+              <Link to={`/?series=${book.series.id}`} className="hover:underline">
+                {book.series.name}
+              </Link>
               {book.seriesIndex ? ` · ${t('book.volume', { index: book.seriesIndex })}` : ''}
             </p>
           )}
