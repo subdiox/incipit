@@ -355,7 +355,9 @@ func parseBookPage(doc *goquery.Document, series string, volume int, hasVolume b
 	})
 
 	if r, ok := infos["配信開始日"]; ok {
-		if t, err := time.Parse("2006年01月02日", firstText(r)); err == nil {
+		// cmoa renders month/day without zero-padding ("2018年7月4日"), so use the
+		// non-padded layout (Go's 1/2), which also accepts padded values.
+		if t, err := time.Parse("2006年1月2日", firstText(r)); err == nil {
 			meta.PubDate = t
 		}
 	}

@@ -104,7 +104,7 @@ const bookHTML = `<!doctype html><html><head>
 </nav>
 <div class="category_line">
   <div class="category_line_f_l_l">配信開始日</div>
-  <div class="category_line_f_r_l">2020年05月01日</div>
+  <div class="category_line_f_r_l"><span class="margin_r5">：</span>2020年5月1日</div>
 </div>
 <div class="category_line">
   <div class="category_line_f_l_l">出版社</div>
