@@ -16,8 +16,9 @@ import (
 // acquisition feeds list books with download + cover links.
 
 const (
-	opdsNav         = "application/atom+xml;profile=opds-catalog;kind=navigation"
-	opdsAcquisition = "application/atom+xml;profile=opds-catalog;kind=acquisition"
+	opdsNav          = "application/atom+xml;profile=opds-catalog;kind=navigation"
+	opdsAcquisition  = "application/atom+xml;profile=opds-catalog;kind=acquisition"
+	opdsOpenSearchCT = "application/opensearchdescription+xml"
 )
 
 type opdsFeed struct {
@@ -77,7 +78,10 @@ func (s *Server) handleOPDSRoot(w http.ResponseWriter, r *http.Request) {
 		Links: []opdsLink{
 			{Rel: "self", Href: "/opds", Type: opdsNav},
 			{Rel: "start", Href: "/opds", Type: opdsNav},
-			{Rel: "search", Href: "/opds/search?q={searchTerms}", Type: opdsAcquisition},
+			// Search discovery must point at an OpenSearch description document
+			// (not the templated acquisition URL directly), or most OPDS clients
+			// won't expose a search box. The description declares the template.
+			{Rel: "search", Href: "/opds/opensearch.xml", Type: opdsOpenSearchCT, Title: "Search"},
 		},
 		Entries: []opdsEntry{
 			navEntry("urn:incipit:new", "Recently Added", "Newest books in the library", "/opds/new"),
@@ -103,6 +107,39 @@ func (s *Server) handleOPDSNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeAcquisitionFeed(w, "urn:incipit:new", "Recently Added", "/opds/new", res.Books)
+}
+
+// openSearchDescription is the OpenSearch 1.1 description document advertised by
+// the catalog root so OPDS clients can discover the search template.
+type openSearchDescription struct {
+	XMLName       xml.Name        `xml:"http://a9.com/-/spec/opensearch/1.1/ OpenSearchDescription"`
+	ShortName     string          `xml:"ShortName"`
+	Description   string          `xml:"Description"`
+	InputEncoding string          `xml:"InputEncoding"`
+	URLs          []openSearchURL `xml:"Url"`
+}
+
+type openSearchURL struct {
+	Type     string `xml:"type,attr"`
+	Template string `xml:"template,attr"`
+}
+
+func (s *Server) handleOPDSOpenSearch(w http.ResponseWriter, r *http.Request) {
+	title := s.siteTitle(r.Context())
+	desc := openSearchDescription{
+		ShortName:     title,
+		Description:   "Search " + title,
+		InputEncoding: "UTF-8",
+		URLs: []openSearchURL{
+			{Type: opdsAcquisition, Template: "/opds/search?q={searchTerms}"},
+		},
+	}
+	w.Header().Set("Content-Type", opdsOpenSearchCT)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, xml.Header)
+	enc := xml.NewEncoder(w)
+	enc.Indent("", "  ")
+	_ = enc.Encode(desc)
 }
 
 func (s *Server) handleOPDSSearch(w http.ResponseWriter, r *http.Request) {

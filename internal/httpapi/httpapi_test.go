@@ -322,6 +322,38 @@ func TestOPDSFeeds(t *testing.T) {
 		!strings.Contains(string(body), "http://opds-spec.org/acquisition") {
 		t.Errorf("opds feed missing entry/acquisition:\n%s", body)
 	}
+
+	// Root feed advertises the OpenSearch description (search discovery).
+	req, _ = http.NewRequest(http.MethodGet, h.server.URL+"/opds", nil)
+	req.SetBasicAuth("admin", "supersecret")
+	resp = h.raw(req)
+	root, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(root), `rel="search"`) ||
+		!strings.Contains(string(root), "/opds/opensearch.xml") {
+		t.Errorf("opds root missing opensearch search link:\n%s", root)
+	}
+
+	// The OpenSearch description declares the {searchTerms} template.
+	req, _ = http.NewRequest(http.MethodGet, h.server.URL+"/opds/opensearch.xml", nil)
+	req.SetBasicAuth("admin", "supersecret")
+	resp = h.raw(req)
+	osd, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(osd), "OpenSearchDescription") ||
+		!strings.Contains(string(osd), "{searchTerms}") {
+		t.Errorf("opensearch description malformed:\n%s", osd)
+	}
+
+	// Search returns the matching book.
+	req, _ = http.NewRequest(http.MethodGet, h.server.URL+"/opds/search?q=OPDS", nil)
+	req.SetBasicAuth("admin", "supersecret")
+	resp = h.raw(req)
+	sb, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(sb), "OPDS Comic") {
+		t.Errorf("opds search missing result:\n%s", sb)
+	}
 }
 
 func TestCSRFAndAuthEnforcement(t *testing.T) {

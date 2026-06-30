@@ -120,6 +120,12 @@ func (s *Server) Router() http.Handler {
 			r.Get("/books/{id}/pages/{n}", s.handlePage)
 			r.Get("/books/{id}/progress", s.handleGetProgress)
 			r.Put("/books/{id}/progress", s.handleSetProgress)
+			r.Delete("/books/{id}/progress", s.handleResetProgress)
+
+			// Reading history (per-user) and the anonymized library-wide
+			// "recently read" shelf.
+			r.Get("/me/reading", s.handleMyReading)
+			r.Get("/library/recent", s.handleRecentlyRead)
 
 			r.Get("/authors", s.handleAuthors)
 			r.Get("/series", s.handleSeries)
@@ -164,6 +170,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/authors/{id}", s.handleOPDSAuthor)
 		r.Get("/series", s.handleOPDSSeries)
 		r.Get("/series/{id}", s.handleOPDSSeriesBooks)
+		r.Get("/opensearch.xml", s.handleOPDSOpenSearch)
 		r.Get("/search", s.handleOPDSSearch)
 	})
 
