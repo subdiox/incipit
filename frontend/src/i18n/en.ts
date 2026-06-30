@@ -3,6 +3,7 @@
 export const en = {
   // Common / shared
   'common.cancel': 'Cancel',
+  'common.back': 'Back',
   'common.save': 'Save',
   'common.saveChanges': 'Save changes',
   'common.delete': 'Delete',
@@ -183,6 +184,14 @@ export const en = {
   'upload.metaExclude': 'Exclude search term (optional)',
   'upload.metaExcludePlaceholder': 'e.g. 単話版',
   'upload.searchTitle': 'Search title',
+  'upload.reviewHint': 'Metadata is fetched per file on the next step, where you can review and adjust each match before uploading.',
+  'upload.review': 'Review',
+  'upload.manualReviewHint': 'Title and volume number are split from each filename; review and edit them per file on the next step.',
+  'upload.fetchAndReview': 'Fetch & review',
+  'upload.refetch': 'Re-fetch',
+  'upload.searching': 'Searching…',
+  'upload.previewFailed': 'Lookup failed',
+  'upload.noMatchFilename': 'No match — will upload with the filename',
   'upload.searchTitleHint': 'This title is used as the コミックシーモア search query.',
   'upload.searchFromName': 'Each file name is used as the コミックシーモア search query.',
   'upload.metaFromSource': 'Title, authors, series, publisher, description, tags, rating and cover come from コミックシーモア.',

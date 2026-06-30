@@ -10,6 +10,7 @@ import type {
   LdapUpdate,
   LibrarySettings,
   MetadataGenre,
+  MetaPreview,
   PagesResponse,
   Progress,
   SetupStatus,
@@ -116,6 +117,7 @@ export const mediaUrl = {
     `/api/books/${id}/pages/${n}${w ? `?w=${w}` : ''}`,
   file: (id: number) => `/api/books/${id}/file`,
   content: (id: number) => `/api/books/${id}/content`,
+  metaPreviewCover: (token: string) => `/api/metadata/preview/${token}/cover`,
 }
 
 export const api = {
@@ -142,6 +144,8 @@ export const api = {
 
   // Metadata
   metadataGenres: () => request<MetadataGenre[]>('/metadata/genres'),
+  metadataPreview: (body: { query: string; genre: string; metaAdd?: string; metaExclude?: string }) =>
+    request<MetaPreview>('/metadata/preview', { method: 'POST', ...jsonBody(body) }),
 
   // Books
   books: (q: BookQuery = {}) => request<BooksResponse>(`/books${bookQueryString(q)}`),

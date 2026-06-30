@@ -5,6 +5,7 @@ import type { TranslationKey } from './en'
 export const ja: Record<TranslationKey, string> = {
   // Common / shared
   'common.cancel': 'キャンセル',
+  'common.back': '戻る',
   'common.save': '保存',
   'common.saveChanges': '変更を保存',
   'common.delete': '削除',
@@ -185,6 +186,14 @@ export const ja: Record<TranslationKey, string> = {
   'upload.metaExclude': '検索語を除外（任意）',
   'upload.metaExcludePlaceholder': '例: 単話版',
   'upload.searchTitle': '検索タイトル',
+  'upload.reviewHint': '次のステップでファイルごとにメタデータを取得します。各ヒット結果を確認・調整してからアップロードできます。',
+  'upload.review': '確認',
+  'upload.manualReviewHint': 'タイトルと巻数は各ファイル名から分割します。次のステップでファイルごとに確認・編集できます。',
+  'upload.fetchAndReview': '取得して確認',
+  'upload.refetch': '再取得',
+  'upload.searching': '検索中…',
+  'upload.previewFailed': '取得に失敗しました',
+  'upload.noMatchFilename': 'ヒットなし — ファイル名で登録します',
   'upload.searchTitleHint': 'このタイトルでコミックシーモアを検索します。',
   'upload.searchFromName': '各ファイル名でコミックシーモアを検索します。',
   'upload.metaFromSource': 'タイトル・著者・シリーズ・出版社・あらすじ・タグ・評価・表紙はコミックシーモアから取得されます。',

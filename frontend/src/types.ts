@@ -121,6 +121,20 @@ export interface MetadataGenre {
   label: string
 }
 
+export interface MetaPreview {
+  matched: boolean
+  token?: string
+  title?: string
+  authors?: string[]
+  series?: string
+  seriesIndex?: number
+  tags?: string[]
+  publisher?: string
+  pubdate?: string
+  rating?: number
+  hasCover?: boolean
+}
+
 export interface FsEntry {
   name: string
   path: string

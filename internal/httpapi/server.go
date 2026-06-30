@@ -31,6 +31,7 @@ type Server struct {
 	proxyCfg auth.ProxyConfig
 	limiter  *rateLimiter
 	meta     *metadata.Client
+	previews *previewStore
 }
 
 // New constructs a Server. lib may be nil when the library has not been
@@ -48,8 +49,9 @@ func New(cfg *config.Config, lib *calibre.Adapter, store *appdb.Store, authSvc *
 			AdminHeader: cfg.ProxyAuth.AdminHeader,
 			AutoCreate:  cfg.ProxyAuth.AutoCreate,
 		},
-		limiter: newRateLimiter(10, time.Minute),
-		meta:    metadata.NewClient(),
+		limiter:  newRateLimiter(10, time.Minute),
+		meta:     metadata.NewClient(),
+		previews: newPreviewStore(),
 	}
 	if lib != nil {
 		s.libPtr.Store(lib)
@@ -101,6 +103,8 @@ func (s *Server) Router() http.Handler {
 			r.Post("/auth/logout", s.handleLogout)
 
 			r.Get("/metadata/genres", s.handleMetadataGenres)
+			r.Post("/metadata/preview", s.handleMetadataPreview)
+			r.Get("/metadata/preview/{token}/cover", s.handleMetadataPreviewCover)
 
 			r.Get("/books", s.handleListBooks)
 			r.Post("/books", s.handleAddBook)

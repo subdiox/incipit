@@ -126,7 +126,19 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 	// (コミックシーモア). On a match we overlay non-empty fields and prefer the
 	// official cover; on no match we keep the filename-derived metadata and tell
 	// the client via a response header so it can flag the file.
-	if isTrue(r.FormValue("fetchMeta")) {
+	if token := strings.TrimSpace(r.FormValue("metaToken")); token != "" {
+		// Commit a reviewed preview: apply the already-fetched metadata + cover
+		// without hitting cmoa again. An expired token falls back to the
+		// filename metadata and flags the miss.
+		if e, ok := s.previews.get(token); ok && e.meta != nil {
+			applyMeta(&in, e.meta)
+			if len(e.cover) > 0 {
+				cover = e.cover
+			}
+		} else {
+			w.Header().Set("X-Metadata-Matched", "false")
+		}
+	} else if isTrue(r.FormValue("fetchMeta")) {
 		m, err := s.meta.Fetch(r.Context(), title, r.FormValue("genre"),
 			strings.TrimSpace(r.FormValue("metaAdd")), strings.TrimSpace(r.FormValue("metaExclude")))
 		if err != nil {
