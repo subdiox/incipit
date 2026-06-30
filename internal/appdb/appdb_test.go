@@ -153,11 +153,16 @@ func TestReadingListsAndRecentlyRead(t *testing.T) {
 		t.Errorf("all = %+v, want 2", all)
 	}
 
-	// Recently read for me: other's books, excluding any I've touched. Book 11 is
-	// shared (I read it) so it must NOT appear; only book 12 should.
+	// "What others are reading" for me: every book another user read (11 and 12),
+	// including book 11 which I also read — it's about what others read. My own
+	// book 10 (no other reader) must not appear.
 	rec, _ := s.RecentlyReadBookIDs(ctx, me.ID, 0)
-	if len(rec) != 1 || rec[0] != 12 {
-		t.Errorf("recently read = %v, want [12]", rec)
+	recSet := map[int64]bool{}
+	for _, id := range rec {
+		recSet[id] = true
+	}
+	if len(rec) != 2 || !recSet[11] || !recSet[12] {
+		t.Errorf("recently read = %v, want {11,12}", rec)
 	}
 
 	// Reset removes my position so book 10 leaves my finished list.

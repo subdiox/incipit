@@ -34,7 +34,7 @@ export const en = {
   'history.title': 'History',
   'history.continue': 'Continue reading',
   'history.all': 'Reading history',
-  'history.recentlyRead': 'Recently read',
+  'history.recentlyRead': 'What others are reading',
   'history.reset': 'Reset position',
   'history.empty': 'Nothing here yet.',
   'history.pageOf': 'Page {{page}} of {{total}}',
