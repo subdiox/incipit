@@ -39,6 +39,14 @@ export const IconHistory = (p: IconProps) => (
   </svg>
 )
 
+// Counter-clockwise arrow: "reset/rewind reading position".
+export const IconReset = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M3 3v5h5" />
+    <path d="M3.05 11a9 9 0 1 0 2.13-5.36L3 8" />
+  </svg>
+)
+
 export const IconAdmin = (p: IconProps) => (
   <svg {...base(p)}>
     <circle cx="12" cy="8" r="4" />

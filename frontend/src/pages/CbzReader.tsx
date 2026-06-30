@@ -7,8 +7,9 @@ import {
   type ReactNode,
 } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, mediaUrl } from '@/lib/api'
+import type { Progress } from '@/types'
 import { useI18n } from '@/i18n'
 import { Spinner } from '@/components/Spinner'
 import {
@@ -32,6 +33,7 @@ import {
 export function CbzReader({ bookId }: { bookId: number }) {
   const navigate = useNavigate()
   const { t } = useI18n()
+  const qc = useQueryClient()
 
   const [settings, updateSettings] = useReaderSettings()
   const [page, setPage] = useState(0)
@@ -111,9 +113,25 @@ export function CbzReader({ bookId }: { bookId: number }) {
     }
   }, [pagesData, progress, total])
 
-  // Debounced progress save when the leading page changes.
+  // Progress save when the leading page changes. The local query cache is
+  // updated immediately so the detail page reflects the new position the instant
+  // the reader closes; the server write is debounced. Latest values are mirrored
+  // into refs so the unmount flush below can persist a position that changed
+  // within the debounce window (e.g. closing right after a page turn).
+  const firstRef = useRef(first)
+  const totalRef = useRef(total)
+  firstRef.current = first
+  totalRef.current = total
   useEffect(() => {
     if (!total || !restoredRef.current) return
+    const p: Progress = {
+      bookId,
+      format: 'CBZ',
+      page: first,
+      totalPages: total,
+      updatedAt: new Date().toISOString(),
+    }
+    qc.setQueryData(['progress', bookId], p)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       api.saveProgress(bookId, first, total).catch(() => {})
@@ -121,7 +139,18 @@ export function CbzReader({ bookId }: { bookId: number }) {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
     }
-  }, [first, total, bookId])
+  }, [first, total, bookId, qc])
+
+  // Flush the latest position to the server on close/unmount, covering a page
+  // turn made within the debounce window or an exit via the browser back button.
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      if (totalRef.current && restoredRef.current) {
+        api.saveProgress(bookId, firstRef.current, totalRef.current).catch(() => {})
+      }
+    }
+  }, [bookId])
 
   // Loaded state is keyed by page index and kept across view changes: a page
   // that has loaded once stays loaded, so toggling to a spread (which keeps the

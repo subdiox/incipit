@@ -17,6 +17,7 @@ import {
   IconChevronLeft,
   IconDownload,
   IconEdit,
+  IconReset,
   IconSearch,
   IconTrash,
 } from '@/components/icons'
@@ -189,6 +190,9 @@ export function BookDetailPage() {
     queryKey: ['progress', bookId],
     queryFn: () => api.progress(bookId).catch(() => null),
     enabled: Number.isFinite(bookId),
+    // Trust a recently-written cache (e.g. the value the reader just saved on
+    // close) instead of refetching a possibly-stale server value over it.
+    staleTime: 15_000,
   })
 
   const { data: views } = useQuery({
@@ -243,24 +247,30 @@ export function BookDetailPage() {
 
           <div className="mt-4 space-y-2">
             {readable && (
-              <Link to={`/books/${book.id}/read`} className="btn-primary w-full">
-                <IconBook width={18} height={18} />
-                {hasProgress
-                  ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
-                  : t('book.read')}
-              </Link>
-            )}
-
-            {hasProgress && (
-              <button
-                type="button"
-                className="btn-ghost w-full text-sm text-slate-400 hover:text-white"
-                onClick={() => resetProgress.mutate()}
-                disabled={resetProgress.isPending}
-              >
-                {resetProgress.isPending && <Spinner className="h-4 w-4" />}
-                {t('history.reset')}
-              </button>
+              <div className="flex gap-2">
+                <Link to={`/books/${book.id}/read`} className="btn-primary flex-1">
+                  <IconBook width={18} height={18} />
+                  {hasProgress
+                    ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
+                    : t('book.read')}
+                </Link>
+                {hasProgress && (
+                  <button
+                    type="button"
+                    className="btn-secondary shrink-0 px-3"
+                    onClick={() => resetProgress.mutate()}
+                    disabled={resetProgress.isPending}
+                    title={t('history.reset')}
+                    aria-label={t('history.reset')}
+                  >
+                    {resetProgress.isPending ? (
+                      <Spinner className="h-4 w-4" />
+                    ) : (
+                      <IconReset width={18} height={18} />
+                    )}
+                  </button>
+                )}
+              </div>
             )}
 
             {user?.canDownload && downloadable && (
