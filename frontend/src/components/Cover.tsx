@@ -10,6 +10,8 @@ interface CoverProps {
   width?: number
   /** use full cover endpoint instead of thumbnail */
   full?: boolean
+  /** cache-busting version (e.g. book.lastModified) so cover edits refresh */
+  version?: string
   className?: string
   rounded?: string
 }
@@ -20,12 +22,13 @@ export function Cover({
   hasCover = true,
   width = 400,
   full = false,
+  version,
   className = '',
   rounded = 'rounded-xl',
 }: CoverProps) {
   const [loaded, setLoaded] = useState(false)
   const [errored, setErrored] = useState(false)
-  const src = full ? mediaUrl.cover(bookId) : mediaUrl.thumbnail(bookId, width)
+  const src = full ? mediaUrl.cover(bookId, version) : mediaUrl.thumbnail(bookId, width, version)
   const showFallback = errored || !hasCover
 
   return (

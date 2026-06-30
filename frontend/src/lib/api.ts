@@ -110,9 +110,13 @@ function bookQueryString(q: BookQuery): string {
 }
 
 // ---- Media URL helpers (used directly as <img src>) ----
+// v is a cache-busting version token (e.g. book.lastModified): the cover/
+// thumbnail URLs are long-lived (max-age), so changing v forces a refetch after
+// a cover edit.
 export const mediaUrl = {
-  thumbnail: (id: number, w = 400) => `/api/books/${id}/thumbnail?w=${w}`,
-  cover: (id: number) => `/api/books/${id}/cover`,
+  thumbnail: (id: number, w = 400, v?: string) =>
+    `/api/books/${id}/thumbnail?w=${w}${v ? `&v=${encodeURIComponent(v)}` : ''}`,
+  cover: (id: number, v?: string) => `/api/books/${id}/cover${v ? `?v=${encodeURIComponent(v)}` : ''}`,
   page: (id: number, n: number, w?: number) =>
     `/api/books/${id}/pages/${n}${w ? `?w=${w}` : ''}`,
   file: (id: number) => `/api/books/${id}/file`,

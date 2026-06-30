@@ -89,9 +89,19 @@ func (s *Service) resizeToJPEG(cbzPath, entry string, maxWidth int) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
+	return resizeImageToJPEG(raw, maxWidth, fmt.Sprintf("page %q", entry))
+}
+
+// ResizeImageToJPEG decodes a stored image (e.g. cover.jpg) and re-encodes it as
+// JPEG, downscaling to maxWidth when wider. Used to serve a resized cover.jpg.
+func (s *Service) ResizeImageToJPEG(raw []byte, maxWidth int) ([]byte, error) {
+	return resizeImageToJPEG(raw, maxWidth, "image")
+}
+
+func resizeImageToJPEG(raw []byte, maxWidth int, what string) ([]byte, error) {
 	img, _, err := image.Decode(bytes.NewReader(raw))
 	if err != nil {
-		return nil, fmt.Errorf("decode page %q: %w", entry, err)
+		return nil, fmt.Errorf("decode %s: %w", what, err)
 	}
 	if maxWidth > 0 && img.Bounds().Dx() > maxWidth {
 		img = imaging.Resize(img, maxWidth, 0, imaging.Lanczos)

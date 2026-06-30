@@ -19,6 +19,7 @@ export function BookCard({ book, action }: BookCardProps) {
             bookId={book.id}
             title={book.title}
             hasCover={book.hasCover}
+            version={book.lastModified}
             rounded="rounded-none"
             className="transition-transform duration-300 group-hover:scale-[1.03]"
           />

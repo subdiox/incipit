@@ -98,16 +98,23 @@ func (s *Server) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	}
 	width := clampWidth(atoi(r.URL.Query().Get("w")), 400)
 
-	// Prefer the CBZ first page (consistent comic cover); fall back to cover.jpg.
-	if cbz, _, _, err := s.resolveCBZ(b); err == nil {
-		if data, err := s.reader.FirstPageJPEG(cbz, width); err == nil {
-			serveCachedBytes(w, r, "image/jpeg", data, "")
+	// Prefer the stored cover.jpg (so cover edits — uploaded or fetched from
+	// cmoa — actually show), falling back to the CBZ first page when a book has
+	// no stored cover.
+	if b.HasCover {
+		coverPath := filepath.Join(s.lib().BookFolder(b), "cover.jpg")
+		if raw, err := os.ReadFile(coverPath); err == nil {
+			if data, err := s.reader.ResizeImageToJPEG(raw, width); err == nil {
+				serveCachedBytes(w, r, "image/jpeg", data, "")
+				return
+			}
+			// Undecodable cover.jpg: serve it as-is rather than failing.
+			serveCachedBytes(w, r, "image/jpeg", raw, "")
 			return
 		}
 	}
-	if b.HasCover {
-		coverPath := filepath.Join(s.lib().BookFolder(b), "cover.jpg")
-		if data, err := os.ReadFile(coverPath); err == nil {
+	if cbz, _, _, err := s.resolveCBZ(b); err == nil {
+		if data, err := s.reader.FirstPageJPEG(cbz, width); err == nil {
 			serveCachedBytes(w, r, "image/jpeg", data, "")
 			return
 		}
