@@ -174,6 +174,15 @@ func TestReadingListsAndViews(t *testing.T) {
 	if all[10] != 2 || all[11] != 1 {
 		t.Errorf("AllBookViewCounts = %v, want {10:2, 11:1}", all)
 	}
+
+	// Last-read reflects read_progress (book 10 was reset above, so it's gone).
+	lr, _ := s.AllBookLastRead(ctx)
+	if _, ok := lr[11]; !ok {
+		t.Errorf("AllBookLastRead missing read book 11: %v", lr)
+	}
+	if _, ok := lr[10]; ok {
+		t.Errorf("AllBookLastRead should drop reset book 10: %v", lr)
+	}
 }
 
 func TestPageCacheValidityAndSettings(t *testing.T) {

@@ -233,6 +233,35 @@ func (s *Store) AllBookViewCounts(ctx context.Context) (map[int64]int64, error) 
 	return out, rows.Err()
 }
 
+// AllBookLastRead returns each book's most recent read time across all users,
+// keyed by book ID (books never read are absent). Used to rank the library by
+// "recently read". Max is computed in Go by parsing timestamps rather than via
+// SQL MAX(text), since RFC3339Nano trims trailing fractional zeros and so does
+// not sort lexicographically.
+func (s *Store) AllBookLastRead(ctx context.Context) (map[int64]time.Time, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT book_id, updated_at FROM read_progress")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]time.Time{}
+	for rows.Next() {
+		var id int64
+		var ts string
+		if err := rows.Scan(&id, &ts); err != nil {
+			return nil, err
+		}
+		t, perr := time.Parse(timeLayout, ts)
+		if perr != nil {
+			continue
+		}
+		if cur, ok := out[id]; !ok || t.After(cur) {
+			out[id] = t
+		}
+	}
+	return out, rows.Err()
+}
+
 // DeleteProgress removes a user's reading position for a book (all formats),
 // resetting it to unread.
 func (s *Store) DeleteProgress(ctx context.Context, userID, bookID int64) error {

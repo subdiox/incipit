@@ -77,6 +77,7 @@ export const en = {
   'library.sort.pubdate': 'Publication date',
   'library.sort.rating': 'Rating',
   'library.sort.views': 'Most viewed',
+  'library.sort.lastread': 'Recently read',
   'library.filters': 'Filters',
   'library.clearFilters': 'Clear filters',
   'library.authors': 'Authors',

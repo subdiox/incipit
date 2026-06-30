@@ -46,8 +46,15 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 		Limit:       atoi(q.Get("limit")),
 		Offset:      atoi(q.Get("offset")),
 	}
-	if opts.Sort == "views" {
+	// Sorts that rank by app.db data (view count, last-read time) can't be an
+	// ORDER BY in metadata.db, so they pull the filtered IDs and the ranking map
+	// separately and rank in Go.
+	switch opts.Sort {
+	case "views":
 		s.listBooksByViews(w, r, opts)
+		return
+	case "lastread":
+		s.listBooksByLastRead(w, r, opts)
 		return
 	}
 	res, err := s.lib().ListBooks(r.Context(), opts)
@@ -58,27 +65,43 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
-// listBooksByViews ranks the filtered library by aggregate view count, which
-// lives in app.db and so can't be an ORDER BY in metadata.db. It pulls the
-// matching IDs and the view map separately, sorts in Go (stable, so equal counts
-// keep the newest-first tiebreak), then hydrates just the requested page.
+// listBooksByViews / listBooksByLastRead rank the filtered library by app.db
+// data. They share listBooksRanked, which fetches the matching IDs, sorts them
+// in Go (stable, so equal keys keep FilteredIDs' newest-first tiebreak), and
+// hydrates just the requested page.
 func (s *Server) listBooksByViews(w http.ResponseWriter, r *http.Request, opts calibre.ListOptions) {
-	ids, err := s.lib().FilteredIDs(r.Context(), opts)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "list books")
-		return
-	}
 	views, err := s.store.AllBookViewCounts(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "view counts")
 		return
 	}
+	s.listBooksRanked(w, r, opts, func(a, b int64) bool { return views[a] > views[b] }) // most-viewed first
+}
+
+func (s *Server) listBooksByLastRead(w http.ResponseWriter, r *http.Request, opts calibre.ListOptions) {
+	last, err := s.store.AllBookLastRead(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "last read")
+		return
+	}
+	// Most recently read first; never-read books (zero time) fall to the end.
+	s.listBooksRanked(w, r, opts, func(a, b int64) bool { return last[a].After(last[b]) })
+}
+
+// listBooksRanked sorts the filtered IDs by a caller-supplied "a before b"
+// comparator (descending intent), then writes the requested page. For ascending
+// order the comparator is inverted.
+func (s *Server) listBooksRanked(w http.ResponseWriter, r *http.Request, opts calibre.ListOptions, before func(a, b int64) bool) {
+	ids, err := s.lib().FilteredIDs(r.Context(), opts)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list books")
+		return
+	}
 	sort.SliceStable(ids, func(i, j int) bool {
-		vi, vj := views[ids[i]], views[ids[j]]
 		if opts.Desc {
-			return vi > vj // most-viewed first
+			return before(ids[i], ids[j])
 		}
-		return vi < vj
+		return before(ids[j], ids[i])
 	})
 	total := len(ids)
 	limit := opts.Limit

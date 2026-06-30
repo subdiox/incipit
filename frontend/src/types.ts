@@ -116,7 +116,15 @@ export interface SetupStatus {
   needsLibrary: boolean
 }
 
-export type SortKey = 'title' | 'timestamp' | 'pubdate' | 'author' | 'series' | 'rating' | 'views'
+export type SortKey =
+  | 'title'
+  | 'timestamp'
+  | 'pubdate'
+  | 'author'
+  | 'series'
+  | 'rating'
+  | 'views'
+  | 'lastread'
 export type SortOrder = 'asc' | 'desc'
 
 export interface SiteConfig {

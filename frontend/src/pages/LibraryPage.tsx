@@ -31,6 +31,7 @@ const SORT_OPTIONS: { value: SortKey; labelKey: TranslationKey }[] = [
   { value: 'pubdate', labelKey: 'library.sort.pubdate' },
   { value: 'rating', labelKey: 'library.sort.rating' },
   { value: 'views', labelKey: 'library.sort.views' },
+  { value: 'lastread', labelKey: 'library.sort.lastread' },
 ]
 
 type FacetKind = 'author' | 'series' | 'tag'

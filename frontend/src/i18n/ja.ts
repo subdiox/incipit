@@ -79,6 +79,7 @@ export const ja: Record<TranslationKey, string> = {
   'library.sort.pubdate': '出版日',
   'library.sort.rating': '評価',
   'library.sort.views': '閲覧数順',
+  'library.sort.lastread': '最近読まれた順',
   'library.filters': '絞り込み',
   'library.clearFilters': '絞り込みを解除',
   'library.authors': '著者',
