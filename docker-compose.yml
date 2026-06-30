@@ -5,8 +5,12 @@ services:
     # image: ghcr.io/incipit/incipit:latest
     container_name: incipit
     restart: unless-stopped
-    # Container runs as nonroot (uid 65532); mounted dirs must be writable by it.
-    user: "65532:65532"
+    # Run as the host user that owns the Calibre library (uid 1000 = subdiox), so
+    # incipit can move/rename book folders and write covers. The library's
+    # per-author folders are 0755 owned by 1000, so the default nonroot uid 65532
+    # gets "permission denied" on edits — match the owner instead. ./config must
+    # also be owned by this uid (chown -R 1000:1000 ./config after switching).
+    user: "1000:1000"
     # Resolve host.docker.internal on plain Linux Docker (needed to reach the
     # LDAP server published on the host, e.g. ldap://host.docker.internal:389).
     extra_hosts:

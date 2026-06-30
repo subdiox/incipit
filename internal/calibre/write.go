@@ -314,10 +314,14 @@ func (a *Adapter) UpdateBook(ctx context.Context, id int64, in UpdateBookInput) 
 	if err != nil {
 		return nil, err
 	}
-	// Write the new cover after commit (best-effort, like the OPF) so a failure
-	// can't leave a fresh cover.jpg on disk against rolled-back metadata.
+	// Write the new cover after commit (so a failure can't leave a fresh
+	// cover.jpg on disk against rolled-back metadata). A failed overwrite leaves
+	// the previous cover.jpg in place, so has_cover stays truthful — but surface
+	// the error instead of silently reporting success with no cover change.
 	if len(in.Cover) > 0 {
-		_ = os.WriteFile(filepath.Join(a.BookFolder(updated), "cover.jpg"), in.Cover, 0o644)
+		if err := os.WriteFile(filepath.Join(a.BookFolder(updated), "cover.jpg"), in.Cover, 0o644); err != nil {
+			return updated, fmt.Errorf("write cover: %w", err)
+		}
 	}
 	a.rewriteOPF(updated) // best-effort
 	return updated, nil
