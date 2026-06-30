@@ -168,11 +168,12 @@ export const api = {
   saveProgress: (id: number, page: number, totalPages: number) =>
     request<void>(`/books/${id}/progress`, { method: 'PUT', ...jsonBody({ page, totalPages }) }),
   resetProgress: (id: number) => request<void>(`/books/${id}/progress`, { method: 'DELETE' }),
-  // status 'continue' = unfinished only; 'all' = full history.
-  myReading: (status: 'continue' | 'all', limit?: number) =>
-    request<ReadingItem[]>(
-      `/me/reading?status=${status === 'all' ? 'all' : 'in-progress'}${limit ? `&limit=${limit}` : ''}`,
-    ),
+  // status: 'continue' = unfinished only, 'finished' = read to the end,
+  // 'all' = everything.
+  myReading: (status: 'continue' | 'finished' | 'all', limit?: number) => {
+    const s = status === 'continue' ? 'in-progress' : status
+    return request<ReadingItem[]>(`/me/reading?status=${s}${limit ? `&limit=${limit}` : ''}`)
+  },
   recentlyRead: (limit?: number) =>
     request<Book[]>(`/library/recent${limit ? `?limit=${limit}` : ''}`),
 

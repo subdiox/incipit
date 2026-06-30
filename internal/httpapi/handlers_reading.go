@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"incipit/internal/appdb"
 	"incipit/internal/calibre"
 )
 
@@ -17,12 +18,18 @@ type readingItem struct {
 }
 
 // handleMyReading returns the current user's reading entries, most recently read
-// first. ?status=all returns the full history; otherwise only unfinished books
-// ("continue reading"). Entries whose book has since been deleted are dropped.
+// first. ?status selects all / finished / in-progress (the default). Entries
+// whose book has since been deleted are dropped.
 func (s *Server) handleMyReading(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
-	inProgress := r.URL.Query().Get("status") != "all"
-	prog, err := s.store.ListReading(r.Context(), u.ID, inProgress, atoi(r.URL.Query().Get("limit")))
+	status := appdb.ReadingInProgress
+	switch r.URL.Query().Get("status") {
+	case "all":
+		status = appdb.ReadingAll
+	case "finished":
+		status = appdb.ReadingFinished
+	}
+	prog, err := s.store.ListReading(r.Context(), u.ID, status, atoi(r.URL.Query().Get("limit")))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "list reading")
 		return

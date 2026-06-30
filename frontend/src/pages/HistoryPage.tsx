@@ -69,12 +69,12 @@ function Section({
   status,
 }: {
   title: string
-  status: 'continue' | 'all'
+  status: 'continue' | 'finished'
 }) {
   const { t } = useI18n()
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
-    queryKey: ['reading', status === 'all' ? 'history' : 'continue'],
+    queryKey: ['reading', status === 'finished' ? 'history' : 'continue'],
     queryFn: () => api.myReading(status, 200),
   })
 
@@ -122,7 +122,7 @@ export function HistoryPage() {
     <div className="min-w-0 flex-1">
       <h1 className="mb-6 text-2xl font-semibold tracking-tight text-white">{t('history.title')}</h1>
       <Section title={t('history.continue')} status="continue" />
-      <Section title={t('history.all')} status="all" />
+      <Section title={t('history.all')} status="finished" />
     </div>
   )
 }

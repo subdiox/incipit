@@ -144,18 +144,30 @@ func (s *Store) GetProgress(ctx context.Context, userID, bookID int64, format st
 	return &p, nil
 }
 
-// ListReading returns a user's reading entries, most recently read first. When
-// inProgressOnly is true, finished books (page at/after the last page) are
-// excluded, leaving only "continue reading" candidates.
-func (s *Store) ListReading(ctx context.Context, userID int64, inProgressOnly bool, limit int) ([]Progress, error) {
+// Reading-list filters for ListReading.
+const (
+	ReadingAll        = "all"         // every entry
+	ReadingInProgress = "in-progress" // started but not finished ("continue reading")
+	ReadingFinished   = "finished"    // read to the last page
+)
+
+// ListReading returns a user's reading entries, most recently read first,
+// filtered by status (ReadingAll / ReadingInProgress / ReadingFinished). A book
+// is "finished" once its position reaches the last page; "in progress" covers
+// unknown-length or not-yet-final positions.
+func (s *Store) ListReading(ctx context.Context, userID int64, status string, limit int) ([]Progress, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
 	q := `SELECT user_id, book_id, format, page, total_pages, updated_at
 		FROM read_progress WHERE user_id=?`
-	if inProgressOnly {
+	switch status {
+	case ReadingInProgress:
 		// Not finished: unknown length, or not yet at the final page.
 		q += ` AND (total_pages=0 OR page < total_pages-1)`
+	case ReadingFinished:
+		// At/after the last page (requires a known length).
+		q += ` AND (total_pages>0 AND page >= total_pages-1)`
 	}
 	q += ` ORDER BY updated_at DESC LIMIT ?`
 	rows, err := s.db.QueryContext(ctx, q, userID, limit)
