@@ -128,6 +128,47 @@ func TestShelvesAndProgress(t *testing.T) {
 	}
 }
 
+func TestReadingListsAndRecentlyRead(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	me, _ := s.CreateUser(ctx, User{Username: "me"})
+	other, _ := s.CreateUser(ctx, User{Username: "other"})
+
+	// me: book 10 finished, book 11 in progress.
+	s.SetProgress(ctx, Progress{UserID: me.ID, BookID: 10, Format: "CBZ", Page: 99, TotalPages: 100})
+	s.SetProgress(ctx, Progress{UserID: me.ID, BookID: 11, Format: "CBZ", Page: 5, TotalPages: 100})
+	// other: book 11 (shared with me) and book 12 (mine-untouched).
+	s.SetProgress(ctx, Progress{UserID: other.ID, BookID: 11, Format: "CBZ", Page: 7, TotalPages: 100})
+	s.SetProgress(ctx, Progress{UserID: other.ID, BookID: 12, Format: "CBZ", Page: 3, TotalPages: 100})
+
+	inProg, _ := s.ListReading(ctx, me.ID, ReadingInProgress, 0)
+	if len(inProg) != 1 || inProg[0].BookID != 11 {
+		t.Errorf("in-progress = %+v, want [11]", inProg)
+	}
+	finished, _ := s.ListReading(ctx, me.ID, ReadingFinished, 0)
+	if len(finished) != 1 || finished[0].BookID != 10 {
+		t.Errorf("finished = %+v, want [10]", finished)
+	}
+	if all, _ := s.ListReading(ctx, me.ID, ReadingAll, 0); len(all) != 2 {
+		t.Errorf("all = %+v, want 2", all)
+	}
+
+	// Recently read for me: other's books, excluding any I've touched. Book 11 is
+	// shared (I read it) so it must NOT appear; only book 12 should.
+	rec, _ := s.RecentlyReadBookIDs(ctx, me.ID, 0)
+	if len(rec) != 1 || rec[0] != 12 {
+		t.Errorf("recently read = %v, want [12]", rec)
+	}
+
+	// Reset removes my position so book 10 leaves my finished list.
+	if err := s.DeleteProgress(ctx, me.ID, 10); err != nil {
+		t.Fatalf("DeleteProgress: %v", err)
+	}
+	if finished, _ := s.ListReading(ctx, me.ID, ReadingFinished, 0); len(finished) != 0 {
+		t.Errorf("finished after reset = %+v, want empty", finished)
+	}
+}
+
 func TestPageCacheValidityAndSettings(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

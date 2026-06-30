@@ -188,17 +188,21 @@ func (s *Store) ListReading(ctx context.Context, userID int64, status string, li
 	return out, rows.Err()
 }
 
-// RecentlyReadBookIDs returns book IDs recently read across the library, most
-// recent first, EXCLUDING excludeUserID. It is anonymized: only the books and
-// their last-read time are exposed, never which user read them. Used for the
-// "recently read" / popular shelf.
+// RecentlyReadBookIDs returns book IDs recently read by OTHER users, most recent
+// first, for the "recently read" / popular shelf. It excludes excludeUserID's
+// own reads two ways: rows by that user, and any book that user has read at all
+// — so the shelf surfaces what others are reading that you haven't, rather than
+// echoing your own history back. Anonymized: only books and their last-read time
+// are exposed, never which user read them.
 func (s *Store) RecentlyReadBookIDs(ctx context.Context, excludeUserID int64, limit int) ([]int64, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT book_id, MAX(updated_at) AS last
-		FROM read_progress WHERE user_id<>?
-		GROUP BY book_id ORDER BY last DESC LIMIT ?`, excludeUserID, limit)
+		FROM read_progress
+		WHERE user_id<>?
+		  AND book_id NOT IN (SELECT book_id FROM read_progress WHERE user_id=?)
+		GROUP BY book_id ORDER BY last DESC LIMIT ?`, excludeUserID, excludeUserID, limit)
 	if err != nil {
 		return nil, err
 	}
