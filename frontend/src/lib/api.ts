@@ -87,7 +87,7 @@ export interface BookQuery {
   order?: SortOrder
   author?: number
   series?: number
-  tag?: number
+  tags?: number[] // AND-combined
   publisher?: number
   language?: string
   limit?: number
@@ -101,7 +101,7 @@ function bookQueryString(q: BookQuery): string {
   if (q.order) params.set('order', q.order)
   if (q.author != null) params.set('author', String(q.author))
   if (q.series != null) params.set('series', String(q.series))
-  if (q.tag != null) params.set('tag', String(q.tag))
+  if (q.tags) q.tags.forEach((t) => params.append('tag', String(t)))
   if (q.publisher != null) params.set('publisher', String(q.publisher))
   if (q.language) params.set('language', q.language)
   if (q.limit != null) params.set('limit', String(q.limit))

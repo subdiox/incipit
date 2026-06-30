@@ -57,7 +57,7 @@ type ListOptions struct {
 	Search      string
 	AuthorID    int64
 	SeriesID    int64
-	TagID       int64
+	TagIDs      []int64 // multiple tags are AND-combined (a book must have all)
 	PublisherID int64
 	Language    string
 }
@@ -153,9 +153,13 @@ func (a *Adapter) buildFilters(opts ListOptions) (string, []any) {
 		clauses = append(clauses, "EXISTS (SELECT 1 FROM books_series_link bsl WHERE bsl.book=b.id AND bsl.series=?)")
 		args = append(args, opts.SeriesID)
 	}
-	if opts.TagID > 0 {
-		clauses = append(clauses, "EXISTS (SELECT 1 FROM books_tags_link btl WHERE btl.book=b.id AND btl.tag=?)")
-		args = append(args, opts.TagID)
+	// Each selected tag adds its own EXISTS clause, so they AND together: a book
+	// must carry every selected tag to match.
+	for _, tid := range opts.TagIDs {
+		if tid > 0 {
+			clauses = append(clauses, "EXISTS (SELECT 1 FROM books_tags_link btl WHERE btl.book=b.id AND btl.tag=?)")
+			args = append(args, tid)
+		}
 	}
 	if opts.PublisherID > 0 {
 		clauses = append(clauses, "EXISTS (SELECT 1 FROM books_publishers_link bpl WHERE bpl.book=b.id AND bpl.publisher=?)")

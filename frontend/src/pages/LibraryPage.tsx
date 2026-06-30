@@ -46,32 +46,34 @@ function FacetFilter({
   title,
   kind,
   facets,
-  activeId,
+  activeIds,
   onToggle,
 }: {
   title: string
   kind: FacetKind
   facets: Facet[] | undefined
-  activeId: number | null
+  activeIds: number[]
   onToggle: (kind: FacetKind, id: number) => void
 }) {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
 
-  const active = activeId != null ? (facets?.find((f) => f.id === activeId) ?? null) : null
+  const activeSet = useMemo(() => new Set(activeIds), [activeIds])
+  const actives = (facets ?? []).filter((f) => activeSet.has(f.id))
 
   const { rows, total } = useMemo(() => {
     const all = facets ?? []
     const needle = query.trim().toLowerCase()
     const matched = needle ? all.filter((f) => f.name.toLowerCase().includes(needle)) : all
-    // Most-used first for discoverability; the active one floats to the top.
+    // Most-used first for discoverability; active ones float to the top.
     const sorted = [...matched].sort((a, b) => {
-      if (a.id === activeId) return -1
-      if (b.id === activeId) return 1
+      const aa = activeSet.has(a.id)
+      const ba = activeSet.has(b.id)
+      if (aa !== ba) return aa ? -1 : 1
       return b.count - a.count || a.name.localeCompare(b.name)
     })
     return { rows: sorted.slice(0, FACET_LIMIT), total: sorted.length }
-  }, [facets, query, activeId])
+  }, [facets, query, activeSet])
 
   if (!facets || facets.length === 0) return null
   const searchable = facets.length > FACET_SEARCH_THRESHOLD
@@ -83,16 +85,21 @@ function FacetFilter({
         <span className="text-[10px] tabular-nums text-slate-600">{facets.length.toLocaleString()}</span>
       </div>
 
-      {active && (
-        <button
-          type="button"
-          onClick={() => onToggle(kind, active.id)}
-          className="chip chip-active mb-2 max-w-full"
-          title={t('library.clearFilters')}
-        >
-          <span className="truncate">{active.name}</span>
-          <IconClose width={12} height={12} className="shrink-0" />
-        </button>
+      {actives.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {actives.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => onToggle(kind, a.id)}
+              className="chip chip-active max-w-full"
+              title={t('library.clearFilters')}
+            >
+              <span className="truncate">{a.name}</span>
+              <IconClose width={12} height={12} className="shrink-0" />
+            </button>
+          ))}
+        </div>
       )}
 
       {searchable && (
@@ -121,7 +128,7 @@ function FacetFilter({
                 type="button"
                 onClick={() => onToggle(kind, f.id)}
                 className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1 text-left text-sm transition-colors ${
-                  f.id === activeId
+                  activeSet.has(f.id)
                     ? 'bg-accent-500/15 text-accentSoft'
                     : 'text-slate-300 hover:bg-ink-800'
                 }`}
@@ -156,7 +163,8 @@ export function LibraryPage() {
   const order = (params.get('order') as SortOrder) ?? 'desc'
   const authorId = params.get('author') ? Number(params.get('author')) : null
   const seriesId = params.get('series') ? Number(params.get('series')) : null
-  const tagId = params.get('tag') ? Number(params.get('tag')) : null
+  const tagIds = params.getAll('tag').map(Number).filter((n) => Number.isFinite(n) && n > 0)
+  const tagKey = tagIds.join(',') // stable dep / key for the tag set
   const offset = params.get('offset') ? Number(params.get('offset')) : 0
   const pageSize = user?.pageSize ?? DEFAULT_PAGE_SIZE
 
@@ -167,10 +175,22 @@ export function LibraryPage() {
     setParams(next)
   }
 
+  // author/series are single-select (replace); tags are multi-select and
+  // AND-combined, so toggling adds/removes one tag from the set.
   const toggleFacet = (kind: FacetKind, id: number) => {
     update((p) => {
-      if (p.get(kind) === String(id)) p.delete(kind)
-      else p.set(kind, String(id))
+      if (kind === 'tag') {
+        const cur = p.getAll('tag')
+        p.delete('tag')
+        const next = cur.includes(String(id))
+          ? cur.filter((v) => v !== String(id))
+          : [...cur, String(id)]
+        next.forEach((v) => p.append('tag', v))
+      } else if (p.get(kind) === String(id)) {
+        p.delete(kind)
+      } else {
+        p.set(kind, String(id))
+      }
     })
   }
 
@@ -181,11 +201,11 @@ export function LibraryPage() {
       order,
       author: authorId ?? undefined,
       series: seriesId ?? undefined,
-      tag: tagId ?? undefined,
+      tags: tagKey ? tagKey.split(',').map(Number) : undefined,
       limit: pageSize,
       offset,
     }),
-    [debouncedSearch, sort, order, authorId, seriesId, tagId, offset, pageSize],
+    [debouncedSearch, sort, order, authorId, seriesId, tagKey, offset, pageSize],
   )
 
   const { data, isLoading, isFetching, isError, error } = useQuery({
@@ -199,7 +219,7 @@ export function LibraryPage() {
   const tags = useQuery({ queryKey: ['facets', 'tags'], queryFn: api.tags, staleTime: 300_000 })
 
   const total = data?.total ?? 0
-  const hasFilters = authorId != null || seriesId != null || tagId != null || !!debouncedSearch
+  const hasFilters = authorId != null || seriesId != null || tagIds.length > 0 || !!debouncedSearch
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const currentPage = Math.floor(offset / pageSize) + 1
 
@@ -219,7 +239,7 @@ export function LibraryPage() {
   }
 
   const activeFacetCount =
-    (authorId != null ? 1 : 0) + (seriesId != null ? 1 : 0) + (tagId != null ? 1 : 0)
+    (authorId != null ? 1 : 0) + (seriesId != null ? 1 : 0) + tagIds.length
 
   // Close the filters dropdown on outside click / Escape.
   const filtersRef = useRef<HTMLDivElement>(null)
@@ -245,16 +265,20 @@ export function LibraryPage() {
     })
 
   const activeChips = [
-    { kind: 'author' as const, id: authorId, name: authors.data?.find((f) => f.id === authorId)?.name },
-    { kind: 'series' as const, id: seriesId, name: series.data?.find((f) => f.id === seriesId)?.name },
-    { kind: 'tag' as const, id: tagId, name: tags.data?.find((f) => f.id === tagId)?.name },
-  ].filter((c): c is { kind: FacetKind; id: number; name: string | undefined } => c.id != null)
+    ...(authorId != null
+      ? [{ kind: 'author' as const, id: authorId, name: authors.data?.find((f) => f.id === authorId)?.name }]
+      : []),
+    ...(seriesId != null
+      ? [{ kind: 'series' as const, id: seriesId, name: series.data?.find((f) => f.id === seriesId)?.name }]
+      : []),
+    ...tagIds.map((id) => ({ kind: 'tag' as const, id, name: tags.data?.find((f) => f.id === id)?.name })),
+  ]
 
   const facetPanel = (
     <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3">
-      <FacetFilter title={t('library.authors')} kind="author" facets={authors.data} activeId={authorId} onToggle={toggleFacet} />
-      <FacetFilter title={t('library.series')} kind="series" facets={series.data} activeId={seriesId} onToggle={toggleFacet} />
-      <FacetFilter title={t('library.tags')} kind="tag" facets={tags.data} activeId={tagId} onToggle={toggleFacet} />
+      <FacetFilter title={t('library.authors')} kind="author" facets={authors.data} activeIds={authorId != null ? [authorId] : []} onToggle={toggleFacet} />
+      <FacetFilter title={t('library.series')} kind="series" facets={series.data} activeIds={seriesId != null ? [seriesId] : []} onToggle={toggleFacet} />
+      <FacetFilter title={t('library.tags')} kind="tag" facets={tags.data} activeIds={tagIds} onToggle={toggleFacet} />
     </div>
   )
 

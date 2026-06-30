@@ -177,6 +177,42 @@ func TestListSearchAndFacets(t *testing.T) {
 	}
 }
 
+func TestListMultiTagAND(t *testing.T) {
+	a := newTestAdapter(t)
+	ctx := context.Background()
+	add := func(title string, tags []string) {
+		if _, err := a.AddBook(ctx, AddBookInput{
+			Title: title, Authors: []string{"X"}, Tags: tags, Format: "CBZ",
+			Data: bytes.NewReader([]byte("PK\x03\x04z")),
+		}); err != nil {
+			t.Fatalf("AddBook(%q): %v", title, err)
+		}
+	}
+	add("AB", []string{"a", "b"})
+	add("BC", []string{"b", "c"})
+	add("ABC", []string{"a", "b", "c"})
+
+	tagID := map[string]int64{}
+	tags, _ := a.Tags(ctx)
+	for _, f := range tags {
+		tagID[f.Name] = f.ID
+	}
+
+	// Single tag b matches all three.
+	if res, _ := a.ListBooks(ctx, ListOptions{TagIDs: []int64{tagID["b"]}}); res.Total != 3 {
+		t.Errorf("tag b => %d, want 3", res.Total)
+	}
+	// a AND b matches AB and ABC (not BC).
+	res, _ := a.ListBooks(ctx, ListOptions{TagIDs: []int64{tagID["a"], tagID["b"]}, Sort: "title"})
+	if res.Total != 2 || res.Books[0].Title != "AB" || res.Books[1].Title != "ABC" {
+		t.Errorf("a AND b => %+v", titles(res.Books))
+	}
+	// a AND b AND c matches only ABC.
+	if res, _ := a.ListBooks(ctx, ListOptions{TagIDs: []int64{tagID["a"], tagID["b"], tagID["c"]}}); res.Total != 1 || res.Books[0].Title != "ABC" {
+		t.Errorf("a AND b AND c => %+v", titles(res.Books))
+	}
+}
+
 func TestUpdateBookMovesFolder(t *testing.T) {
 	a := newTestAdapter(t)
 	b := addSample(t, a, "Old Title", []string{"Isaac Asimov"})

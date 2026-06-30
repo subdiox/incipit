@@ -40,7 +40,7 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 		Desc:        q.Get("order") == "desc",
 		AuthorID:    atoi64(q.Get("author")),
 		SeriesID:    atoi64(q.Get("series")),
-		TagID:       atoi64(q.Get("tag")),
+		TagIDs:      atoi64s(q["tag"]), // repeated ?tag= → AND filter
 		PublisherID: atoi64(q.Get("publisher")),
 		Language:    q.Get("language"),
 		Limit:       atoi(q.Get("limit")),
@@ -435,6 +435,17 @@ func atoi(s string) int {
 func atoi64(s string) int64 {
 	n, _ := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
 	return n
+}
+
+// atoi64s parses a list of query values into int64s, dropping non-positive ones.
+func atoi64s(ss []string) []int64 {
+	var out []int64
+	for _, s := range ss {
+		if n := atoi64(s); n > 0 {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 func clampWidth(w, def int) int {
