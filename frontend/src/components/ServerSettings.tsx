@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import { Spinner } from './Spinner'
@@ -9,6 +9,22 @@ export function ServerSettings() {
   const { t } = useI18n()
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({ queryKey: ['site'], queryFn: api.site })
+
+  // Page-index progress: poll while a scan is running (once the filter is saved
+  // on). refetchInterval stops when idle to avoid needless requests.
+  const index = useQuery({
+    queryKey: ['pageindex'],
+    queryFn: api.pageIndexStatus,
+    enabled: !!data?.pageFilter,
+    refetchInterval: (q) => (q.state.data?.running ? 1500 : false),
+  })
+  const rescan = useMutation({
+    mutationFn: api.reindexPages,
+    onSuccess: (s) => {
+      qc.setQueryData(['pageindex'], s)
+      qc.invalidateQueries({ queryKey: ['pageindex'] })
+    },
+  })
 
   const [title, setTitle] = useState('')
   const [pageFilter, setPageFilter] = useState(false)
@@ -72,6 +88,51 @@ export function ServerSettings() {
               <span className="mt-0.5 block text-xs text-slate-500">{t('server.pageFilterHelp')}</span>
             </span>
           </label>
+
+          {/* Page-count index progress (only meaningful once the filter is saved on). */}
+          {data?.pageFilter && index.data && (
+            <div className="rounded-xl border border-ink-700 bg-ink-900 p-3">
+              {(() => {
+                const { running, done, total } = index.data
+                const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0
+                const complete = !running && total > 0 && done >= total
+                return (
+                  <>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <span className="text-xs font-medium text-slate-300">
+                        {running
+                          ? t('server.indexRunning')
+                          : complete
+                            ? t('server.indexDone')
+                            : t('server.indexIdle')}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs tabular-nums text-slate-500">
+                          {done.toLocaleString()} / {total.toLocaleString()}
+                          {total > 0 ? ` · ${pct}%` : ''}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-secondary px-2 py-1 text-xs"
+                          onClick={() => rescan.mutate()}
+                          disabled={running || rescan.isPending}
+                        >
+                          {(running || rescan.isPending) && <Spinner className="h-3.5 w-3.5" />}
+                          {t('server.indexRescan')}
+                        </button>
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-ink-700">
+                      <div
+                        className={`h-full rounded-full ${complete ? 'bg-emerald-500' : 'bg-accent-500'} transition-[width] duration-500`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+          )}
         </div>
       )}
     </div>

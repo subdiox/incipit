@@ -10,6 +10,7 @@ import type {
   LdapUpdate,
   LibrarySettings,
   MetadataGenre,
+  PageIndexStatus,
   MetaPreview,
   PagesResponse,
   Pane,
@@ -138,6 +139,8 @@ export const api = {
     request<FsListing>(`/fs${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   updateSite: (body: { title: string; pageFilter?: boolean }) =>
     request<SiteConfig>('/admin/site', { method: 'PUT', ...jsonBody(body) }),
+  pageIndexStatus: () => request<PageIndexStatus>('/admin/pageindex'),
+  reindexPages: () => request<PageIndexStatus>('/admin/pageindex', { method: 'POST' }),
   setup: (username: string, password: string, libraryPath?: string) =>
     request<User>('/setup', {
       method: 'POST',

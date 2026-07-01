@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"incipit/internal/calibre"
@@ -47,10 +48,11 @@ func (s *Server) indexPageCounts(ctx context.Context) {
 		slog.Error("page index: list ids", "err", err)
 		return
 	}
+	s.indexTotal.Store(int64(len(ids)))
+	s.indexDone.Store(0)
 	slog.Info("page index: starting", "books", len(ids))
 
 	const batch = 200
-	scanned := 0
 	for i := 0; i < len(ids); i += batch {
 		select {
 		case <-ctx.Done():
@@ -61,16 +63,42 @@ func (s *Server) indexPageCounts(ctx context.Context) {
 		if end > len(ids) {
 			end = len(ids)
 		}
-		books, err := lib.BooksByIDs(ctx, ids[i:end])
-		if err != nil {
-			continue
-		}
-		for j := range books {
-			if _, err := s.cbzPagesCtx(ctx, &books[j]); err == nil {
-				scanned++
+		if books, err := lib.BooksByIDs(ctx, ids[i:end]); err == nil {
+			for j := range books {
+				_, _ = s.cbzPagesCtx(ctx, &books[j])
 			}
 		}
+		s.indexDone.Add(int64(end - i))
 		time.Sleep(20 * time.Millisecond) // yield I/O between batches
 	}
-	slog.Info("page index: done", "indexed", scanned)
+	slog.Info("page index: done", "books", len(ids))
+}
+
+type pageIndexStatus struct {
+	Enabled bool  `json:"enabled"`
+	Running bool  `json:"running"`
+	Done    int64 `json:"done"`
+	Total   int64 `json:"total"`
+}
+
+// handlePageIndexStatus reports background page-index progress (admin).
+func (s *Server) handlePageIndexStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, pageIndexStatus{
+		Enabled: s.pageFilterEnabled(r.Context()),
+		Running: s.indexing.Load(),
+		Done:    s.indexDone.Load(),
+		Total:   s.indexTotal.Load(),
+	})
+}
+
+// handleReindexPages starts a fresh page-count scan (admin), e.g. to pick up
+// newly-added books. No-op if the filter is disabled or a run is in progress.
+func (s *Server) handleReindexPages(w http.ResponseWriter, r *http.Request) {
+	s.startPageIndex()
+	writeJSON(w, http.StatusOK, pageIndexStatus{
+		Enabled: s.pageFilterEnabled(r.Context()),
+		Running: s.indexing.Load(),
+		Done:    s.indexDone.Load(),
+		Total:   s.indexTotal.Load(),
+	})
 }

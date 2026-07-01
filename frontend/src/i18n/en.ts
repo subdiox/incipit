@@ -325,6 +325,10 @@ export const en = {
   'server.siteTitleHelp': 'Shown in the sidebar, on the login screen, the browser tab and the OPDS feed.',
   'server.pageFilter': 'Enable page-count filter',
   'server.pageFilterHelp': 'Lets the library be filtered by page count. Enabling it indexes every comic\u2019s page count in the background (one-time scan; heavy for large libraries).',
+  'server.indexRunning': 'Indexing page counts…',
+  'server.indexDone': 'Page counts indexed',
+  'server.indexIdle': 'Page-count index',
+  'server.indexRescan': 'Rescan',
   'server.titleRequired': 'Title is required.',
   'server.failedToSave': 'Failed to save settings.',
 

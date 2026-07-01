@@ -29,10 +29,12 @@ type Server struct {
 	reader   *reader.Service
 	ldap     *auth.LDAPManager
 	proxyCfg auth.ProxyConfig
-	limiter  *rateLimiter
-	meta     *metadata.Client
-	previews *previewStore
-	indexing atomic.Bool // guards the background page-count indexer
+	limiter    *rateLimiter
+	meta       *metadata.Client
+	previews   *previewStore
+	indexing   atomic.Bool  // guards the background page-count indexer
+	indexDone  atomic.Int64 // books processed in the current/last index run
+	indexTotal atomic.Int64 // books to process in the current/last index run
 }
 
 // New constructs a Server. lib may be nil when the library has not been
@@ -159,6 +161,9 @@ func (s *Server) Router() http.Handler {
 				r.Post("/panes", s.handleCreatePane)
 				r.Put("/panes/{id}", s.handleUpdatePane)
 				r.Delete("/panes/{id}", s.handleDeletePane)
+
+				r.Get("/pageindex", s.handlePageIndexStatus)
+				r.Post("/pageindex", s.handleReindexPages)
 
 				r.Get("/library", s.handleGetLibrary)
 				r.Put("/library", s.handleUpdateLibrary)

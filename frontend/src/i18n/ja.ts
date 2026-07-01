@@ -327,6 +327,10 @@ export const ja: Record<TranslationKey, string> = {
   'server.siteTitleHelp': 'サイドバー・ログイン画面・ブラウザのタブ・OPDSフィードに表示されます。',
   'server.pageFilter': 'ページ数フィルタを有効化',
   'server.pageFilterHelp': 'ライブラリをページ数で絞り込めるようにします。有効化すると全コミックのページ数をバックグラウンドで索引します(初回のみの一括スキャン。大規模ライブラリでは重い)。',
+  'server.indexRunning': 'ページ数を索引中…',
+  'server.indexDone': 'ページ数の索引が完了',
+  'server.indexIdle': 'ページ数の索引',
+  'server.indexRescan': '再スキャン',
   'server.titleRequired': 'タイトルを入力してください。',
   'server.failedToSave': '設定の保存に失敗しました。',
 

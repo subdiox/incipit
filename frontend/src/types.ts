@@ -140,6 +140,13 @@ export interface SiteConfig {
   pageFilter: boolean
 }
 
+export interface PageIndexStatus {
+  enabled: boolean
+  running: boolean
+  done: number
+  total: number
+}
+
 export interface MetadataGenre {
   key: string
   label: string
