@@ -23,11 +23,13 @@ function NavItem({
   icon,
   label,
   onClick,
+  indent,
 }: {
   to: string
   icon: React.ReactNode
   label: string
   onClick?: () => void
+  indent?: boolean
 }) {
   return (
     <NavLink
@@ -35,7 +37,10 @@ function NavItem({
       end={to === '/'}
       onClick={onClick}
       className={({ isActive }) =>
-        `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+        `flex items-center gap-3 rounded-xl py-2.5 pr-3 text-sm font-medium transition-colors ${
+          // Panes are children of Library, so indent them a little to the right.
+          indent ? 'pl-7' : 'pl-3'
+        } ${
           isActive
             ? 'bg-accent-500/15 text-accentSoft'
             : 'text-slate-400 hover:bg-ink-800 hover:text-white'
@@ -43,7 +48,7 @@ function NavItem({
       }
     >
       {icon}
-      <span>{label}</span>
+      <span className="truncate">{label}</span>
     </NavLink>
   )
 }
@@ -83,6 +88,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             icon={<IconFilter width={16} height={16} />}
             label={p.name}
             onClick={onNavigate}
+            indent
           />
         ))}
         <NavItem to="/shelves" icon={<IconShelf width={18} height={18} />} label={t('nav.shelves')} onClick={onNavigate} />
