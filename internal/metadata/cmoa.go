@@ -97,10 +97,31 @@ type Meta struct {
 	PubDate     time.Time // zero when unknown
 	Comments    string
 	Tags        []string
-	Rating      int // 0-10 (Calibre scale, 2 per star); 0 when unknown
+	Category    string // cmoa top-page category, exactly as cmoa labels it (e.g. 少年マンガ); "" if unknown
+	Rating      int    // 0-10 (Calibre scale, 2 per star); 0 when unknown
 	Languages   []string
 	CoverURL    string
 }
+
+// topCategory maps a cmoa genre_id to its top-page category label, taken
+// verbatim from the single-genre GenreChoices — cmoa's own katakana labels
+// (少年マンガ, 青年マンガ, …). Used to read a book's category off its breadcrumb
+// (see parseBookPage → Meta.Category).
+var topCategory = func() map[int]string {
+	m := map[int]string{}
+	for _, g := range GenreChoices {
+		if len(g.IDs) == 1 && g.IDs[0] != nil {
+			m[*g.IDs[0]] = g.Label
+		}
+	}
+	return m
+}()
+
+// reGenreID pulls the numeric genre id out of a genre link (/search/genre/<id>/).
+var reGenreID = regexp.MustCompile(`genre/(\d+)`)
+
+// reRankSuffix strips a trailing "(9位)" / "（9位）" ranking off a category label.
+var reRankSuffix = regexp.MustCompile(`[\s\x{3000}]*[(（]\d+位[)）][\s\x{3000}]*$`)
 
 // Client fetches metadata from cmoa. Root is overridable for tests.
 type Client struct {
@@ -353,6 +374,26 @@ func parseBookPage(doc *goquery.Document, series string, volume int, hasVolume b
 			infos[key] = r
 		}
 	})
+
+	// Top-page category from the "ジャンル" info row, e.g.
+	//   ジャンル ： <a href="/search/genre/13/">青年マンガ(9位)</a>
+	// The link is the category (green nav category); the trailing "(N位)" is the
+	// book's ranking within it, which we drop. Prefer the canonical label from
+	// the genre_id, falling back to the link text with the ranking stripped.
+	if r, ok := infos["ジャンル"]; ok {
+		if a := r.Find("a").First(); a.Length() > 0 {
+			if href, ok := a.Attr("href"); ok {
+				if m := reGenreID.FindStringSubmatch(href); m != nil {
+					if id, _ := strconv.Atoi(m[1]); topCategory[id] != "" {
+						meta.Category = topCategory[id]
+					}
+				}
+			}
+			if meta.Category == "" {
+				meta.Category = strings.TrimSpace(reRankSuffix.ReplaceAllString(a.Text(), ""))
+			}
+		}
+	}
 
 	if r, ok := infos["配信開始日"]; ok {
 		// cmoa renders month/day without zero-padding ("2018年7月4日"), so use the

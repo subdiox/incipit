@@ -103,6 +103,10 @@ const bookHTML = `<!doctype html><html><head>
   <a href="/title/12345/">ReLIFE【フルカラー】</a>
 </nav>
 <div class="category_line">
+  <div class="category_line_f_l_l">ジャンル</div>
+  <div class="category_line_f_r_l"><span class="margin_r5">：</span><a href="/search/genre/13/">青年マンガ(9位)</a></div>
+</div>
+<div class="category_line">
   <div class="category_line_f_l_l">配信開始日</div>
   <div class="category_line_f_r_l"><span class="margin_r5">：</span>2020年5月1日</div>
 </div>
@@ -167,6 +171,10 @@ func TestFetch(t *testing.T) {
 	// "広告掲載中" excluded; "青春" deduped → ["青春","学園"].
 	if strings.Join(m.Tags, ",") != "青春,学園" {
 		t.Errorf("Tags = %v", m.Tags)
+	}
+	// Category from the "ジャンル" row, ranking "(9位)" stripped.
+	if m.Category != "青年マンガ" {
+		t.Errorf("Category = %q; want 青年マンガ", m.Category)
 	}
 	if m.Rating != 9 { // 4.5 stars × 2
 		t.Errorf("Rating = %d; want 9", m.Rating)
