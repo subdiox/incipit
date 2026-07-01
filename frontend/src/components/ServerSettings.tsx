@@ -11,18 +11,22 @@ export function ServerSettings() {
   const { data, isLoading } = useQuery({ queryKey: ['site'], queryFn: api.site })
 
   const [title, setTitle] = useState('')
+  const [pageFilter, setPageFilter] = useState(false)
 
   useEffect(() => {
-    if (data) setTitle(data.title)
+    if (data) {
+      setTitle(data.title)
+      setPageFilter(data.pageFilter)
+    }
   }, [data])
 
   useRegisterSave('server', async () => {
     const label = t('server.title')
     const trimmed = title.trim()
     if (!trimmed) return { ok: false, label, error: t('server.titleRequired') }
-    if (data && trimmed === data.title) return { ok: true, label } // unchanged
+    if (data && trimmed === data.title && pageFilter === data.pageFilter) return { ok: true, label }
     try {
-      const next = await api.updateSite(trimmed)
+      const next = await api.updateSite({ title: trimmed, pageFilter })
       // Shared query key: sidebar, login screen and tab title update at once.
       qc.setQueryData(['site'], next)
       return { ok: true, label }
@@ -43,16 +47,31 @@ export function ServerSettings() {
           <Spinner className="h-6 w-6 text-accent-400" />
         </div>
       ) : (
-        <div>
-          <label className="label">{t('server.siteTitle')}</label>
-          <input
-            className="input"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            maxLength={80}
-            placeholder="Incipit"
-          />
-          <p className="mt-1 text-xs text-slate-500">{t('server.siteTitleHelp')}</p>
+        <div className="space-y-5">
+          <div>
+            <label className="label">{t('server.siteTitle')}</label>
+            <input
+              className="input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={80}
+              placeholder="Incipit"
+            />
+            <p className="mt-1 text-xs text-slate-500">{t('server.siteTitleHelp')}</p>
+          </div>
+
+          <label className="flex cursor-pointer items-start gap-3 border-t border-ink-700 pt-5">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-accent-500"
+              checked={pageFilter}
+              onChange={(e) => setPageFilter(e.target.checked)}
+            />
+            <span>
+              <span className="text-sm font-medium text-slate-200">{t('server.pageFilter')}</span>
+              <span className="mt-0.5 block text-xs text-slate-500">{t('server.pageFilterHelp')}</span>
+            </span>
+          </label>
         </div>
       )}
     </div>

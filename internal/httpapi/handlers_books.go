@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"os"
@@ -46,63 +47,84 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 		Limit:       atoi(q.Get("limit")),
 		Offset:      atoi(q.Get("offset")),
 	}
-	// Sorts that rank by app.db data (view count, last-read time) can't be an
-	// ORDER BY in metadata.db, so they pull the filtered IDs and the ranking map
-	// separately and rank in Go.
-	switch opts.Sort {
-	case "views":
-		s.listBooksByViews(w, r, opts)
-		return
-	case "lastread":
-		s.listBooksByLastRead(w, r, opts)
+	// The normal path lets metadata.db do the filtering, sorting and pagination.
+	// Two things it can't express fall back to the "ID path": sorts ranked by
+	// app.db data (view count, last-read) and the page-count filter (page counts
+	// live in app.db). The ID path pulls the matching IDs (already SQL-sorted for
+	// ordinary sorts), re-sorts / filters in Go, then hydrates one page.
+	minPages := atoi(q.Get("minPages"))
+	maxPages := atoi(q.Get("maxPages"))
+	pageFiltered := (minPages > 0 || maxPages > 0) && s.pageFilterEnabled(r.Context())
+	ranked := opts.Sort == "views" || opts.Sort == "lastread"
+	if !ranked && !pageFiltered {
+		res, err := s.lib().ListBooks(r.Context(), opts)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "list books")
+			return
+		}
+		writeJSON(w, http.StatusOK, res)
 		return
 	}
-	res, err := s.lib().ListBooks(r.Context(), opts)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "list books")
-		return
-	}
-	writeJSON(w, http.StatusOK, res)
-}
 
-// listBooksByViews / listBooksByLastRead rank the filtered library by app.db
-// data. They share listBooksRanked, which fetches the matching IDs, sorts them
-// in Go (stable, so equal keys keep FilteredIDs' newest-first tiebreak), and
-// hydrates just the requested page.
-func (s *Server) listBooksByViews(w http.ResponseWriter, r *http.Request, opts calibre.ListOptions) {
-	views, err := s.store.AllBookViewCounts(r.Context())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "view counts")
-		return
-	}
-	s.listBooksRanked(w, r, opts, func(a, b int64) bool { return views[a] > views[b] }) // most-viewed first
-}
-
-func (s *Server) listBooksByLastRead(w http.ResponseWriter, r *http.Request, opts calibre.ListOptions) {
-	last, err := s.store.AllBookLastRead(r.Context())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "last read")
-		return
-	}
-	// Most recently read first; never-read books (zero time) fall to the end.
-	s.listBooksRanked(w, r, opts, func(a, b int64) bool { return last[a].After(last[b]) })
-}
-
-// listBooksRanked sorts the filtered IDs by a caller-supplied "a before b"
-// comparator (descending intent), then writes the requested page. For ascending
-// order the comparator is inverted.
-func (s *Server) listBooksRanked(w http.ResponseWriter, r *http.Request, opts calibre.ListOptions, before func(a, b int64) bool) {
 	ids, err := s.lib().FilteredIDs(r.Context(), opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "list books")
 		return
 	}
+	switch opts.Sort {
+	case "views":
+		views, err := s.store.AllBookViewCounts(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "view counts")
+			return
+		}
+		sortIDsStable(ids, opts.Desc, func(a, b int64) bool { return views[a] > views[b] })
+	case "lastread":
+		last, err := s.store.AllBookLastRead(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "last read")
+			return
+		}
+		sortIDsStable(ids, opts.Desc, func(a, b int64) bool { return last[a].After(last[b]) })
+	}
+	if pageFiltered {
+		counts, err := s.store.AllPageCounts(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "page counts")
+			return
+		}
+		ids = filterIDsByPages(ids, counts, minPages, maxPages)
+	}
+	s.writeBookPage(w, r, opts, ids)
+}
+
+// sortIDsStable sorts ids in place by a "a before b" comparator (descending
+// intent); ascending inverts it. Stable, so equal keys keep FilteredIDs' order.
+func sortIDsStable(ids []int64, desc bool, before func(a, b int64) bool) {
 	sort.SliceStable(ids, func(i, j int) bool {
-		if opts.Desc {
+		if desc {
 			return before(ids[i], ids[j])
 		}
 		return before(ids[j], ids[i])
 	})
+}
+
+// filterIDsByPages keeps only books whose indexed page count is within
+// [min, max] (0 = open bound). Books with no indexed count are dropped.
+func filterIDsByPages(ids []int64, counts map[int64]int, min, max int) []int64 {
+	var out []int64
+	for _, id := range ids {
+		c, ok := counts[id]
+		if !ok || (min > 0 && c < min) || (max > 0 && c > max) {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out
+}
+
+// writeBookPage paginates an ordered ID list and hydrates just the page.
+func (s *Server) writeBookPage(w http.ResponseWriter, r *http.Request, opts calibre.ListOptions, ids []int64) {
 	total := len(ids)
 	limit := opts.Limit
 	if limit <= 0 || limit > 500 {
@@ -394,18 +416,26 @@ func (s *Server) resolveCBZ(b *calibre.Book) (path string, mtime, size int64, er
 // cbzPages returns the CBZ's ordered page names, consulting and refreshing the
 // page-list cache.
 func (s *Server) cbzPages(r *http.Request, b *calibre.Book) ([]string, error) {
+	return s.cbzPagesCtx(r.Context(), b)
+}
+
+// cbzPagesCtx returns a book's CBZ page list, from the app.db cache when valid
+// (by mtime/size) or by scanning the archive's central directory once. The scan
+// result (including page count) is cached, which is what the page-count index
+// and filter rely on.
+func (s *Server) cbzPagesCtx(ctx context.Context, b *calibre.Book) ([]string, error) {
 	cbz, mtime, size, err := s.resolveCBZ(b)
 	if err != nil {
 		return nil, err
 	}
-	if e, err := s.store.GetPageCache(r.Context(), b.ID, "CBZ", mtime, size); err == nil {
+	if e, err := s.store.GetPageCache(ctx, b.ID, "CBZ", mtime, size); err == nil {
 		return e.Pages, nil
 	}
 	pages, err := reader.Pages(cbz)
 	if err != nil {
 		return nil, err
 	}
-	_ = s.store.PutPageCache(r.Context(), appdb.PageCacheEntry{
+	_ = s.store.PutPageCache(ctx, appdb.PageCacheEntry{
 		BookID: b.ID, Format: "CBZ", FilePath: cbz, Pages: pages,
 		PageCount: len(pages), MTime: mtime, Size: size, ScannedAt: time.Now(),
 	})

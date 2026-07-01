@@ -201,6 +201,13 @@ export function BookDetailPage() {
     enabled: Number.isFinite(bookId),
   })
 
+  const { data: pages } = useQuery({
+    queryKey: ['pages', bookId],
+    queryFn: () => api.pages(bookId).catch(() => null),
+    enabled: Number.isFinite(bookId) && !!book?.formats.some((f) => f.format.toLowerCase() === 'cbz'),
+    staleTime: 300_000,
+  })
+
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteBook(bookId),
     onSuccess: () => {
@@ -354,6 +361,7 @@ export function BookDetailPage() {
               <Meta label={t('book.languages')}>{book.languages.map(languageLabel).join(', ')}</Meta>
             )}
             {formatDate(book.timestamp) && <Meta label={t('book.added')}>{formatDate(book.timestamp)}</Meta>}
+            {pages != null && <Meta label={t('book.pages')}>{pages.count.toLocaleString()}</Meta>}
             <Meta label={t('book.views')}>{(views?.views ?? 0).toLocaleString()}</Meta>
             {book.formats.length > 0 && (
               <Meta label={t('book.formats')}>

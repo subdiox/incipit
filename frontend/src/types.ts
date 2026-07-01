@@ -137,6 +137,7 @@ export type SortOrder = 'asc' | 'desc'
 
 export interface SiteConfig {
   title: string
+  pageFilter: boolean
 }
 
 export interface MetadataGenre {

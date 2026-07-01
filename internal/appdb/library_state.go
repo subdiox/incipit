@@ -316,6 +316,27 @@ func (s *Store) PutPageCache(ctx context.Context, e PageCacheEntry) error {
 
 // --- Settings ---
 
+// AllPageCounts returns every indexed book's CBZ page count, keyed by book ID.
+// Only books whose page list has been scanned (page_cache) are present. Used by
+// the page-count filter.
+func (s *Store) AllPageCounts(ctx context.Context) (map[int64]int, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT book_id, page_count FROM page_cache WHERE format='CBZ'")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]int{}
+	for rows.Next() {
+		var id int64
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
+}
+
 // GetSetting returns a setting value or "" if unset.
 func (s *Store) GetSetting(ctx context.Context, key string) (string, error) {
 	var v string

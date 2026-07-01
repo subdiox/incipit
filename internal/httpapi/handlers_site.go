@@ -41,16 +41,21 @@ func (s *Server) siteTitle(ctx context.Context) string {
 }
 
 // handleGetSite returns public site configuration (no auth) so the SPA can
-// render the title on the login screen before sign-in.
+// render the title on the login screen and know which optional features (e.g.
+// the page-count filter) are enabled.
 func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"title": s.siteTitle(r.Context())})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"title":      s.siteTitle(r.Context()),
+		"pageFilter": s.pageFilterEnabled(r.Context()),
+	})
 }
 
 type siteUpdateBody struct {
-	Title string `json:"title"`
+	Title      string `json:"title"`
+	PageFilter *bool  `json:"pageFilter"`
 }
 
-// handleUpdateSite sets the site title (admin only).
+// handleUpdateSite sets the site title and options (admin only).
 func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 	var body siteUpdateBody
 	if err := decodeJSON(r, &body); err != nil {
@@ -70,5 +75,21 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "save title")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"title": title})
+	if body.PageFilter != nil {
+		val := "false"
+		if *body.PageFilter {
+			val = "true"
+		}
+		if err := s.store.SetSetting(r.Context(), PageFilterKey, val); err != nil {
+			writeError(w, http.StatusInternalServerError, "save page filter")
+			return
+		}
+		if *body.PageFilter {
+			s.startPageIndex() // begin/resume indexing when enabled
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"title":      title,
+		"pageFilter": s.pageFilterEnabled(r.Context()),
+	})
 }

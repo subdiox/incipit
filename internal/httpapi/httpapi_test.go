@@ -427,6 +427,48 @@ func TestCSRFAndAuthEnforcement(t *testing.T) {
 
 // path helpers
 
+func TestPageCountFilter(t *testing.T) {
+	h := newHarness(t)
+	h.postJSON("/api/setup", credentials{Username: "admin", Password: "supersecret"}).Body.Close()
+	var small, big struct {
+		ID int64 `json:"id"`
+	}
+	decodeBody(t, h.uploadCBZ("Small", makeCBZBytes(t, 3)), &small)
+	decodeBody(t, h.uploadCBZ("Big", makeCBZBytes(t, 10)), &big)
+
+	// Populate the page-count cache (as the reader / background index would).
+	h.do(http.MethodGet, bookPath(small.ID, "/pages"), nil, "").Body.Close()
+	h.do(http.MethodGet, bookPath(big.ID, "/pages"), nil, "").Body.Close()
+
+	// Filter is inert until enabled.
+	var res struct {
+		Total int `json:"total"`
+		Books []struct {
+			Title string `json:"title"`
+		} `json:"books"`
+	}
+	decodeBody(t, h.do(http.MethodGet, "/api/books?minPages=5", nil, ""), &res)
+	if res.Total != 2 {
+		t.Errorf("filter disabled should ignore minPages, got total=%d", res.Total)
+	}
+
+	pf := true
+	h.putJSON("/api/admin/site", siteUpdateBody{Title: "x", PageFilter: &pf}).Body.Close()
+
+	decodeBody(t, h.do(http.MethodGet, "/api/books?minPages=5", nil, ""), &res)
+	if res.Total != 1 || res.Books[0].Title != "Big" {
+		t.Errorf("minPages=5 => %+v, want [Big]", res)
+	}
+	decodeBody(t, h.do(http.MethodGet, "/api/books?maxPages=5", nil, ""), &res)
+	if res.Total != 1 || res.Books[0].Title != "Small" {
+		t.Errorf("maxPages=5 => %+v, want [Small]", res)
+	}
+	decodeBody(t, h.do(http.MethodGet, "/api/books?minPages=3&maxPages=10", nil, ""), &res)
+	if res.Total != 2 {
+		t.Errorf("minPages=3&maxPages=10 => total=%d, want 2", res.Total)
+	}
+}
+
 func bookPath(id int64, suffix string) string {
 	return "/api/books/" + strconv.FormatInt(id, 10) + suffix
 }

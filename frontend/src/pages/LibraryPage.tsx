@@ -167,6 +167,16 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   const offset = params.get('offset') ? Number(params.get('offset')) : 0
   const pageSize = user?.pageSize ?? DEFAULT_PAGE_SIZE
 
+  // Page-count filter (only offered when the admin enabled it). Inputs are local
+  // + debounced into the URL so typing doesn't refetch on every keystroke.
+  const pageFilterOn = !!useQuery({ queryKey: ['site'], queryFn: api.site, staleTime: 300_000 }).data?.pageFilter
+  const [minPages, setMinPages] = useState(params.get('minPages') ?? '')
+  const [maxPages, setMaxPages] = useState(params.get('maxPages') ?? '')
+  const debMinPages = useDebounced(minPages, 400)
+  const debMaxPages = useDebounced(maxPages, 400)
+  const minPagesQ = pageFilterOn && params.get('minPages') ? Number(params.get('minPages')) : undefined
+  const maxPagesQ = pageFilterOn && params.get('maxPages') ? Number(params.get('maxPages')) : undefined
+
   // On a pane page the pane's tags are a locked base filter, AND-combined with
   // any tags the user adds interactively.
   const baseTagIds = pane?.tagIds ?? []
@@ -179,6 +189,20 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
     if (resetOffset) next.delete('offset')
     setParams(next)
   }
+
+  // Push debounced page-count inputs into the URL (skipping no-op writes).
+  useEffect(() => {
+    const m = debMinPages.trim()
+    const x = debMaxPages.trim()
+    if (m === (params.get('minPages') ?? '') && x === (params.get('maxPages') ?? '')) return
+    update((p) => {
+      if (m) p.set('minPages', m)
+      else p.delete('minPages')
+      if (x) p.set('maxPages', x)
+      else p.delete('maxPages')
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debMinPages, debMaxPages])
 
   // author/series are single-select (replace); tags are multi-select and
   // AND-combined, so toggling adds/removes one tag from the set. A pane's base
@@ -209,10 +233,12 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
       author: authorId ?? undefined,
       series: seriesId ?? undefined,
       tags: effectiveTagKey ? effectiveTagKey.split(',').map(Number) : undefined,
+      minPages: minPagesQ,
+      maxPages: maxPagesQ,
       limit: pageSize,
       offset,
     }),
-    [debouncedSearch, sort, order, authorId, seriesId, effectiveTagKey, offset, pageSize],
+    [debouncedSearch, sort, order, authorId, seriesId, effectiveTagKey, minPagesQ, maxPagesQ, offset, pageSize],
   )
 
   const { data, isLoading, isFetching, isError, error } = useQuery({
@@ -226,7 +252,9 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   const tags = useQuery({ queryKey: ['facets', 'tags'], queryFn: api.tags, staleTime: 300_000 })
 
   const total = data?.total ?? 0
-  const hasFilters = authorId != null || seriesId != null || tagIds.length > 0 || !!debouncedSearch
+  const hasPageFilter = minPagesQ != null || maxPagesQ != null
+  const hasFilters =
+    authorId != null || seriesId != null || tagIds.length > 0 || !!debouncedSearch || hasPageFilter
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const currentPage = Math.floor(offset / pageSize) + 1
 
@@ -246,7 +274,7 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   }
 
   const activeFacetCount =
-    (authorId != null ? 1 : 0) + (seriesId != null ? 1 : 0) + tagIds.length
+    (authorId != null ? 1 : 0) + (seriesId != null ? 1 : 0) + tagIds.length + (hasPageFilter ? 1 : 0)
 
   // Close the filters dropdown on outside click / Escape.
   const filtersRef = useRef<HTMLDivElement>(null)
@@ -264,12 +292,17 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
     }
   }, [filtersOpen])
 
-  const clearFacets = () =>
+  const clearFacets = () => {
+    setMinPages('')
+    setMaxPages('')
     update((p) => {
       p.delete('author')
       p.delete('series')
       p.delete('tag')
+      p.delete('minPages')
+      p.delete('maxPages')
     })
+  }
 
   const activeChips = [
     ...(authorId != null
@@ -282,10 +315,40 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   ]
 
   const facetPanel = (
-    <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3">
-      <FacetFilter title={t('library.authors')} kind="author" facets={authors.data} activeIds={authorId != null ? [authorId] : []} onToggle={toggleFacet} />
-      <FacetFilter title={t('library.series')} kind="series" facets={series.data} activeIds={seriesId != null ? [seriesId] : []} onToggle={toggleFacet} />
-      <FacetFilter title={t('library.tags')} kind="tag" facets={tags.data} activeIds={effectiveTagIds} onToggle={toggleFacet} />
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3">
+        <FacetFilter title={t('library.authors')} kind="author" facets={authors.data} activeIds={authorId != null ? [authorId] : []} onToggle={toggleFacet} />
+        <FacetFilter title={t('library.series')} kind="series" facets={series.data} activeIds={seriesId != null ? [seriesId] : []} onToggle={toggleFacet} />
+        <FacetFilter title={t('library.tags')} kind="tag" facets={tags.data} activeIds={effectiveTagIds} onToggle={toggleFacet} />
+      </div>
+      {pageFilterOn && (
+        <div className="border-t border-ink-700 pt-4">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {t('library.pages')}
+          </h3>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              className="input w-24 py-1.5 text-sm"
+              placeholder={t('library.pagesMin')}
+              value={minPages}
+              onChange={(e) => setMinPages(e.target.value)}
+            />
+            <span className="text-slate-500">–</span>
+            <input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              className="input w-24 py-1.5 text-sm"
+              placeholder={t('library.pagesMax')}
+              value={maxPages}
+              onChange={(e) => setMaxPages(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -378,6 +441,22 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
               <IconClose width={12} height={12} className="shrink-0" />
             </button>
           ))}
+          {hasPageFilter && (
+            <button
+              type="button"
+              onClick={() => {
+                setMinPages('')
+                setMaxPages('')
+              }}
+              className="chip chip-active"
+              title={t('library.clearFilters')}
+            >
+              <span>
+                {t('library.pages')} {minPagesQ ?? ''}–{maxPagesQ ?? ''}
+              </span>
+              <IconClose width={12} height={12} className="shrink-0" />
+            </button>
+          )}
 
           <div className="ml-auto flex items-center gap-2">
             <select

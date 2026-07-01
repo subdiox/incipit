@@ -195,7 +195,19 @@ func (a *Adapter) GetBook(ctx context.Context, id int64) (*Book, error) {
 // two databases.
 func (a *Adapter) FilteredIDs(ctx context.Context, opts ListOptions) ([]int64, error) {
 	where, wargs := a.buildFilters(opts)
-	q := "SELECT b.id FROM books b" + where + " ORDER BY b.timestamp DESC, b.id DESC"
+	// Order by the requested column when it's an SQL-sortable one, so callers
+	// that only filter/paginate in Go still get the right order. Unknown sorts
+	// (e.g. app.db-ranked "views") fall back to newest-first, which those callers
+	// re-sort anyway.
+	orderBy := " ORDER BY b.timestamp DESC, b.id DESC"
+	if col, ok := sortColumns[opts.Sort]; ok {
+		dir := "ASC"
+		if opts.Desc {
+			dir = "DESC"
+		}
+		orderBy = fmt.Sprintf(" ORDER BY %s %s, b.id %s", col, dir, dir)
+	}
+	q := "SELECT b.id FROM books b" + where + orderBy
 	rows, err := a.db.QueryContext(ctx, q, wargs...)
 	if err != nil {
 		return nil, fmt.Errorf("filtered ids: %w", err)

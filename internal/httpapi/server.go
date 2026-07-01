@@ -32,6 +32,7 @@ type Server struct {
 	limiter  *rateLimiter
 	meta     *metadata.Client
 	previews *previewStore
+	indexing atomic.Bool // guards the background page-count indexer
 }
 
 // New constructs a Server. lib may be nil when the library has not been
@@ -56,6 +57,7 @@ func New(cfg *config.Config, lib *calibre.Adapter, store *appdb.Store, authSvc *
 	if lib != nil {
 		s.libPtr.Store(lib)
 	}
+	s.startPageIndex() // resume page-count indexing if the filter is enabled
 	return s
 }
 

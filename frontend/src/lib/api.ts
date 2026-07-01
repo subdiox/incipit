@@ -91,6 +91,8 @@ export interface BookQuery {
   tags?: number[] // AND-combined
   publisher?: number
   language?: string
+  minPages?: number
+  maxPages?: number
   limit?: number
   offset?: number
 }
@@ -105,6 +107,8 @@ function bookQueryString(q: BookQuery): string {
   if (q.tags) q.tags.forEach((t) => params.append('tag', String(t)))
   if (q.publisher != null) params.set('publisher', String(q.publisher))
   if (q.language) params.set('language', q.language)
+  if (q.minPages != null) params.set('minPages', String(q.minPages))
+  if (q.maxPages != null) params.set('maxPages', String(q.maxPages))
   if (q.limit != null) params.set('limit', String(q.limit))
   if (q.offset != null) params.set('offset', String(q.offset))
   const s = params.toString()
@@ -132,8 +136,8 @@ export const api = {
   site: () => request<SiteConfig>('/site'),
   browseFs: (path?: string) =>
     request<FsListing>(`/fs${path ? `?path=${encodeURIComponent(path)}` : ''}`),
-  updateSite: (title: string) =>
-    request<SiteConfig>('/admin/site', { method: 'PUT', ...jsonBody({ title }) }),
+  updateSite: (body: { title: string; pageFilter?: boolean }) =>
+    request<SiteConfig>('/admin/site', { method: 'PUT', ...jsonBody(body) }),
   setup: (username: string, password: string, libraryPath?: string) =>
     request<User>('/setup', {
       method: 'POST',
