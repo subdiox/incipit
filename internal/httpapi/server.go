@@ -180,6 +180,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/series/{id}", s.handleOPDSSeriesBooks)
 		r.Get("/opensearch.xml", s.handleOPDSOpenSearch)
 		r.Get("/search", s.handleOPDSSearch)
+		r.Get("/search/{terms}", s.handleOPDSSearchPath)
 	})
 
 	r.Get("/healthz", s.handleHealth)

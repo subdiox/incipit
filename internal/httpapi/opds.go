@@ -4,7 +4,9 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -25,6 +27,7 @@ type opdsFeed struct {
 	XMLName   xml.Name    `xml:"feed"`
 	Xmlns     string      `xml:"xmlns,attr"`
 	XmlnsOPDS string      `xml:"xmlns:opds,attr"`
+	XmlnsPSE  string      `xml:"xmlns:pse,attr"`
 	ID        string      `xml:"id"`
 	Title     string      `xml:"title"`
 	Updated   string      `xml:"updated"`
@@ -33,11 +36,18 @@ type opdsFeed struct {
 }
 
 type opdsLink struct {
-	Rel   string `xml:"rel,attr,omitempty"`
-	Href  string `xml:"href,attr"`
-	Type  string `xml:"type,attr,omitempty"`
+	Rel string `xml:"rel,attr,omitempty"`
+	Href string `xml:"href,attr"`
+	Type string `xml:"type,attr,omitempty"`
 	Title string `xml:"title,attr,omitempty"`
+	// OPDS Page Streaming Extension: number of pages, on a stream link.
+	PSECount int `xml:"pse:count,attr,omitempty"`
 }
+
+// opdsPSENamespace is the OPDS-PSE (page streaming) namespace; a stream link
+// carries pse:count so comic readers can page through without downloading.
+const opdsPSENamespace = "http://vaemendis.net/opds-pse/1.0"
+const opdsPSEStreamRel = "http://vaemendis.net/opds-pse/stream"
 
 type opdsEntry struct {
 	ID      string       `xml:"id"`
@@ -60,6 +70,7 @@ type opdsContent struct {
 func writeOPDS(w http.ResponseWriter, kind string, feed opdsFeed) {
 	feed.Xmlns = "http://www.w3.org/2005/Atom"
 	feed.XmlnsOPDS = "http://opds-spec.org/2010/catalog"
+	feed.XmlnsPSE = opdsPSENamespace
 	if feed.Updated == "" {
 		feed.Updated = time.Now().UTC().Format(time.RFC3339)
 	}
@@ -106,7 +117,7 @@ func (s *Server) handleOPDSNew(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "list books")
 		return
 	}
-	s.writeAcquisitionFeed(w, "urn:incipit:new", "Recently Added", "/opds/new", res.Books)
+	s.writeAcquisitionFeed(w, r, "urn:incipit:new", "Recently Added", "/opds/new", res.Books)
 }
 
 // openSearchDescription is the OpenSearch 1.1 description document advertised by
@@ -124,14 +135,35 @@ type openSearchURL struct {
 	Template string `xml:"template,attr"`
 }
 
+// opdsBaseURL reconstructs the externally-visible scheme+host (honouring the
+// reverse proxy) so OpenSearch/PSE templates can be absolute, which stricter
+// clients (e.g. Comic Share) require.
+func opdsBaseURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
+		scheme = p
+	}
+	host := r.Host
+	if h := r.Header.Get("X-Forwarded-Host"); h != "" {
+		host = h
+	}
+	return scheme + "://" + host
+}
+
 func (s *Server) handleOPDSOpenSearch(w http.ResponseWriter, r *http.Request) {
 	title := s.siteTitle(r.Context())
+	base := opdsBaseURL(r)
 	desc := openSearchDescription{
 		ShortName:     title,
 		Description:   "Search " + title,
 		InputEncoding: "UTF-8",
+		// calibre-web-style path search with an absolute template. Some readers
+		// (Comic Share) don't accept a relative or query-string template.
 		URLs: []openSearchURL{
-			{Type: opdsAcquisition, Template: "/opds/search?q={searchTerms}"},
+			{Type: opdsAcquisition, Template: base + "/opds/search/{searchTerms}"},
 		},
 	}
 	w.Header().Set("Content-Type", opdsOpenSearchCT)
@@ -142,14 +174,25 @@ func (s *Server) handleOPDSOpenSearch(w http.ResponseWriter, r *http.Request) {
 	_ = enc.Encode(desc)
 }
 
+// handleOPDSSearch handles the query-string form (/opds/search?q=…).
 func (s *Server) handleOPDSSearch(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query().Get("q")
+	s.opdsSearch(w, r, r.URL.Query().Get("q"))
+}
+
+// handleOPDSSearchPath handles the calibre-web path form (/opds/search/{terms}),
+// which is what some readers (Comic Share) generate from the OpenSearch template.
+func (s *Server) handleOPDSSearchPath(w http.ResponseWriter, r *http.Request) {
+	s.opdsSearch(w, r, chi.URLParam(r, "terms"))
+}
+
+func (s *Server) opdsSearch(w http.ResponseWriter, r *http.Request, q string) {
+	q = strings.TrimSpace(q)
 	res, err := s.lib().ListBooks(r.Context(), calibre.ListOptions{Search: q, Limit: 100})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "search")
 		return
 	}
-	s.writeAcquisitionFeed(w, "urn:incipit:search", "Search: "+q, "/opds/search?q="+q, res.Books)
+	s.writeAcquisitionFeed(w, r, "urn:incipit:search", "Search: "+q, "/opds/search/"+url.PathEscape(q), res.Books)
 }
 
 func (s *Server) handleOPDSAuthors(w http.ResponseWriter, r *http.Request) {
@@ -179,7 +222,7 @@ func (s *Server) handleOPDSAuthor(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "author books")
 		return
 	}
-	s.writeAcquisitionFeed(w, fmt.Sprintf("urn:incipit:author:%d", id), "Author", fmt.Sprintf("/opds/authors/%d", id), res.Books)
+	s.writeAcquisitionFeed(w, r, fmt.Sprintf("urn:incipit:author:%d", id), "Author", fmt.Sprintf("/opds/authors/%d", id), res.Books)
 }
 
 func (s *Server) handleOPDSSeries(w http.ResponseWriter, r *http.Request) {
@@ -209,11 +252,13 @@ func (s *Server) handleOPDSSeriesBooks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "series books")
 		return
 	}
-	s.writeAcquisitionFeed(w, fmt.Sprintf("urn:incipit:series:%d", id), "Series", fmt.Sprintf("/opds/series/%d", id), res.Books)
+	s.writeAcquisitionFeed(w, r, fmt.Sprintf("urn:incipit:series:%d", id), "Series", fmt.Sprintf("/opds/series/%d", id), res.Books)
 }
 
-// writeAcquisitionFeed renders a list of books as an OPDS acquisition feed.
-func (s *Server) writeAcquisitionFeed(w http.ResponseWriter, id, title, self string, books []calibre.Book) {
+// writeAcquisitionFeed renders a list of books as an OPDS acquisition feed. CBZ
+// books also get an OPDS-PSE stream link so readers can page through without
+// downloading the whole archive.
+func (s *Server) writeAcquisitionFeed(w http.ResponseWriter, r *http.Request, id, title, self string, books []calibre.Book) {
 	feed := opdsFeed{
 		ID: id, Title: title,
 		Links: []opdsLink{
@@ -244,6 +289,17 @@ func (s *Server) writeAcquisitionFeed(w http.ResponseWriter, id, title, self str
 				opdsLink{Rel: "http://opds-spec.org/image", Href: fmt.Sprintf("/api/books/%d/cover", b.ID), Type: "image/jpeg"},
 				opdsLink{Rel: "http://opds-spec.org/image/thumbnail", Href: fmt.Sprintf("/api/books/%d/thumbnail", b.ID), Type: "image/jpeg"},
 			)
+		}
+		// Page-streaming link: {pageNumber} is a template the reader fills in. The
+		// page count comes from the cached page list, so it's cheap after first
+		// scan; a book with no readable pages simply gets no stream link.
+		if pages, err := s.cbzPages(r, &b); err == nil && len(pages) > 0 {
+			entry.Links = append(entry.Links, opdsLink{
+				Rel:      opdsPSEStreamRel,
+				Href:     fmt.Sprintf("/api/books/%d/pages/{pageNumber}", b.ID),
+				Type:     "image/jpeg",
+				PSECount: len(pages),
+			})
 		}
 		feed.Entries = append(feed.Entries, entry)
 	}

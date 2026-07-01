@@ -322,6 +322,14 @@ func TestOPDSFeeds(t *testing.T) {
 		!strings.Contains(string(body), "http://opds-spec.org/acquisition") {
 		t.Errorf("opds feed missing entry/acquisition:\n%s", body)
 	}
+	// OPDS-PSE page streaming: namespace + a stream link with pse:count (the CBZ
+	// has 3 pages). The literal "pse:count" prefix must survive XML encoding.
+	if !strings.Contains(string(body), `xmlns:pse="http://vaemendis.net/opds-pse/1.0"`) ||
+		!strings.Contains(string(body), `rel="http://vaemendis.net/opds-pse/stream"`) ||
+		!strings.Contains(string(body), `pse:count="3"`) ||
+		!strings.Contains(string(body), "/pages/{pageNumber}") {
+		t.Errorf("opds feed missing PSE stream link:\n%s", body)
+	}
 
 	// Root feed advertises the OpenSearch description (search discovery).
 	req, _ = http.NewRequest(http.MethodGet, h.server.URL+"/opds", nil)
@@ -334,25 +342,28 @@ func TestOPDSFeeds(t *testing.T) {
 		t.Errorf("opds root missing opensearch search link:\n%s", root)
 	}
 
-	// The OpenSearch description declares the {searchTerms} template.
+	// The OpenSearch description declares an absolute, path-based template.
 	req, _ = http.NewRequest(http.MethodGet, h.server.URL+"/opds/opensearch.xml", nil)
 	req.SetBasicAuth("admin", "supersecret")
 	resp = h.raw(req)
 	osd, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if !strings.Contains(string(osd), "OpenSearchDescription") ||
-		!strings.Contains(string(osd), "{searchTerms}") {
+		!strings.Contains(string(osd), "/opds/search/{searchTerms}") {
 		t.Errorf("opensearch description malformed:\n%s", osd)
 	}
 
-	// Search returns the matching book.
-	req, _ = http.NewRequest(http.MethodGet, h.server.URL+"/opds/search?q=OPDS", nil)
-	req.SetBasicAuth("admin", "supersecret")
-	resp = h.raw(req)
-	sb, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if !strings.Contains(string(sb), "OPDS Comic") {
-		t.Errorf("opds search missing result:\n%s", sb)
+	// Both search forms return the matching book: query-string and calibre-web
+	// path (the form Comic Share generates from the template).
+	for _, path := range []string{"/opds/search?q=OPDS", "/opds/search/OPDS"} {
+		req, _ = http.NewRequest(http.MethodGet, h.server.URL+path, nil)
+		req.SetBasicAuth("admin", "supersecret")
+		resp = h.raw(req)
+		sb, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if !strings.Contains(string(sb), "OPDS Comic") {
+			t.Errorf("opds search %q missing result:\n%s", path, sb)
+		}
 	}
 }
 
