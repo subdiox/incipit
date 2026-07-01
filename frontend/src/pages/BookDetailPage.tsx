@@ -5,7 +5,7 @@ import { api, ApiError, mediaUrl } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
 import type { Book, BookUpdate } from '@/types'
-import { formatBytes, formatDate, languageLabel } from '@/lib/format'
+import { formatBytes, formatDate, dateInputValue, languageLabel } from '@/lib/format'
 import { Cover } from '@/components/Cover'
 import { Rating } from '@/components/Rating'
 import { EnrichModal } from '@/components/EnrichModal'
@@ -45,7 +45,7 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
     languages: book.languages.join(', '),
     rating: book.rating,
     comments: book.comments ?? '',
-    pubdate: book.pubdate?.slice(0, 10) ?? '',
+    pubdate: dateInputValue(book.pubdate),
   })
   const [error, setError] = useState<string | null>(null)
   // Optional manual cover replacement — the fallback when cmoa has no match or
