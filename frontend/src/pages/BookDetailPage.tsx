@@ -102,57 +102,61 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
   return (
     <Modal open={open} onClose={onClose} title={t('book.editMetadata')} maxWidth="max-w-xl">
       <form onSubmit={submit} className="space-y-4">
-        {/* Cover: manual replacement, the fallback when cmoa enrichment fails. */}
-        <div className="flex items-start gap-4">
-          <div className="w-20 shrink-0 overflow-hidden rounded-lg ring-1 ring-ink-700">
-            {coverPreview ? (
-              <img src={coverPreview} alt="" className="aspect-[2/3] w-full object-cover" />
-            ) : (
-              <Cover
-                bookId={book.id}
-                title={book.title}
-                hasCover={book.hasCover}
-                version={book.lastModified}
-                width={200}
-                rounded="rounded-none"
+        {/* Cover tile (click to replace) + the primary fields, so the tall
+            cover sits beside title/authors instead of leaving dead space. */}
+        <div className="flex gap-4">
+          <div className="shrink-0">
+            <label className="label">{t('book.fieldCover')}</label>
+            <label
+              className="group relative mt-1 block w-24 cursor-pointer overflow-hidden rounded-lg ring-1 ring-ink-700 transition hover:ring-accent-500/60"
+              title={t('book.chooseCover')}
+            >
+              {coverPreview ? (
+                <img src={coverPreview} alt="" className="aspect-[2/3] w-full object-cover" />
+              ) : (
+                <Cover
+                  bookId={book.id}
+                  title={book.title}
+                  hasCover={book.hasCover}
+                  version={book.lastModified}
+                  width={200}
+                  rounded="rounded-none"
+                />
+              )}
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-ink-950/0 text-transparent transition-colors group-hover:bg-ink-950/55 group-hover:text-white">
+                <IconUpload width={18} height={18} />
+                <span className="text-[11px] font-medium">{t('book.chooseCover')}</span>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
               />
+            </label>
+            {coverFile && (
+              <button
+                type="button"
+                className="mt-1 block w-24 text-center text-[11px] text-slate-400 hover:text-white"
+                onClick={() => setCoverFile(null)}
+              >
+                {t('book.coverClear')}
+              </button>
             )}
           </div>
-          <div className="min-w-0 flex-1">
-            <label className="label">{t('book.fieldCover')}</label>
-            <div className="mt-2 flex items-center gap-2">
-              <label className="btn-secondary inline-flex cursor-pointer">
-                <IconUpload width={16} height={16} />
-                {t('book.chooseCover')}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              {coverFile && (
-                <button
-                  type="button"
-                  className="text-xs text-slate-400 hover:text-white"
-                  onClick={() => setCoverFile(null)}
-                >
-                  {t('book.coverClear')}
-                </button>
-              )}
+          <div className="min-w-0 flex-1 space-y-4">
+            <div>
+              <label className="label">{t('book.fieldTitle')}</label>
+              <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">{t('book.fieldAuthors')}</label>
+              <input className="input" value={form.authors} onChange={(e) => setForm({ ...form, authors: e.target.value })} />
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="label">{t('book.fieldTitle')}</label>
-            <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label">{t('book.fieldAuthors')}</label>
-            <input className="input" value={form.authors} onChange={(e) => setForm({ ...form, authors: e.target.value })} />
-          </div>
           <div>
             <label className="label">{t('book.fieldSeries')}</label>
             <input className="input" value={form.series} onChange={(e) => setForm({ ...form, series: e.target.value })} />
