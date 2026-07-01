@@ -117,16 +117,18 @@ func writeOPDS(w http.ResponseWriter, kind string, feed opdsFeed) {
 
 func (s *Server) handleOPDSRoot(w http.ResponseWriter, r *http.Request) {
 	l := opdsL(r)
+	base := opdsBaseURL(r)
 	feed := opdsFeed{
 		ID:    "urn:incipit:root",
 		Title: s.siteTitle(r.Context()),
 		Links: []opdsLink{
 			{Rel: "self", Href: "/opds", Type: opdsNav},
 			{Rel: "start", Href: "/opds", Type: opdsNav},
-			// Search discovery must point at an OpenSearch description document
-			// (not the templated acquisition URL directly), or most OPDS clients
-			// won't expose a search box. The description declares the template.
+			// Two search hints for maximum client coverage: an OpenSearch
+			// description document, and a direct templated atom+xml link (which
+			// some readers, e.g. Comic Share, use instead of parsing the OSD).
 			{Rel: "search", Href: "/opds/opensearch.xml", Type: opdsOpenSearchCT, Title: l.searchTitle},
+			{Rel: "search", Href: base + "/opds/search/{searchTerms}", Type: "application/atom+xml", Title: l.searchTitle},
 		},
 		Entries: []opdsEntry{
 			navEntry("urn:incipit:new", l.recentlyAdded, l.newestSummary, "/opds/new"),
@@ -157,11 +159,12 @@ func (s *Server) handleOPDSNew(w http.ResponseWriter, r *http.Request) {
 // openSearchDescription is the OpenSearch 1.1 description document advertised by
 // the catalog root so OPDS clients can discover the search template.
 type openSearchDescription struct {
-	XMLName       xml.Name        `xml:"http://a9.com/-/spec/opensearch/1.1/ OpenSearchDescription"`
-	ShortName     string          `xml:"ShortName"`
-	Description   string          `xml:"Description"`
-	InputEncoding string          `xml:"InputEncoding"`
-	URLs          []openSearchURL `xml:"Url"`
+	XMLName        xml.Name        `xml:"http://a9.com/-/spec/opensearch/1.1/ OpenSearchDescription"`
+	ShortName      string          `xml:"ShortName"`
+	Description    string          `xml:"Description"`
+	InputEncoding  string          `xml:"InputEncoding"`
+	OutputEncoding string          `xml:"OutputEncoding"`
+	URLs           []openSearchURL `xml:"Url"`
 }
 
 type openSearchURL struct {
@@ -191,13 +194,15 @@ func (s *Server) handleOPDSOpenSearch(w http.ResponseWriter, r *http.Request) {
 	title := s.siteTitle(r.Context())
 	base := opdsBaseURL(r)
 	desc := openSearchDescription{
-		ShortName:     title,
-		Description:   "Search " + title,
-		InputEncoding: "UTF-8",
-		// calibre-web-style path search with an absolute template. Some readers
-		// (Comic Share) don't accept a relative or query-string template.
+		ShortName:      title,
+		Description:    "Search " + title,
+		InputEncoding:  "UTF-8",
+		OutputEncoding: "UTF-8",
+		// calibre-web-style: path template, absolute URL, and a plain
+		// application/atom+xml type. Some readers (Comic Share) reject the OPDS
+		// profile media type or a query-string template.
 		URLs: []openSearchURL{
-			{Type: opdsAcquisition, Template: base + "/opds/search/{searchTerms}"},
+			{Type: "application/atom+xml", Template: base + "/opds/search/{searchTerms}"},
 		},
 	}
 	w.Header().Set("Content-Type", opdsOpenSearchCT)
@@ -303,6 +308,7 @@ func (s *Server) handleOPDSSeriesBooks(w http.ResponseWriter, r *http.Request) {
 // books also get an OPDS-PSE stream link so readers can page through without
 // downloading the whole archive.
 func (s *Server) writeAcquisitionFeed(w http.ResponseWriter, r *http.Request, id, title, self string, books []calibre.Book) {
+	base := opdsBaseURL(r)
 	feed := opdsFeed{
 		ID: id, Title: title,
 		Links: []opdsLink{
@@ -335,12 +341,14 @@ func (s *Server) writeAcquisitionFeed(w http.ResponseWriter, r *http.Request, id
 			)
 		}
 		// Page-streaming link: {pageNumber} is a template the reader fills in. The
-		// page count comes from the cached page list, so it's cheap after first
-		// scan; a book with no readable pages simply gets no stream link.
+		// URL is absolute and under /opds so readers (e.g. Comic Share) resolve it
+		// against the catalog and send the same Basic-auth credentials. Page count
+		// comes from the cached page list, so it's cheap after the first scan; a
+		// book with no readable pages simply gets no stream link.
 		if pages, err := s.cbzPages(r, &b); err == nil && len(pages) > 0 {
 			entry.Links = append(entry.Links, opdsLink{
 				Rel:      opdsPSEStreamRel,
-				Href:     fmt.Sprintf("/api/books/%d/pages/{pageNumber}", b.ID),
+				Href:     fmt.Sprintf("%s/opds/books/%d/page/{pageNumber}", base, b.ID),
 				Type:     "image/jpeg",
 				PSECount: len(pages),
 			})

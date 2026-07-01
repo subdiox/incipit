@@ -300,7 +300,10 @@ func TestFullAPIFlow(t *testing.T) {
 func TestOPDSFeeds(t *testing.T) {
 	h := newHarness(t)
 	h.postJSON("/api/setup", credentials{Username: "admin", Password: "supersecret"}).Body.Close()
-	h.uploadCBZ("OPDS Comic", makeCBZBytes(t, 3)).Body.Close()
+	var comic struct {
+		ID int64 `json:"id"`
+	}
+	decodeBody(t, h.uploadCBZ("OPDS Comic", makeCBZBytes(t, 3)), &comic)
 
 	// OPDS requires Basic auth.
 	req, _ := http.NewRequest(http.MethodGet, h.server.URL+"/opds/new", nil)
@@ -327,8 +330,19 @@ func TestOPDSFeeds(t *testing.T) {
 	if !strings.Contains(string(body), `xmlns:pse="http://vaemendis.net/opds-pse/1.0"`) ||
 		!strings.Contains(string(body), `rel="http://vaemendis.net/opds-pse/stream"`) ||
 		!strings.Contains(string(body), `pse:count="3"`) ||
-		!strings.Contains(string(body), "/pages/{pageNumber}") {
+		!strings.Contains(string(body), "/opds/books/") ||
+		!strings.Contains(string(body), "/page/{pageNumber}") {
 		t.Errorf("opds feed missing PSE stream link:\n%s", body)
+	}
+
+	// The PSE page endpoint (under /opds, Basic auth) returns an image.
+	req, _ = http.NewRequest(http.MethodGet, h.server.URL+"/opds/books/"+strconv.FormatInt(comic.ID, 10)+"/page/0", nil)
+	req.SetBasicAuth("admin", "supersecret")
+	resp = h.raw(req)
+	pageCT := resp.Header.Get("Content-Type")
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(pageCT, "image/") {
+		t.Errorf("opds pse page = %d type=%q", resp.StatusCode, pageCT)
 	}
 
 	// Root feed advertises the OpenSearch description (search discovery).

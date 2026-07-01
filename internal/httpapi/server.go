@@ -181,6 +181,9 @@ func (s *Server) Router() http.Handler {
 		r.Get("/opensearch.xml", s.handleOPDSOpenSearch)
 		r.Get("/search", s.handleOPDSSearch)
 		r.Get("/search/{terms}", s.handleOPDSSearchPath)
+		// OPDS-PSE page streaming: served under /opds (Basic auth) so comic
+		// readers reuse the catalog credentials. Reuses the CBZ page renderer.
+		r.Get("/books/{id}/page/{n}", s.handlePage)
 	})
 
 	r.Get("/healthz", s.handleHealth)
