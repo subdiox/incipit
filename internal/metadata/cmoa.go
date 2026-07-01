@@ -374,7 +374,9 @@ func parseBookPage(doc *goquery.Document, series string, volume int, hasVolume b
 	})
 
 	if d := doc.Find("#comic_description > p").First(); d.Length() > 0 {
-		meta.Comments = d.Text()
+		// Preserve cmoa's line breaks as <br> (Calibre comments are HTML) instead
+		// of collapsing them, so the description reads the way it does on cmoa.
+		meta.Comments = htmlWithBreaks(d)
 	}
 
 	// Genre tags. The page duplicates .genre_detail for PC/mobile; preserve
@@ -484,6 +486,33 @@ func (c *Client) FetchCover(ctx context.Context, coverURL string) ([]byte, error
 }
 
 // firstText returns the element's own direct text (not descendants'), trimmed.
+// htmlWithBreaks renders a selection's content as minimal, safe HTML: text is
+// escaped and <br> is kept as a line break, while other inline tags (ruby, span,
+// …) are flattened to their text. Used for the description so line breaks survive
+// into the stored Calibre comment (which is HTML).
+func htmlWithBreaks(sel *goquery.Selection) string {
+	var b strings.Builder
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		switch {
+		case n.Type == html.TextNode:
+			b.WriteString(html.EscapeString(n.Data))
+		case n.Type == html.ElementNode && n.Data == "br":
+			b.WriteString("<br>")
+		default:
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				walk(c)
+			}
+		}
+	}
+	for _, node := range sel.Nodes {
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
 func firstText(sel *goquery.Selection) string {
 	var b strings.Builder
 	for _, n := range sel.Nodes {

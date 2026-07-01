@@ -159,8 +159,11 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
 
   const search = params.get('search') ?? ''
   const debouncedSearch = useDebounced(search, 350)
-  const sort = (params.get('sort') as SortKey) ?? 'timestamp'
-  const order = (params.get('order') as SortOrder) ?? 'desc'
+  // When viewing a single series, default to volume ascending (like calibre-web)
+  // instead of newest-first, unless the user picked a sort.
+  const seriesSelected = !!params.get('series')
+  const sort = (params.get('sort') as SortKey) ?? (seriesSelected ? 'series' : 'timestamp')
+  const order = (params.get('order') as SortOrder) ?? (seriesSelected ? 'asc' : 'desc')
   const authorId = params.get('author') ? Number(params.get('author')) : null
   const seriesId = params.get('series') ? Number(params.get('series')) : null
   const tagIds = params.getAll('tag').map(Number).filter((n) => Number.isFinite(n) && n > 0)

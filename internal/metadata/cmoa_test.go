@@ -111,7 +111,7 @@ const bookHTML = `<!doctype html><html><head>
   <div class="category_line_f_r_l"><a href="/publisher/comico/">comico</a></div>
 </div>
 <div class="title_details_author_name"><a href="#">夜宵草</a><a href="#">夜宵草</a></div>
-<div id="comic_description"><p>あらすじ本文。</p></div>
+<div id="comic_description"><p>あらすじ一行目。<br>二行目<ruby>本文<rt>ほんぶん</rt></ruby>。</p></div>
 <div class="genre_detail"><a href="#">青春</a><a href="#">広告掲載中</a><a href="#">青春</a><a href="#">学園</a></div>
 <div class="reviewArea">（4.5） 投稿数850件</div>
 <img class="title_big_thum" src="//cover.example/relife3.jpg">
@@ -160,7 +160,8 @@ func TestFetch(t *testing.T) {
 	if m.PubDate.Format("2006-01-02") != "2020-05-01" {
 		t.Errorf("PubDate = %v", m.PubDate)
 	}
-	if m.Comments != "あらすじ本文。" {
+	// <br> preserved as a line break; ruby flattened to its base text.
+	if m.Comments != "あらすじ一行目。<br>二行目本文ほんぶん。" {
 		t.Errorf("Comments = %q", m.Comments)
 	}
 	// "広告掲載中" excluded; "青春" deduped → ["青春","学園"].

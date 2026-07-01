@@ -31,14 +31,18 @@ export function BookCard({ book, action }: BookCardProps) {
           <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
             {authorNames(book.authors) || t('common.unknownAuthor')}
           </p>
-          {book.series && (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-accentSoft/80">
-              {book.series.name}
-              {book.seriesIndex ? ` #${book.seriesIndex}` : ''}
-            </p>
-          )}
         </div>
       </Link>
+      {/* Series name links to the series listing (not the volume). Kept outside
+          the book link — the title already carries the volume number. */}
+      {book.series && (
+        <Link
+          to={`/?series=${book.series.id}`}
+          className="mt-0.5 line-clamp-1 block px-0.5 text-[11px] text-accentSoft/80 hover:text-accentSoft hover:underline"
+        >
+          {book.series.name}
+        </Link>
+      )}
       {action && <div className="absolute right-2 top-2 z-10">{action}</div>}
     </div>
   )
