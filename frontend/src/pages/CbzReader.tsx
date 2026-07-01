@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type TouchEvent as ReactTouchEvent,
 } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -102,6 +103,54 @@ export function CbzReader({ bookId }: { bookId: number }) {
   const canBackward = first > 0
   const canLeft = rtl ? canForward : canBackward
   const canRight = rtl ? canBackward : canForward
+
+  // Swipe navigation. A horizontal swipe turns the page (respecting binding
+  // direction, like the tap zones); swipedRef suppresses the tap-zone click that
+  // the browser synthesizes at the end of the swipe.
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  const swipedRef = useRef(false)
+  const onTouchStart = useCallback((e: ReactTouchEvent) => {
+    swipedRef.current = false
+    touchStartRef.current =
+      e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null
+  }, [])
+  const onTouchEnd = useCallback(
+    (e: ReactTouchEvent) => {
+      const start = touchStartRef.current
+      touchStartRef.current = null
+      if (!start || e.changedTouches.length === 0) return
+      const dx = e.changedTouches[0].clientX - start.x
+      const dy = e.changedTouches[0].clientY - start.y
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+        swipedRef.current = true
+        if (dx < 0) onRight()
+        else onLeft()
+      }
+    },
+    [onLeft, onRight],
+  )
+  // Wraps a tap-zone handler so it no-ops when the gesture was a swipe.
+  const tapNav = (fn: () => void) => () => {
+    if (swipedRef.current) {
+      swipedRef.current = false
+      return
+    }
+    fn()
+  }
+
+  // Lock document scroll while the reader is open so the viewport can't drift or
+  // rubber-band on mobile.
+  useEffect(() => {
+    const html = document.documentElement
+    const prevOverflow = document.body.style.overflow
+    const prevOverscroll = html.style.overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    html.style.overscrollBehavior = 'none'
+    return () => {
+      document.body.style.overflow = prevOverflow
+      html.style.overscrollBehavior = prevOverscroll
+    }
+  }, [])
 
   // Restore reading position once, after both pages + progress have loaded.
   useEffect(() => {
@@ -279,9 +328,10 @@ export function CbzReader({ bookId }: { bookId: number }) {
   return (
     <div
       ref={containerRef}
-      // Cursor auto-hides with the chrome (and reappears on mouse move). The
-      // descendant variant overrides the tap zones' own resize cursors.
-      className={`dark relative h-screen w-screen select-none overflow-hidden bg-black [-webkit-tap-highlight-color:transparent] ${
+      // fixed inset-0 pins the reader to the actual viewport (not 100vh, which
+      // drifts under the mobile URL bar); touch-none + overscroll-none stop the
+      // page from scrolling/rubber-banding. Cursor auto-hides with the chrome.
+      className={`dark fixed inset-0 select-none touch-none overflow-hidden overscroll-none bg-black [-webkit-tap-highlight-color:transparent] ${
         chromeVisible ? '' : 'cursor-none [&_*]:cursor-none'
       }`}
       // Only a real mouse reveals chrome on move; touch taps must not (they would
@@ -289,6 +339,8 @@ export function CbzReader({ bookId }: { bookId: number }) {
       onPointerMove={(e) => {
         if (e.pointerType === 'mouse') revealChrome()
       }}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
     >
       {/* Top bar */}
       <div
@@ -373,26 +425,28 @@ export function CbzReader({ bookId }: { bookId: number }) {
         ))}
       </div>
 
-      {/* Click navigation halves */}
+      {/* Tap/swipe navigation halves. touch-none keeps the browser from scrolling
+          when a touch lands here; horizontal swipes are handled on the container.
+          tapNav ignores the click a swipe would otherwise synthesize. */}
       <button
         type="button"
-        onClick={onLeft}
+        onClick={tapNav(onLeft)}
         disabled={!canLeft}
-        className="absolute inset-y-0 left-0 z-10 w-[35%] cursor-w-resize outline-none focus:outline-none disabled:cursor-default"
+        className="absolute inset-y-0 left-0 z-10 w-[35%] touch-none cursor-w-resize outline-none focus:outline-none disabled:cursor-default"
         aria-label={rtl ? t('reader.nextPage') : t('reader.prevPage')}
       />
       <button
         type="button"
-        onClick={onRight}
+        onClick={tapNav(onRight)}
         disabled={!canRight}
-        className="absolute inset-y-0 right-0 z-10 w-[35%] cursor-e-resize outline-none focus:outline-none disabled:cursor-default"
+        className="absolute inset-y-0 right-0 z-10 w-[35%] touch-none cursor-e-resize outline-none focus:outline-none disabled:cursor-default"
         aria-label={rtl ? t('reader.prevPage') : t('reader.nextPage')}
       />
       {/* Center tap toggles the UI chrome (top bar / arrows / progress). */}
       <button
         type="button"
-        onClick={toggleChrome}
-        className="absolute inset-y-0 left-[35%] right-[35%] z-10 cursor-default outline-none focus:outline-none"
+        onClick={tapNav(toggleChrome)}
+        className="absolute inset-y-0 left-[35%] right-[35%] z-10 touch-none cursor-default outline-none focus:outline-none"
         aria-label={t('reader.toggleUi')}
       />
 
