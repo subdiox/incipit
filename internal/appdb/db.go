@@ -97,6 +97,9 @@ var migrations = []string{
 		position   INTEGER NOT NULL DEFAULT 0,
 		created_at TEXT NOT NULL
 	);`,
+	// A pane can OR its tags ("match any") instead of the default AND
+	// ("match all"). 0 = all (AND), 1 = any (OR).
+	`ALTER TABLE panes ADD COLUMN match_any INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

@@ -133,11 +133,11 @@ func TestPanes(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	a, err := s.CreatePane(ctx, "Action", []int64{1, 2})
+	a, err := s.CreatePane(ctx, "Action", []int64{1, 2}, true)
 	if err != nil {
 		t.Fatalf("CreatePane: %v", err)
 	}
-	b, _ := s.CreatePane(ctx, "Comedy", []int64{3})
+	b, _ := s.CreatePane(ctx, "Comedy", []int64{3}, false)
 	if b.Position <= a.Position {
 		t.Errorf("positions not increasing: %d, %d", a.Position, b.Position)
 	}
@@ -146,12 +146,15 @@ func TestPanes(t *testing.T) {
 	if len(panes) != 2 || panes[0].Name != "Action" || len(panes[0].TagIDs) != 2 || panes[0].TagIDs[0] != 1 {
 		t.Fatalf("ListPanes = %+v", panes)
 	}
+	if !panes[0].MatchAny || panes[1].MatchAny {
+		t.Errorf("MatchAny not persisted: %+v", panes)
+	}
 
-	if err := s.UpdatePane(ctx, a.ID, "Action!", []int64{1, 2, 5}, 0); err != nil {
+	if err := s.UpdatePane(ctx, a.ID, "Action!", []int64{1, 2, 5}, false, 0); err != nil {
 		t.Fatalf("UpdatePane: %v", err)
 	}
 	got, _ := s.GetPane(ctx, a.ID)
-	if got.Name != "Action!" || len(got.TagIDs) != 3 {
+	if got.Name != "Action!" || len(got.TagIDs) != 3 || got.MatchAny {
 		t.Errorf("GetPane = %+v", got)
 	}
 

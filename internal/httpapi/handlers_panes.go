@@ -14,6 +14,7 @@ import (
 type paneBody struct {
 	Name     string  `json:"name"`
 	TagIDs   []int64 `json:"tagIds"`
+	MatchAny bool    `json:"matchAny"`
 	Position int     `json:"position"`
 }
 
@@ -39,7 +40,7 @@ func (s *Server) handleCreatePane(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	pane, err := s.store.CreatePane(r.Context(), name, body.TagIDs)
+	pane, err := s.store.CreatePane(r.Context(), name, body.TagIDs, body.MatchAny)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "create pane")
 		return
@@ -59,7 +60,7 @@ func (s *Server) handleUpdatePane(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	if err := s.store.UpdatePane(r.Context(), id, name, body.TagIDs, body.Position); err != nil {
+	if err := s.store.UpdatePane(r.Context(), id, name, body.TagIDs, body.MatchAny, body.Position); err != nil {
 		if errors.Is(err, appdb.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "pane not found")
 			return

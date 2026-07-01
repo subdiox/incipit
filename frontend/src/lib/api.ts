@@ -90,6 +90,7 @@ export interface BookQuery {
   author?: number
   series?: number
   tags?: number[] // AND-combined
+  anyTags?: number[] // OR-combined as one group ("match any" pane)
   publisher?: number
   language?: string
   minPages?: number
@@ -106,6 +107,7 @@ function bookQueryString(q: BookQuery): string {
   if (q.author != null) params.set('author', String(q.author))
   if (q.series != null) params.set('series', String(q.series))
   if (q.tags) q.tags.forEach((t) => params.append('tag', String(t)))
+  if (q.anyTags) q.anyTags.forEach((t) => params.append('anyTag', String(t)))
   if (q.publisher != null) params.set('publisher', String(q.publisher))
   if (q.language) params.set('language', q.language)
   if (q.minPages != null) params.set('minPages', String(q.minPages))
@@ -206,10 +208,12 @@ export const api = {
 
   // Panes (admin-defined saved tag filters under Library)
   panes: () => request<Pane[]>('/panes'),
-  createPane: (name: string, tagIds: number[]) =>
-    request<Pane>('/admin/panes', { method: 'POST', ...jsonBody({ name, tagIds }) }),
-  updatePane: (id: number, body: { name: string; tagIds: number[]; position: number }) =>
-    request<void>(`/admin/panes/${id}`, { method: 'PUT', ...jsonBody(body) }),
+  createPane: (name: string, tagIds: number[], matchAny: boolean) =>
+    request<Pane>('/admin/panes', { method: 'POST', ...jsonBody({ name, tagIds, matchAny }) }),
+  updatePane: (
+    id: number,
+    body: { name: string; tagIds: number[]; matchAny: boolean; position: number },
+  ) => request<void>(`/admin/panes/${id}`, { method: 'PUT', ...jsonBody(body) }),
   deletePane: (id: number) => request<void>(`/admin/panes/${id}`, { method: 'DELETE' }),
 
   // Admin

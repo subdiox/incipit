@@ -41,7 +41,8 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 		Desc:        q.Get("order") == "desc",
 		AuthorID:    atoi64(q.Get("author")),
 		SeriesID:    atoi64(q.Get("series")),
-		TagIDs:      atoi64s(q["tag"]), // repeated ?tag= → AND filter
+		TagIDs:      atoi64s(q["tag"]),    // repeated ?tag= → AND filter
+		AnyTagIDs:   atoi64s(q["anyTag"]), // repeated ?anyTag= → OR group ("match any" pane)
 		PublisherID: atoi64(q.Get("publisher")),
 		Language:    q.Get("language"),
 		Limit:       atoi(q.Get("limit")),

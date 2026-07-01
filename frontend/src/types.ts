@@ -115,6 +115,7 @@ export interface Pane {
   id: number
   name: string
   tagIds: number[]
+  matchAny: boolean
   position: number
   createdAt: string
 }

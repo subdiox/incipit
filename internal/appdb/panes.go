@@ -9,12 +9,14 @@ import (
 	"time"
 )
 
-// Pane is an admin-defined library view: a saved tag filter (AND-combined) that
-// appears as its own nav entry under Library. Panes are server-wide.
+// Pane is an admin-defined library view: a saved tag filter that appears as its
+// own nav entry under Library. Panes are server-wide. MatchAny picks how the
+// tags combine: false = match all (AND, default), true = match any (OR).
 type Pane struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
 	TagIDs    []int64   `json:"tagIds"`
+	MatchAny  bool      `json:"matchAny"`
 	Position  int       `json:"position"`
 	CreatedAt time.Time `json:"createdAt"`
 }
@@ -45,7 +47,7 @@ func decodeTagIDs(s string) []int64 {
 // ListPanes returns all panes in display order (position, then id).
 func (s *Store) ListPanes(ctx context.Context) ([]Pane, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, name, tag_ids, position, created_at FROM panes ORDER BY position, id")
+		"SELECT id, name, tag_ids, match_any, position, created_at FROM panes ORDER BY position, id")
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +56,7 @@ func (s *Store) ListPanes(ctx context.Context) ([]Pane, error) {
 	for rows.Next() {
 		var p Pane
 		var tagIDs, created string
-		if err := rows.Scan(&p.ID, &p.Name, &tagIDs, &p.Position, &created); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &tagIDs, &p.MatchAny, &p.Position, &created); err != nil {
 			return nil, err
 		}
 		p.TagIDs = decodeTagIDs(tagIDs)
@@ -65,7 +67,7 @@ func (s *Store) ListPanes(ctx context.Context) ([]Pane, error) {
 }
 
 // CreatePane adds a pane, appending it after the existing ones.
-func (s *Store) CreatePane(ctx context.Context, name string, tagIDs []int64) (*Pane, error) {
+func (s *Store) CreatePane(ctx context.Context, name string, tagIDs []int64, matchAny bool) (*Pane, error) {
 	var nextPos int
 	if err := s.db.QueryRowContext(ctx,
 		"SELECT COALESCE(MAX(position)+1, 0) FROM panes").Scan(&nextPos); err != nil {
@@ -73,20 +75,20 @@ func (s *Store) CreatePane(ctx context.Context, name string, tagIDs []int64) (*P
 	}
 	now := time.Now().UTC().Format(timeLayout)
 	res, err := s.db.ExecContext(ctx,
-		"INSERT INTO panes (name, tag_ids, position, created_at) VALUES (?, ?, ?, ?)",
-		name, encodeTagIDs(tagIDs), nextPos, now)
+		"INSERT INTO panes (name, tag_ids, match_any, position, created_at) VALUES (?, ?, ?, ?, ?)",
+		name, encodeTagIDs(tagIDs), matchAny, nextPos, now)
 	if err != nil {
 		return nil, err
 	}
 	id, _ := res.LastInsertId()
-	return &Pane{ID: id, Name: name, TagIDs: tagIDs, Position: nextPos}, nil
+	return &Pane{ID: id, Name: name, TagIDs: tagIDs, MatchAny: matchAny, Position: nextPos}, nil
 }
 
-// UpdatePane updates a pane's name, tags and position.
-func (s *Store) UpdatePane(ctx context.Context, id int64, name string, tagIDs []int64, position int) error {
+// UpdatePane updates a pane's name, tags, match mode and position.
+func (s *Store) UpdatePane(ctx context.Context, id int64, name string, tagIDs []int64, matchAny bool, position int) error {
 	res, err := s.db.ExecContext(ctx,
-		"UPDATE panes SET name=?, tag_ids=?, position=? WHERE id=?",
-		name, encodeTagIDs(tagIDs), position, id)
+		"UPDATE panes SET name=?, tag_ids=?, match_any=?, position=? WHERE id=?",
+		name, encodeTagIDs(tagIDs), matchAny, position, id)
 	if err != nil {
 		return err
 	}
@@ -107,8 +109,8 @@ func (s *Store) GetPane(ctx context.Context, id int64) (*Pane, error) {
 	var p Pane
 	var tagIDs, created string
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, name, tag_ids, position, created_at FROM panes WHERE id=?", id).
-		Scan(&p.ID, &p.Name, &tagIDs, &p.Position, &created)
+		"SELECT id, name, tag_ids, match_any, position, created_at FROM panes WHERE id=?", id).
+		Scan(&p.ID, &p.Name, &tagIDs, &p.MatchAny, &p.Position, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

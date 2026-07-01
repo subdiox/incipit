@@ -58,6 +58,7 @@ type ListOptions struct {
 	AuthorID    int64
 	SeriesID    int64
 	TagIDs      []int64 // multiple tags are AND-combined (a book must have all)
+	AnyTagIDs   []int64 // OR-combined as one group (a book must have at least one)
 	PublisherID int64
 	Language    string
 }
@@ -160,6 +161,18 @@ func (a *Adapter) buildFilters(opts ListOptions) (string, []any) {
 			clauses = append(clauses, "EXISTS (SELECT 1 FROM books_tags_link btl WHERE btl.book=b.id AND btl.tag=?)")
 			args = append(args, tid)
 		}
+	}
+	// AnyTagIDs form a single OR group (a book needs at least one), which then
+	// ANDs with the other clauses. Used by "match any" panes.
+	var anyEx []string
+	for _, tid := range opts.AnyTagIDs {
+		if tid > 0 {
+			anyEx = append(anyEx, "EXISTS (SELECT 1 FROM books_tags_link btl WHERE btl.book=b.id AND btl.tag=?)")
+			args = append(args, tid)
+		}
+	}
+	if len(anyEx) > 0 {
+		clauses = append(clauses, "("+strings.Join(anyEx, " OR ")+")")
 	}
 	if opts.PublisherID > 0 {
 		clauses = append(clauses, "EXISTS (SELECT 1 FROM books_publishers_link bpl WHERE bpl.book=b.id AND bpl.publisher=?)")

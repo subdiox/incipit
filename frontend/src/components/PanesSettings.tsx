@@ -13,12 +13,13 @@ function PaneModal({ pane, open, onClose }: { pane: Pane | null; open: boolean; 
   const { t } = useI18n()
   const [name, setName] = useState(pane?.name ?? '')
   const [tagIds, setTagIds] = useState<number[]>(pane?.tagIds ?? [])
+  const [matchAny, setMatchAny] = useState<boolean>(pane?.matchAny ?? false)
   const [error, setError] = useState<string | null>(null)
 
   const save = useMutation({
     mutationFn: async () => {
-      if (pane) await api.updatePane(pane.id, { name: name.trim(), tagIds, position: pane.position })
-      else await api.createPane(name.trim(), tagIds)
+      if (pane) await api.updatePane(pane.id, { name: name.trim(), tagIds, matchAny, position: pane.position })
+      else await api.createPane(name.trim(), tagIds, matchAny)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['panes'] })
@@ -44,6 +45,32 @@ function PaneModal({ pane, open, onClose }: { pane: Pane | null; open: boolean; 
           <label className="label">{t('panes.tags')}</label>
           <p className="mb-2 text-xs text-slate-500">{t('panes.tagsHelp')}</p>
           <TagPicker value={tagIds} onChange={setTagIds} />
+        </div>
+        <div>
+          <label className="label">{t('panes.matchMode')}</label>
+          <div className="mt-1 inline-flex rounded-xl border border-ink-700 bg-ink-800 p-0.5">
+            <button
+              type="button"
+              onClick={() => setMatchAny(false)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                !matchAny ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              {t('panes.matchAll')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMatchAny(true)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                matchAny ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              {t('panes.matchAny')}
+            </button>
+          </div>
+          <p className="mt-1.5 text-xs text-slate-500">
+            {matchAny ? t('panes.matchAnyHelp') : t('panes.matchAllHelp')}
+          </p>
         </div>
         {error && (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
@@ -112,9 +139,18 @@ export function PanesSettings() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-100">{p.name}</p>
                 <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
-                  {p.tagIds.length === 0
-                    ? t('panes.noTags')
-                    : p.tagIds.map((id) => tagName.get(id) ?? `#${id}`).join(' · ')}
+                  {p.tagIds.length === 0 ? (
+                    t('panes.noTags')
+                  ) : (
+                    <>
+                      {p.matchAny && p.tagIds.length > 1 && (
+                        <span className="text-accentSoft/80">{t('panes.anyBadge')} </span>
+                      )}
+                      {p.tagIds
+                        .map((id) => tagName.get(id) ?? `#${id}`)
+                        .join(p.matchAny ? ' / ' : ' · ')}
+                    </>
+                  )}
                 </p>
               </div>
               <button

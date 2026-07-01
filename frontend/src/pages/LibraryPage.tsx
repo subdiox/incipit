@@ -180,11 +180,17 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   const minPagesQ = pageFilterOn && params.get('minPages') ? Number(params.get('minPages')) : undefined
   const maxPagesQ = pageFilterOn && params.get('maxPages') ? Number(params.get('maxPages')) : undefined
 
-  // On a pane page the pane's tags are a locked base filter, AND-combined with
-  // any tags the user adds interactively.
+  // On a pane page the pane's tags are a locked base filter. A "match all" pane
+  // ANDs them with any interactive tags; a "match any" pane ORs its own tags as
+  // one group, still AND-combined with interactive tags added on top.
   const baseTagIds = pane?.tagIds ?? []
-  const effectiveTagIds = Array.from(new Set([...baseTagIds, ...tagIds]))
-  const effectiveTagKey = effectiveTagIds.join(',')
+  const matchAny = !!pane?.matchAny
+  const effectiveTagIds = Array.from(new Set([...baseTagIds, ...tagIds])) // for display/locked state
+  // Query params: interactive tags (AND) vs the pane's OR group (any-mode only).
+  const andTagIds = matchAny ? tagIds : effectiveTagIds
+  const anyTagIds = matchAny ? baseTagIds : []
+  const andTagKey = andTagIds.join(',')
+  const anyTagKey = anyTagIds.join(',')
 
   const update = (mut: (p: URLSearchParams) => void, resetOffset = true) => {
     const next = new URLSearchParams(params)
@@ -235,13 +241,14 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
       order,
       author: authorId ?? undefined,
       series: seriesId ?? undefined,
-      tags: effectiveTagKey ? effectiveTagKey.split(',').map(Number) : undefined,
+      tags: andTagKey ? andTagKey.split(',').map(Number) : undefined,
+      anyTags: anyTagKey ? anyTagKey.split(',').map(Number) : undefined,
       minPages: minPagesQ,
       maxPages: maxPagesQ,
       limit: pageSize,
       offset,
     }),
-    [debouncedSearch, sort, order, authorId, seriesId, effectiveTagKey, minPagesQ, maxPagesQ, offset, pageSize],
+    [debouncedSearch, sort, order, authorId, seriesId, andTagKey, anyTagKey, minPagesQ, maxPagesQ, offset, pageSize],
   )
 
   const { data, isLoading, isFetching, isError, error } = useQuery({
@@ -370,13 +377,21 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
                     count: total.toLocaleString(),
                   })}
             </p>
-            {/* Pane base tags: a locked filter the page is scoped to. */}
+            {/* Pane base tags: a locked filter the page is scoped to. In "match
+                any" mode they OR together, so chips are joined by an "or" hint. */}
             {pane && pane.tagIds.length > 0 && (
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <IconFilter width={13} height={13} className="shrink-0 text-slate-500" />
-                {pane.tagIds.map((id) => (
-                  <span key={id} className="chip py-0.5 text-xs text-slate-300">
-                    {tags.data?.find((f) => f.id === id)?.name ?? `#${id}`}
+                {pane.tagIds.map((id, i) => (
+                  <span key={id} className="flex items-center gap-1.5">
+                    {i > 0 && matchAny && (
+                      <span className="text-[10px] uppercase tracking-wide text-accentSoft/70">
+                        {t('panes.or')}
+                      </span>
+                    )}
+                    <span className="chip py-0.5 text-xs text-slate-300">
+                      {tags.data?.find((f) => f.id === id)?.name ?? `#${id}`}
+                    </span>
                   </span>
                 ))}
               </div>
