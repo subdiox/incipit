@@ -365,6 +365,17 @@ func TestOPDSFeeds(t *testing.T) {
 			t.Errorf("opds search %q missing result:\n%s", path, sb)
 		}
 	}
+
+	// OPDS is localized to the authenticated user's language.
+	h.putJSON("/api/auth/me", map[string]string{"language": "ja"}).Body.Close()
+	req, _ = http.NewRequest(http.MethodGet, h.server.URL+"/opds", nil)
+	req.SetBasicAuth("admin", "supersecret")
+	resp = h.raw(req)
+	ja, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(ja), "著者別") || !strings.Contains(string(ja), "シリーズ別") {
+		t.Errorf("opds root not localized to ja:\n%s", ja)
+	}
 }
 
 func TestCSRFAndAuthEnforcement(t *testing.T) {

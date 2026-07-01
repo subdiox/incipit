@@ -49,6 +49,39 @@ type opdsLink struct {
 const opdsPSENamespace = "http://vaemendis.net/opds-pse/1.0"
 const opdsPSEStreamRel = "http://vaemendis.net/opds-pse/stream"
 
+// opdsL10n holds the OPDS catalog's user-facing strings for one language. Feeds
+// are rendered in the authenticated user's UI language (Account → Language).
+type opdsL10n struct {
+	recentlyAdded, byAuthor, bySeries               string
+	newestSummary, byAuthorSummary, bySeriesSummary string
+	authors, series, author, searchTitle            string
+	searchPrefix, booksFmt                          string
+}
+
+var opdsEN = opdsL10n{
+	recentlyAdded: "Recently Added", byAuthor: "By Author", bySeries: "By Series",
+	newestSummary: "Newest books in the library",
+	byAuthorSummary: "Browse books by author", bySeriesSummary: "Browse books by series",
+	authors: "Authors", series: "Series", author: "Author", searchTitle: "Search",
+	searchPrefix: "Search: ", booksFmt: "%d book(s)",
+}
+
+var opdsJA = opdsL10n{
+	recentlyAdded: "最近追加した本", byAuthor: "著者別", bySeries: "シリーズ別",
+	newestSummary: "ライブラリの新着",
+	byAuthorSummary: "著者で探す", bySeriesSummary: "シリーズで探す",
+	authors: "著者", series: "シリーズ", author: "著者", searchTitle: "検索",
+	searchPrefix: "検索: ", booksFmt: "%d冊",
+}
+
+// opdsL returns the localized strings for the authenticated user's language.
+func opdsL(r *http.Request) opdsL10n {
+	if u := currentUser(r); u != nil && u.Language == "ja" {
+		return opdsJA
+	}
+	return opdsEN
+}
+
 type opdsEntry struct {
 	ID      string       `xml:"id"`
 	Title   string       `xml:"title"`
@@ -83,6 +116,7 @@ func writeOPDS(w http.ResponseWriter, kind string, feed opdsFeed) {
 }
 
 func (s *Server) handleOPDSRoot(w http.ResponseWriter, r *http.Request) {
+	l := opdsL(r)
 	feed := opdsFeed{
 		ID:    "urn:incipit:root",
 		Title: s.siteTitle(r.Context()),
@@ -92,12 +126,12 @@ func (s *Server) handleOPDSRoot(w http.ResponseWriter, r *http.Request) {
 			// Search discovery must point at an OpenSearch description document
 			// (not the templated acquisition URL directly), or most OPDS clients
 			// won't expose a search box. The description declares the template.
-			{Rel: "search", Href: "/opds/opensearch.xml", Type: opdsOpenSearchCT, Title: "Search"},
+			{Rel: "search", Href: "/opds/opensearch.xml", Type: opdsOpenSearchCT, Title: l.searchTitle},
 		},
 		Entries: []opdsEntry{
-			navEntry("urn:incipit:new", "Recently Added", "Newest books in the library", "/opds/new"),
-			navEntry("urn:incipit:authors", "By Author", "Browse books by author", "/opds/authors"),
-			navEntry("urn:incipit:series", "By Series", "Browse books by series", "/opds/series"),
+			navEntry("urn:incipit:new", l.recentlyAdded, l.newestSummary, "/opds/new"),
+			navEntry("urn:incipit:authors", l.byAuthor, l.byAuthorSummary, "/opds/authors"),
+			navEntry("urn:incipit:series", l.bySeries, l.bySeriesSummary, "/opds/series"),
 		},
 	}
 	writeOPDS(w, opdsNav, feed)
@@ -117,7 +151,7 @@ func (s *Server) handleOPDSNew(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "list books")
 		return
 	}
-	s.writeAcquisitionFeed(w, r, "urn:incipit:new", "Recently Added", "/opds/new", res.Books)
+	s.writeAcquisitionFeed(w, r, "urn:incipit:new", opdsL(r).recentlyAdded, "/opds/new", res.Books)
 }
 
 // openSearchDescription is the OpenSearch 1.1 description document advertised by
@@ -192,7 +226,7 @@ func (s *Server) opdsSearch(w http.ResponseWriter, r *http.Request, q string) {
 		writeError(w, http.StatusInternalServerError, "search")
 		return
 	}
-	s.writeAcquisitionFeed(w, r, "urn:incipit:search", "Search: "+q, "/opds/search/"+url.PathEscape(q), res.Books)
+	s.writeAcquisitionFeed(w, r, "urn:incipit:search", opdsL(r).searchPrefix+q, "/opds/search/"+url.PathEscape(q), res.Books)
 }
 
 func (s *Server) handleOPDSAuthors(w http.ResponseWriter, r *http.Request) {
@@ -201,14 +235,15 @@ func (s *Server) handleOPDSAuthors(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "authors")
 		return
 	}
-	feed := opdsFeed{ID: "urn:incipit:authors", Title: "Authors",
+	l := opdsL(r)
+	feed := opdsFeed{ID: "urn:incipit:authors", Title: l.authors,
 		Links: []opdsLink{{Rel: "self", Href: "/opds/authors", Type: opdsNav}}}
 	for _, a := range authors {
 		feed.Entries = append(feed.Entries, opdsEntry{
 			ID:      fmt.Sprintf("urn:incipit:author:%d", a.ID),
 			Title:   a.Name,
 			Updated: time.Now().UTC().Format(time.RFC3339),
-			Content: &opdsContent{Type: "text", Text: fmt.Sprintf("%d book(s)", a.Count)},
+			Content: &opdsContent{Type: "text", Text: fmt.Sprintf(l.booksFmt, a.Count)},
 			Links:   []opdsLink{{Rel: "subsection", Href: fmt.Sprintf("/opds/authors/%d", a.ID), Type: opdsAcquisition}},
 		})
 	}
@@ -222,7 +257,11 @@ func (s *Server) handleOPDSAuthor(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "author books")
 		return
 	}
-	s.writeAcquisitionFeed(w, r, fmt.Sprintf("urn:incipit:author:%d", id), "Author", fmt.Sprintf("/opds/authors/%d", id), res.Books)
+	title := opdsL(r).author
+	if len(res.Books) > 0 && len(res.Books[0].Authors) > 0 {
+		title = res.Books[0].Authors[0].Name
+	}
+	s.writeAcquisitionFeed(w, r, fmt.Sprintf("urn:incipit:author:%d", id), title, fmt.Sprintf("/opds/authors/%d", id), res.Books)
 }
 
 func (s *Server) handleOPDSSeries(w http.ResponseWriter, r *http.Request) {
@@ -231,14 +270,15 @@ func (s *Server) handleOPDSSeries(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "series")
 		return
 	}
-	feed := opdsFeed{ID: "urn:incipit:series", Title: "Series",
+	l := opdsL(r)
+	feed := opdsFeed{ID: "urn:incipit:series", Title: l.series,
 		Links: []opdsLink{{Rel: "self", Href: "/opds/series", Type: opdsNav}}}
 	for _, s2 := range series {
 		feed.Entries = append(feed.Entries, opdsEntry{
 			ID:      fmt.Sprintf("urn:incipit:series:%d", s2.ID),
 			Title:   s2.Name,
 			Updated: time.Now().UTC().Format(time.RFC3339),
-			Content: &opdsContent{Type: "text", Text: fmt.Sprintf("%d book(s)", s2.Count)},
+			Content: &opdsContent{Type: "text", Text: fmt.Sprintf(l.booksFmt, s2.Count)},
 			Links:   []opdsLink{{Rel: "subsection", Href: fmt.Sprintf("/opds/series/%d", s2.ID), Type: opdsAcquisition}},
 		})
 	}
@@ -252,7 +292,11 @@ func (s *Server) handleOPDSSeriesBooks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "series books")
 		return
 	}
-	s.writeAcquisitionFeed(w, r, fmt.Sprintf("urn:incipit:series:%d", id), "Series", fmt.Sprintf("/opds/series/%d", id), res.Books)
+	title := opdsL(r).series
+	if len(res.Books) > 0 && res.Books[0].Series != nil {
+		title = res.Books[0].Series.Name
+	}
+	s.writeAcquisitionFeed(w, r, fmt.Sprintf("urn:incipit:series:%d", id), title, fmt.Sprintf("/opds/series/%d", id), res.Books)
 }
 
 // writeAcquisitionFeed renders a list of books as an OPDS acquisition feed. CBZ
