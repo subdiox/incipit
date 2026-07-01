@@ -19,6 +19,11 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
   // Right-to-left reading (Japanese vertical / manga EPUBs): flips which side
   // advances the page so gestures/keys feel natural.
   const [rtl, setRtl] = useState(false)
+  // Rendering direction. null = derive from the package; when vertical writing is
+  // detected in a book that didn't declare rtl, this is forced to 'rtl', which
+  // re-renders with the correct page order (fixes reversed vertical layout).
+  const [dir, setDir] = useState<'ltr' | 'rtl' | null>(null)
+  const bufRef = useRef<ArrayBuffer | null>(null)
   const [fontSize, setFontSize] = useState<number>(() => {
     const v = Number(localStorage.getItem(FONT_KEY))
     return v >= 80 && v <= 220 ? v : 100
@@ -42,37 +47,52 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
     [onLeft, onRight, navigate, bookId],
   )
 
-  // Load the EPUB (fetched with credentials so the session cookie is sent).
+  // Fresh book → drop any cached buffer / detected direction.
+  useEffect(() => {
+    bufRef.current = null
+    setDir(null)
+  }, [bookId])
+
+  // Load + render the EPUB. Re-runs when `dir` changes so a book detected as
+  // vertical can be re-rendered right-to-left with the correct page order. The
+  // downloaded bytes are cached so the re-render doesn't refetch.
   useEffect(() => {
     let cancelled = false
     let book: EpubBook | null = null
     ;(async () => {
       try {
-        const res = await fetch(mediaUrl.content(bookId), { credentials: 'include' })
-        if (!res.ok) throw new Error('fetch failed')
-        const buf = await res.arrayBuffer()
+        if (!bufRef.current) {
+          const res = await fetch(mediaUrl.content(bookId), { credentials: 'include' })
+          if (!res.ok) throw new Error('fetch failed')
+          bufRef.current = await res.arrayBuffer()
+        }
         if (cancelled || !hostRef.current) return
 
-        book = ePub(buf)
+        book = ePub(bufRef.current.slice(0)) // fresh copy per (re)render
         await book.ready
         if (cancelled || !hostRef.current) return
 
-        // Honor the package's declared reading direction (rtl for most vertical
-        // Japanese / manga EPUBs) so pagination progresses the right way.
+        // Direction: an explicit override wins, else the package's declared
+        // page-progression-direction (rtl for most vertical/manga EPUBs).
         const meta = (book.packaging?.metadata ?? {}) as { direction?: string }
-        if (meta.direction === 'rtl') setRtl(true)
+        const direction: 'ltr' | 'rtl' = dir ?? (meta.direction === 'rtl' ? 'rtl' : 'ltr')
+        setRtl(direction === 'rtl')
 
         const rendition = book.renderTo(hostRef.current, {
           width: '100%',
           height: '100%',
           flow: 'paginated',
-          spread: 'auto',
+          // Single page for rtl/vertical: two-page spreads paginate the wrong way.
+          spread: direction === 'rtl' ? 'none' : 'auto',
+          // `direction` is honored by epub.js at runtime but missing from its
+          // types.
+          direction,
           allowScriptedContent: true,
-        })
+        } as Parameters<typeof book.renderTo>[1])
         renditionRef.current = rendition
 
-        // Minimal theme: set colours but don't impose writing-mode/line-height so
-        // vertical (tategaki) content keeps its own layout.
+        // Minimal theme: colours only, so vertical (tategaki) layout isn't
+        // overridden.
         rendition.themes.register('incipit-dark', {
           html: { background: '#0b0b0f' },
           body: { background: '#0b0b0f', color: '#cbd5e1' },
@@ -84,13 +104,15 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
         rendition.themes.select('incipit-dark')
         rendition.themes.fontSize(`${fontSize}%`)
 
-        // Detect vertical writing from the actual content (some EPUBs use CSS
-        // writing-mode without declaring page-progression-direction).
+        // If the content is vertical but we rendered ltr (package didn't declare
+        // rtl), switch to rtl — this re-runs the effect and re-renders correctly.
         rendition.on(
           'rendered',
           (_section: unknown, view: { contents?: { writingMode?: () => string } }) => {
             try {
-              if (view?.contents?.writingMode?.().includes('vertical')) setRtl(true)
+              if (direction !== 'rtl' && view?.contents?.writingMode?.().includes('vertical')) {
+                setDir('rtl')
+              }
             } catch {
               /* ignore */
             }
@@ -113,7 +135,6 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
             setPercent(Math.round(location.start.percentage * 100))
           }
         })
-        // Keys pressed inside the rendered iframe are forwarded here.
         rendition.on('keyup', onKey)
       } catch {
         if (!cancelled) {
@@ -129,7 +150,7 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
       renditionRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookId])
+  }, [bookId, dir])
 
   useEffect(() => {
     window.addEventListener('keyup', onKey)
