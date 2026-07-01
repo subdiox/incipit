@@ -195,32 +195,38 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
 
         <div ref={hostRef} className="h-full w-full" />
 
-        {/* Side tap zones (middle stays free for selection / links). */}
+        {/* Side tap zones (middle stays free for selection / links). Pointer-only
+            and non-focusable so an arrow-key press can't leave a focus outline
+            framing the left/right halves. */}
         <button
           type="button"
+          tabIndex={-1}
           onClick={goLeft}
           aria-label={t('reader.prevPage')}
-          className="absolute inset-y-0 left-0 z-0 w-[28%] cursor-w-resize"
+          className="absolute inset-y-0 left-0 z-0 w-[28%] cursor-w-resize outline-none focus:outline-none"
         />
         <button
           type="button"
+          tabIndex={-1}
           onClick={goRight}
           aria-label={t('reader.nextPage')}
-          className="absolute inset-y-0 right-0 z-0 w-[28%] cursor-e-resize"
+          className="absolute inset-y-0 right-0 z-0 w-[28%] cursor-e-resize outline-none focus:outline-none"
         />
         <button
           type="button"
+          tabIndex={-1}
           onClick={goLeft}
           aria-label={t('reader.prevPage')}
-          className="absolute left-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white backdrop-blur transition-colors hover:bg-black/70 sm:block"
+          className="absolute left-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white outline-none backdrop-blur transition-colors hover:bg-black/70 focus:outline-none sm:block"
         >
           <IconChevronLeft width={22} height={22} />
         </button>
         <button
           type="button"
+          tabIndex={-1}
           onClick={goRight}
           aria-label={t('reader.nextPage')}
-          className="absolute right-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white backdrop-blur transition-colors hover:bg-black/70 sm:block"
+          className="absolute right-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white outline-none backdrop-blur transition-colors hover:bg-black/70 focus:outline-none sm:block"
         >
           <IconChevronRight width={22} height={22} />
         </button>
