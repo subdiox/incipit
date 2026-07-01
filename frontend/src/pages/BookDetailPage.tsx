@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, mediaUrl } from '@/lib/api'
@@ -20,6 +20,7 @@ import {
   IconReset,
   IconSearch,
   IconTrash,
+  IconUpload,
 } from '@/components/icons'
 
 function Meta({ label, children }: { label: string; children: React.ReactNode }) {
@@ -47,9 +48,24 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
     pubdate: book.pubdate?.slice(0, 10) ?? '',
   })
   const [error, setError] = useState<string | null>(null)
+  // Optional manual cover replacement — the fallback when cmoa has no match or
+  // returns a wrong cover. Applied on save alongside the metadata.
+  const [coverFile, setCoverFile] = useState<File | null>(null)
+  const coverPreview = useMemo(() => (coverFile ? URL.createObjectURL(coverFile) : null), [coverFile])
+  useEffect(() => () => {
+    if (coverPreview) URL.revokeObjectURL(coverPreview)
+  }, [coverPreview])
 
   const mutation = useMutation({
-    mutationFn: (body: BookUpdate) => api.updateBook(book.id, body),
+    mutationFn: async (body: BookUpdate) => {
+      let updated = await api.updateBook(book.id, body)
+      if (coverFile) {
+        const fd = new FormData()
+        fd.append('file', coverFile)
+        updated = await api.setBookCover(book.id, fd)
+      }
+      return updated
+    },
     onSuccess: (updated) => {
       queryClient.setQueryData(['book', book.id], updated)
       queryClient.invalidateQueries({ queryKey: ['books'] })
@@ -86,6 +102,48 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
   return (
     <Modal open={open} onClose={onClose} title={t('book.editMetadata')} maxWidth="max-w-xl">
       <form onSubmit={submit} className="space-y-4">
+        {/* Cover: manual replacement, the fallback when cmoa enrichment fails. */}
+        <div className="flex items-start gap-4">
+          <div className="w-20 shrink-0 overflow-hidden rounded-lg ring-1 ring-ink-700">
+            {coverPreview ? (
+              <img src={coverPreview} alt="" className="aspect-[2/3] w-full object-cover" />
+            ) : (
+              <Cover
+                bookId={book.id}
+                title={book.title}
+                hasCover={book.hasCover}
+                version={book.lastModified}
+                width={200}
+                rounded="rounded-none"
+              />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <label className="label">{t('book.fieldCover')}</label>
+            <div className="mt-2 flex items-center gap-2">
+              <label className="btn-secondary inline-flex cursor-pointer">
+                <IconUpload width={16} height={16} />
+                {t('book.chooseCover')}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              {coverFile && (
+                <button
+                  type="button"
+                  className="text-xs text-slate-400 hover:text-white"
+                  onClick={() => setCoverFile(null)}
+                >
+                  {t('book.coverClear')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="label">{t('book.fieldTitle')}</label>
