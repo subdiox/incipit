@@ -72,6 +72,12 @@ export function CbzReader({ bookId }: { bookId: number }) {
   const last = view[view.length - 1] ?? 0
   const isSpread = view.length > 1
 
+  // Progress is normally saved as the leading page (so resume lands on the same
+  // spread). But on the final spread the leading page is total-2, which never
+  // trips the "read to the end" check (page >= total-1). When the last page is
+  // on screen, save the last page index instead so completion is detected.
+  const savePage = total > 0 && last >= total - 1 ? total - 1 : first
+
   // Keep the anchor normalised to the start of its spread so toggling layout /
   // saving progress always works off the leading page index.
   useEffect(() => {
@@ -167,28 +173,28 @@ export function CbzReader({ bookId }: { bookId: number }) {
   // the reader closes; the server write is debounced. Latest values are mirrored
   // into refs so the unmount flush below can persist a position that changed
   // within the debounce window (e.g. closing right after a page turn).
-  const firstRef = useRef(first)
+  const savePageRef = useRef(savePage)
   const totalRef = useRef(total)
-  firstRef.current = first
+  savePageRef.current = savePage
   totalRef.current = total
   useEffect(() => {
     if (!total || !restoredRef.current) return
     const p: Progress = {
       bookId,
       format: 'CBZ',
-      page: first,
+      page: savePage,
       totalPages: total,
       updatedAt: new Date().toISOString(),
     }
     qc.setQueryData(['progress', bookId], p)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      api.saveProgress(bookId, first, total).catch(() => {})
+      api.saveProgress(bookId, savePage, total).catch(() => {})
     }, 800)
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
     }
-  }, [first, total, bookId, qc])
+  }, [savePage, total, bookId, qc])
 
   // Flush the latest position to the server on close/unmount, covering a page
   // turn made within the debounce window or an exit via the browser back button.
@@ -196,7 +202,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
       if (totalRef.current && restoredRef.current) {
-        api.saveProgress(bookId, firstRef.current, totalRef.current).catch(() => {})
+        api.saveProgress(bookId, savePageRef.current, totalRef.current).catch(() => {})
       }
     }
   }, [bookId])
