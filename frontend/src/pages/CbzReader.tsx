@@ -211,23 +211,33 @@ export function CbzReader({ bookId }: { bookId: number }) {
   // that has loaded once stays loaded, so toggling to a spread (which keeps the
   // already-shown <img> element mounted, so it never re-fires onLoad) doesn't
   // leave the spinner hanging. Pages not yet in the map gate the spinner.
+  const preloadRef = useRef<HTMLImageElement[]>([])
   const markLoaded = useCallback((n: number) => {
     setLoadedPages((prev) => (prev[n] ? prev : { ...prev, [n]: true }))
   }, [])
   const allLoaded = view.every((n) => loadedPages[n])
 
-  // Preload nearby pages — several ahead in reading order plus a couple behind —
-  // so page turns are instant in either direction. Same URL as the displayed
-  // <img>, so the browser cache serves the turn.
+  // Preload nearby pages — several ahead in reading order plus a couple behind.
+  // Once a preloaded page is decoded we mark it loaded, so when it's shown the
+  // <img> mounts at full opacity instead of fading in from the black background
+  // (which is what made turns flicker despite the cache being warm).
   useEffect(() => {
     if (!total) return
     const targets = [first - 2, first - 1, last + 1, last + 2, last + 3, last + 4]
     for (const n of targets) {
-      if (n >= 0 && n < total) {
-        const img = new Image()
-        img.src = mediaUrl.page(bookId, n)
-      }
+      if (n < 0 || n >= total || loadedPages[n]) continue
+      const img = new Image()
+      // Mark the page loaded once decoded so it later mounts at full opacity
+      // instead of fading in from black. Keep a reference (below) — an
+      // unreferenced Image can be GC'd before onload fires.
+      img.onload = () => markLoaded(n)
+      img.src = mediaUrl.page(bookId, n)
+      preloadRef.current.push(img)
     }
+    if (preloadRef.current.length > 16) {
+      preloadRef.current.splice(0, preloadRef.current.length - 16)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [first, last, total, bookId])
 
   // Keyboard navigation (reading order for space/page keys; physical for arrows).
