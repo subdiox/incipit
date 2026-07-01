@@ -140,7 +140,7 @@ export const en = {
   'book.fieldTitle': 'Title',
   'book.fieldAuthors': 'Authors (comma separated)',
   'book.fieldSeries': 'Series',
-  'book.fieldSeriesIndex': 'Series index',
+  'book.fieldSeriesIndex': 'Volume',
   'book.fieldTags': 'Tags (comma separated)',
   'book.fieldPublisher': 'Publisher',
   'book.fieldLanguages': 'Languages (comma separated)',

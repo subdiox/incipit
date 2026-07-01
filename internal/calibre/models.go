@@ -100,6 +100,10 @@ func parseCalibreTime(s string) time.Time {
 	return time.Time{}
 }
 
+// calibreUndefinedDate is Calibre's sentinel for an unset date (year 101),
+// displayed as blank by clients rather than as a real date.
+var calibreUndefinedDate = time.Date(101, 1, 1, 0, 0, 0, 0, time.UTC)
+
 // formatCalibreTime renders a time in Calibre's canonical TIMESTAMP format.
 func formatCalibreTime(t time.Time) string {
 	return t.UTC().Format("2006-01-02 15:04:05.999999-07:00")

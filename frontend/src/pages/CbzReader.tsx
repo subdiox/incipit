@@ -216,17 +216,19 @@ export function CbzReader({ bookId }: { bookId: number }) {
   }, [])
   const allLoaded = view.every((n) => loadedPages[n])
 
-  // Preload the next few pages in reading order.
+  // Preload nearby pages — several ahead in reading order plus a couple behind —
+  // so page turns are instant in either direction. Same URL as the displayed
+  // <img>, so the browser cache serves the turn.
   useEffect(() => {
     if (!total) return
-    for (let i = 1; i <= 3; i++) {
-      const n = last + i
-      if (n < total) {
+    const targets = [first - 2, first - 1, last + 1, last + 2, last + 3, last + 4]
+    for (const n of targets) {
+      if (n >= 0 && n < total) {
         const img = new Image()
         img.src = mediaUrl.page(bookId, n)
       }
     }
-  }, [last, total, bookId])
+  }, [first, last, total, bookId])
 
   // Keyboard navigation (reading order for space/page keys; physical for arrows).
   useEffect(() => {

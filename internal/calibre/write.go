@@ -67,7 +67,9 @@ func (a *Adapter) AddBook(ctx context.Context, in AddBookInput) (*Book, error) {
 	now := time.Now().UTC()
 	pubdate := in.PubDate
 	if pubdate.IsZero() {
-		pubdate = now
+		// Unknown pubdate: use Calibre's "undefined" sentinel (not today), so the
+		// upload date doesn't masquerade as a publication date.
+		pubdate = calibreUndefinedDate
 	}
 	authorSort := combineAuthorSort(in.Authors)
 

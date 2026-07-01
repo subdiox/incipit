@@ -177,6 +177,24 @@ func TestListSearchAndFacets(t *testing.T) {
 	}
 }
 
+func TestAddBookUnknownPubdateNotToday(t *testing.T) {
+	a := newTestAdapter(t)
+	ctx := context.Background()
+	b, err := a.AddBook(ctx, AddBookInput{
+		Title: "No Date", Authors: []string{"X"}, Format: "CBZ",
+		Data: bytes.NewReader([]byte("PK\x03\x04z")),
+		// PubDate intentionally left zero (a manual upload with no metadata).
+	})
+	if err != nil {
+		t.Fatalf("AddBook: %v", err)
+	}
+	got, _ := a.GetBook(ctx, b.ID)
+	// Must be Calibre's "undefined" sentinel (year 101), not today's date.
+	if got.PubDate.Year() != 101 {
+		t.Errorf("unknown pubdate stored as %v, want the year-101 sentinel", got.PubDate)
+	}
+}
+
 func TestListMultiTagAND(t *testing.T) {
 	a := newTestAdapter(t)
 	ctx := context.Background()

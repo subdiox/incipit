@@ -16,6 +16,9 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [percent, setPercent] = useState(0)
+  // Right-to-left reading (Japanese vertical / manga EPUBs): flips which side
+  // advances the page so gestures/keys feel natural.
+  const [rtl, setRtl] = useState(false)
   const [fontSize, setFontSize] = useState<number>(() => {
     const v = Number(localStorage.getItem(FONT_KEY))
     return v >= 80 && v <= 220 ? v : 100
@@ -23,16 +26,20 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
 
   const locKey = `incipit.epub.loc.${bookId}`
 
+  // prev/next follow reading order; onLeft/onRight map the physical sides,
+  // reversed for right-to-left books so the left side advances.
   const prev = useCallback(() => void renditionRef.current?.prev(), [])
   const next = useCallback(() => void renditionRef.current?.next(), [])
+  const onLeft = useCallback(() => (rtl ? next() : prev()), [rtl, next, prev])
+  const onRight = useCallback(() => (rtl ? prev() : next()), [rtl, next, prev])
 
   const onKey = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') prev()
-      else if (e.key === 'ArrowRight') next()
+      if (e.key === 'ArrowLeft') onLeft()
+      else if (e.key === 'ArrowRight') onRight()
       else if (e.key === 'Escape') navigate(`/books/${bookId}`)
     },
-    [prev, next, navigate, bookId],
+    [onLeft, onRight, navigate, bookId],
   )
 
   // Load the EPUB (fetched with credentials so the session cookie is sent).
@@ -47,27 +54,58 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
         if (cancelled || !hostRef.current) return
 
         book = ePub(buf)
+        await book.ready
+        if (cancelled || !hostRef.current) return
+
+        // Honor the package's declared reading direction (rtl for most vertical
+        // Japanese / manga EPUBs) so pagination progresses the right way.
+        const meta = (book.packaging?.metadata ?? {}) as { direction?: string }
+        if (meta.direction === 'rtl') setRtl(true)
+
         const rendition = book.renderTo(hostRef.current, {
           width: '100%',
           height: '100%',
           flow: 'paginated',
           spread: 'auto',
+          allowScriptedContent: true,
         })
         renditionRef.current = rendition
 
+        // Minimal theme: set colours but don't impose writing-mode/line-height so
+        // vertical (tategaki) content keeps its own layout.
         rendition.themes.register('incipit-dark', {
-          body: { background: '#0b0b0f', color: '#cbd5e1', 'line-height': '1.65' },
-          a: { color: '#9384f2' },
-          'a:visited': { color: '#9384f2' },
-          img: { 'max-width': '100%' },
+          html: { background: '#0b0b0f' },
+          body: { background: '#0b0b0f', color: '#cbd5e1' },
+          a: { color: '#9384f2 !important' },
+          'a:visited': { color: '#9384f2 !important' },
+          img: { 'max-width': '100%', 'max-height': '100%' },
+          svg: { 'max-width': '100%', 'max-height': '100%' },
         })
         rendition.themes.select('incipit-dark')
         rendition.themes.fontSize(`${fontSize}%`)
+
+        // Detect vertical writing from the actual content (some EPUBs use CSS
+        // writing-mode without declaring page-progression-direction).
+        rendition.on(
+          'rendered',
+          (_section: unknown, view: { contents?: { writingMode?: () => string } }) => {
+            try {
+              if (view?.contents?.writingMode?.().includes('vertical')) setRtl(true)
+            } catch {
+              /* ignore */
+            }
+          },
+        )
 
         const saved = localStorage.getItem(locKey) || undefined
         await rendition.display(saved)
         if (cancelled) return
         setLoading(false)
+        // A resize after first paint fixes column geometry for some books.
+        requestAnimationFrame(() => {
+          const el = hostRef.current
+          if (el && renditionRef.current) renditionRef.current.resize(el.clientWidth, el.clientHeight)
+        })
 
         rendition.on('relocated', (location: { start?: { cfi?: string; percentage?: number } }) => {
           if (location.start?.cfi) localStorage.setItem(locKey, location.start.cfi)
@@ -169,20 +207,20 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
         {/* Side click zones (middle stays free for selection / links). */}
         <button
           type="button"
-          onClick={prev}
+          onClick={onLeft}
           aria-label={t('reader.prevPage')}
           className="absolute inset-y-0 left-0 z-0 w-[28%] cursor-w-resize"
         />
         <button
           type="button"
-          onClick={next}
+          onClick={onRight}
           aria-label={t('reader.nextPage')}
           className="absolute inset-y-0 right-0 z-0 w-[28%] cursor-e-resize"
         />
         {/* Hidden on touch-sized screens — the side tap zones handle turns. */}
         <button
           type="button"
-          onClick={prev}
+          onClick={onLeft}
           aria-label={t('reader.prevPage')}
           className="absolute left-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white backdrop-blur transition-colors hover:bg-black/70 sm:block"
         >
@@ -190,7 +228,7 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
         </button>
         <button
           type="button"
-          onClick={next}
+          onClick={onRight}
           aria-label={t('reader.nextPage')}
           className="absolute right-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white backdrop-blur transition-colors hover:bg-black/70 sm:block"
         >
