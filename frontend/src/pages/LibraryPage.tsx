@@ -49,12 +49,16 @@ function FacetFilter({
   facets,
   activeIds,
   onToggle,
+  searchFirst,
 }: {
   title: string
   kind: FacetKind
   facets: Facet[] | undefined
   activeIds: number[]
   onToggle: (kind: FacetKind, id: number) => void
+  // Search-first (mobile): hide the long list until the user types, so three
+  // facets fit in a cramped screen. Selections stay visible as chips.
+  searchFirst?: boolean
 }) {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
@@ -77,7 +81,9 @@ function FacetFilter({
   }, [facets, query, activeSet])
 
   if (!facets || facets.length === 0) return null
-  const searchable = facets.length > FACET_SEARCH_THRESHOLD
+  const searchable = searchFirst || facets.length > FACET_SEARCH_THRESHOLD
+  // In search-first mode the list is revealed only once the user types.
+  const showList = !searchFirst || query.trim().length > 0
 
   return (
     <div>
@@ -119,7 +125,9 @@ function FacetFilter({
         </div>
       )}
 
-      {rows.length === 0 ? (
+      {!showList ? (
+        <p className="px-1 py-0.5 text-[11px] text-slate-600">{t('library.facetTypeToSearch')}</p>
+      ) : rows.length === 0 ? (
         <p className="px-1 py-1.5 text-xs text-slate-600">{t('library.facetNoMatch')}</p>
       ) : (
         <ul className="-mr-1 max-h-60 space-y-0.5 overflow-y-auto pr-1">
@@ -142,7 +150,7 @@ function FacetFilter({
         </ul>
       )}
 
-      {total > rows.length && (
+      {showList && total > rows.length && (
         <p className="mt-1.5 px-1 text-[11px] text-slate-600">
           {t('library.facetMore', { count: total - rows.length })}
         </p>
@@ -162,6 +170,17 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
   useEffect(() => {
     setHeaderSlot(document.getElementById('library-filter-slot'))
+  }, [])
+  // On phones the filter dropdown is cramped, so switch its facets to a
+  // search-first UI (list hidden until you type).
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    const on = () => setIsMobile(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
   }, [])
 
   const search = params.get('search') ?? ''
@@ -334,9 +353,9 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   const facetPanel = (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3">
-        <FacetFilter title={t('library.authors')} kind="author" facets={authors.data} activeIds={authorId != null ? [authorId] : []} onToggle={toggleFacet} />
-        <FacetFilter title={t('library.series')} kind="series" facets={series.data} activeIds={seriesId != null ? [seriesId] : []} onToggle={toggleFacet} />
-        <FacetFilter title={t('library.tags')} kind="tag" facets={tags.data} activeIds={effectiveTagIds} onToggle={toggleFacet} />
+        <FacetFilter title={t('library.authors')} kind="author" facets={authors.data} activeIds={authorId != null ? [authorId] : []} onToggle={toggleFacet} searchFirst={isMobile} />
+        <FacetFilter title={t('library.series')} kind="series" facets={series.data} activeIds={seriesId != null ? [seriesId] : []} onToggle={toggleFacet} searchFirst={isMobile} />
+        <FacetFilter title={t('library.tags')} kind="tag" facets={tags.data} activeIds={effectiveTagIds} onToggle={toggleFacet} searchFirst={isMobile} />
       </div>
       {pageFilterOn && (
         <div className="border-t border-ink-700 pt-4">

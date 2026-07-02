@@ -93,6 +93,7 @@ export const en = {
   'library.perPageOption': '{{count}} / page',
   'library.facetSearch': 'Search…',
   'library.facetNoMatch': 'No matches',
+  'library.facetTypeToSearch': 'Type to search…',
   'library.facetMore': '+{{count}} more — refine your search',
   'library.descending': 'Descending',
   'library.ascending': 'Ascending',

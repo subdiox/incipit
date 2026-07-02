@@ -95,6 +95,7 @@ export const ja: Record<TranslationKey, string> = {
   'library.perPageOption': '{{count}}件 / ページ',
   'library.facetSearch': '検索…',
   'library.facetNoMatch': '一致なし',
+  'library.facetTypeToSearch': '入力して検索…',
   'library.facetMore': '他{{count}}件 — 検索で絞り込み',
   'library.descending': '降順',
   'library.ascending': '昇順',
