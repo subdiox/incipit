@@ -25,11 +25,11 @@ export function BookCard({ book, action }: BookCardProps) {
           />
         </div>
         <div className="mt-2.5 px-0.5">
-          {/* Mobile: wrap the full title (titles get cut at one line otherwise).
-              Desktop: keep a single clamped line with a hover tooltip. */}
+          {/* Wrap the full title on all viewports (titles get cut at one line
+              otherwise). */}
           <h3
             title={book.title}
-            className="break-words text-sm font-medium text-slate-100 transition-colors group-hover:text-white sm:line-clamp-1"
+            className="break-words text-sm font-medium text-slate-100 transition-colors group-hover:text-white"
           >
             {book.title}
           </h3>
