@@ -110,15 +110,12 @@
   }
 }
 
-/* iOS Safari zooms the page in when a focused input's font-size is < 16px.
-   Force form controls to 16px on small screens so tapping a field doesn't
-   zoom. Pinch-zoom stays enabled (the viewport meta is untouched). */
-@media (max-width: 639px) {
-  input,
-  select,
-  textarea {
-    font-size: 16px !important;
-  }
+/* Form controls at 16px everywhere: also stops iOS Safari from zooming the
+   page in when a field with font-size < 16px is focused. */
+input,
+select,
+textarea {
+  font-size: 16px !important;
 }
 
 .skeleton {
