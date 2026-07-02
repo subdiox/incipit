@@ -269,6 +269,7 @@ export const ja: Record<TranslationKey, string> = {
   'admin.permUpload': 'アップロード',
   'admin.permEdit': '編集',
   'admin.you': '（あなた）',
+  'admin.cannotLogin': 'ログイン不可',
   'admin.editUser': 'ユーザーを編集',
   'admin.deleteUser': 'ユーザーを削除',
   'admin.cannotDeleteSelf': '自分自身は削除できません',

@@ -11,17 +11,48 @@ import (
 	"incipit/internal/auth"
 )
 
-// handleListUsers returns all users (admin only).
+// adminUser is a user plus whether they can currently sign in (LDAP accounts
+// may have fallen out of the configured login group).
+type adminUser struct {
+	appdb.User
+	CanLogin bool `json:"canLogin"`
+}
+
+// handleListUsers returns all users (admin only), flagging LDAP accounts that no
+// longer satisfy the login-group restriction so they can't actually sign in.
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := s.store.ListUsers(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "list users")
 		return
 	}
-	if users == nil {
-		users = []appdb.User{}
+
+	// Ask LDAP once which of the LDAP-sourced users are still in the login group.
+	var eligible map[string]bool
+	if s.ldap != nil {
+		names := make([]string, 0)
+		for _, u := range users {
+			if u.Source == appdb.SourceLDAP {
+				names = append(names, u.Username)
+			}
+		}
+		if len(names) > 0 {
+			if e, lerr := s.ldap.LoginEligibility(r.Context(), names); lerr == nil {
+				eligible = e // nil ⇒ no login-group restriction (everyone eligible)
+			}
+			// On error, fail open (leave everyone as can-login) so the list loads.
+		}
 	}
-	writeJSON(w, http.StatusOK, users)
+
+	out := make([]adminUser, 0, len(users))
+	for _, u := range users {
+		canLogin := true
+		if u.Source == appdb.SourceLDAP && eligible != nil {
+			canLogin = eligible[u.Username]
+		}
+		out = append(out, adminUser{User: u, CanLogin: canLogin})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 type createUserBody struct {

@@ -272,6 +272,66 @@ func (m *LDAPManager) ImportUsers(ctx context.Context, store *appdb.Store) (*Imp
 	return result, nil
 }
 
+// LoginEligibility reports, per username, whether that user currently satisfies
+// the login-group restriction. It returns (nil, nil) when LDAP is disabled or no
+// login group is set — i.e. everyone is eligible. Used to flag LDAP accounts in
+// the admin user list that can no longer sign in (fell out of the login group).
+func (m *LDAPManager) LoginEligibility(_ context.Context, usernames []string) (map[string]bool, error) {
+	s := m.Settings()
+	if !s.Enabled || strings.TrimSpace(s.LoginGroupDN) == "" {
+		return nil, nil // no restriction in effect
+	}
+	if len(usernames) == 0 {
+		return map[string]bool{}, nil
+	}
+
+	conn, err := dial(s)
+	if err != nil {
+		return nil, fmt.Errorf("connect: %w", err)
+	}
+	defer conn.Close()
+	if err := bindService(conn, s); err != nil {
+		return nil, fmt.Errorf("bind: %w", err)
+	}
+
+	loginDNs, loginUIDs, err := groupMembers(conn, s.LoginGroupDN)
+	if err != nil {
+		return nil, err
+	}
+
+	// Resolve each username's DN so DN- and uid-based groups both work.
+	filter := strings.ReplaceAll(s.UserFilter, "%s", "*")
+	if strings.TrimSpace(filter) == "" {
+		filter = "(objectClass=person)"
+	}
+	req := ldap.NewSearchRequest(s.BaseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases,
+		0, 0, false, filter, []string{"dn", s.UsernameAttribute}, nil)
+	res, err := conn.SearchWithPaging(req, 500)
+	if err != nil {
+		return nil, fmt.Errorf("search users: %w", err)
+	}
+
+	want := make(map[string]bool, len(usernames))
+	for _, u := range usernames {
+		want[u] = true
+	}
+	out := make(map[string]bool, len(usernames))
+	for _, entry := range res.Entries {
+		username := strings.TrimSpace(entry.GetAttributeValue(s.UsernameAttribute))
+		if username == "" || !want[username] {
+			continue
+		}
+		out[username] = loginUIDs[username] || loginDNs[strings.ToLower(entry.DN)]
+	}
+	// Usernames not present in the directory cannot log in via LDAP.
+	for _, u := range usernames {
+		if _, ok := out[u]; !ok {
+			out[u] = false
+		}
+	}
+	return out, nil
+}
+
 // --- helpers ---
 
 func dial(s LDAPSettings) (*ldap.Conn, error) {

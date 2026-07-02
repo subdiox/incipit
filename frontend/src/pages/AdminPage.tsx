@@ -256,6 +256,34 @@ export function AdminPage() {
     },
   })
 
+  const cantLoginBadge = (
+    <span className="inline-flex items-center rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-medium text-red-300">
+      {t('admin.cannotLogin')}
+    </span>
+  )
+  const userActions = (u: User) => (
+    <div className="flex shrink-0 justify-end gap-1">
+      <button
+        type="button"
+        onClick={() => setEditUser(u)}
+        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-ink-700 hover:text-white"
+        aria-label={t('admin.editUser')}
+      >
+        <IconEdit width={16} height={16} />
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirmDelete(u)}
+        disabled={u.id === me?.id}
+        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-300 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+        aria-label={t('admin.deleteUser')}
+        title={u.id === me?.id ? t('admin.cannotDeleteSelf') : t('admin.deleteUser')}
+      >
+        <IconTrash width={16} height={16} />
+      </button>
+    </div>
+  )
+
   const usersTable = (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -269,69 +297,83 @@ export function AdminPage() {
       {isLoading ? (
         <FullPageSpinner />
       ) : (
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3 font-medium">{t('admin.colUser')}</th>
-                  <th className="px-4 py-3 font-medium">{t('admin.colPermissions')}</th>
-                  <th className="px-4 py-3 font-medium">{t('admin.colSource')}</th>
-                  <th className="hidden px-4 py-3 font-medium md:table-cell">{t('admin.colCreated')}</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {users?.map((u) => (
-                  <tr key={u.id} className="border-b border-ink-800 last:border-0 hover:bg-ink-800/40">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-700 text-xs font-semibold uppercase text-accentSoft">
-                          {u.username[0]}
-                        </span>
-                        <span className="font-medium text-slate-100">
-                          {u.username}
-                          {u.id === me?.id && <span className="ml-1.5 text-xs text-slate-500">{t('admin.you')}</span>}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {PERM_LABELS.map(({ key, labelKey }) => (
-                          <PermBadge key={key} active={u[key]} label={t(labelKey)} />
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-400">{u.source}</td>
-                    <td className="hidden px-4 py-3 text-slate-400 md:table-cell">{formatDate(u.createdAt)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setEditUser(u)}
-                          className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-ink-700 hover:text-white"
-                          aria-label={t('admin.editUser')}
-                        >
-                          <IconEdit width={16} height={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDelete(u)}
-                          disabled={u.id === me?.id}
-                          className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-300 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                          aria-label={t('admin.deleteUser')}
-                          title={u.id === me?.id ? t('admin.cannotDeleteSelf') : t('admin.deleteUser')}
-                        >
-                          <IconTrash width={16} height={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <>
+          {/* Mobile: stacked cards (the table is too wide for a phone). */}
+          <div className="space-y-2 sm:hidden">
+            {users?.map((u) => (
+              <div key={u.id} className="card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-700 text-xs font-semibold uppercase text-accentSoft">
+                      {u.username[0]}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-slate-100">
+                        {u.username}
+                        {u.id === me?.id && <span className="ml-1.5 text-xs text-slate-500">{t('admin.you')}</span>}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
+                        {u.source} · {formatDate(u.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                  {userActions(u)}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {u.canLogin === false && cantLoginBadge}
+                  {PERM_LABELS.map(({ key, labelKey }) => (
+                    <PermBadge key={key} active={u[key]} label={t(labelKey)} />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+
+          {/* Desktop: table */}
+          <div className="card hidden overflow-hidden sm:block">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-3 font-medium">{t('admin.colUser')}</th>
+                    <th className="px-4 py-3 font-medium">{t('admin.colPermissions')}</th>
+                    <th className="px-4 py-3 font-medium">{t('admin.colSource')}</th>
+                    <th className="hidden px-4 py-3 font-medium md:table-cell">{t('admin.colCreated')}</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {users?.map((u) => (
+                    <tr key={u.id} className="border-b border-ink-800 last:border-0 hover:bg-ink-800/40">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-700 text-xs font-semibold uppercase text-accentSoft">
+                            {u.username[0]}
+                          </span>
+                          <span className="font-medium text-slate-100">
+                            {u.username}
+                            {u.id === me?.id && <span className="ml-1.5 text-xs text-slate-500">{t('admin.you')}</span>}
+                          </span>
+                          {u.canLogin === false && cantLoginBadge}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {PERM_LABELS.map(({ key, labelKey }) => (
+                            <PermBadge key={key} active={u[key]} label={t(labelKey)} />
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-400">{u.source}</td>
+                      <td className="hidden px-4 py-3 text-slate-400 md:table-cell">{formatDate(u.createdAt)}</td>
+                      <td className="px-4 py-3">{userActions(u)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
@@ -343,8 +385,9 @@ export function AdminPage() {
         <p className="mt-0.5 text-sm text-slate-500">{t('settings.subtitle')}</p>
       </div>
 
-      {/* Category tabs */}
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-ink-800">
+      {/* Category tabs. overflow-y-hidden stops the underline from adding a 1px
+          vertical scroll (overflow-x-auto would otherwise promote overflow-y). */}
+      <div className="mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-ink-800">
         {tabs.map((tb) => (
           <button
             key={tb.key}
@@ -356,7 +399,7 @@ export function AdminPage() {
           >
             {tb.label}
             {tab === tb.key && (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent-500" />
+              <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-accent-500" />
             )}
           </button>
         ))}

@@ -9,6 +9,7 @@ export interface User {
   language: string
   pageSize: number
   createdAt: string
+  canLogin?: boolean // admin list only: false when an LDAP user is outside the login group
 }
 
 export interface AuthorRef {

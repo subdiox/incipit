@@ -267,6 +267,7 @@ export const en = {
   'admin.permUpload': 'Upload',
   'admin.permEdit': 'Edit',
   'admin.you': '(you)',
+  'admin.cannotLogin': 'Cannot log in',
   'admin.editUser': 'Edit user',
   'admin.deleteUser': 'Delete user',
   'admin.cannotDeleteSelf': 'You cannot delete yourself',
