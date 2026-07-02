@@ -159,6 +159,7 @@ func (s *Server) Router() http.Handler {
 				r.Put("/site", s.handleUpdateSite)
 
 				r.Post("/panes", s.handleCreatePane)
+				r.Put("/panes/reorder", s.handleReorderPanes)
 				r.Put("/panes/{id}", s.handleUpdatePane)
 				r.Delete("/panes/{id}", s.handleDeletePane)
 

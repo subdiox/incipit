@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
 import { useI18n } from '@/i18n'
@@ -6,7 +6,7 @@ import type { Pane } from '@/types'
 import { Modal } from './Modal'
 import { Spinner, FullPageSpinner } from './Spinner'
 import { TagPicker } from './TagPicker'
-import { IconEdit, IconPlus, IconTrash } from './icons'
+import { IconEdit, IconGrip, IconPlus, IconTrash } from './icons'
 
 function PaneModal({ pane, open, onClose }: { pane: Pane | null; open: boolean; onClose: () => void }) {
   const qc = useQueryClient()
@@ -110,6 +110,14 @@ export function PanesSettings() {
   const [creating, setCreating] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Pane | null>(null)
 
+  // Local order for drag-and-drop; kept in sync with the server list, and
+  // reordered live as the user drags, then persisted on drop.
+  const [ordered, setOrdered] = useState<Pane[]>([])
+  useEffect(() => {
+    if (panes) setOrdered(panes)
+  }, [panes])
+  const dragIndex = useRef<number | null>(null)
+
   const del = useMutation({
     mutationFn: (id: number) => api.deletePane(id),
     onSuccess: () => {
@@ -117,6 +125,28 @@ export function PanesSettings() {
       setConfirmDelete(null)
     },
   })
+
+  const reorder = useMutation({
+    mutationFn: (ids: number[]) => api.reorderPanes(ids),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['panes'] }),
+  })
+
+  const onDragEnter = (i: number) => {
+    const from = dragIndex.current
+    if (from === null || from === i) return
+    setOrdered((cur) => {
+      const next = [...cur]
+      const [moved] = next.splice(from, 1)
+      next.splice(i, 0, moved)
+      return next
+    })
+    dragIndex.current = i
+  }
+  const onDrop = () => {
+    dragIndex.current = null
+    const ids = ordered.map((p) => p.id)
+    if (panes && ids.join(',') !== panes.map((p) => p.id).join(',')) reorder.mutate(ids)
+  }
 
   return (
     <div>
@@ -134,8 +164,29 @@ export function PanesSettings() {
         <div className="card p-8 text-center text-sm text-slate-500">{t('panes.empty')}</div>
       ) : (
         <div className="card divide-y divide-ink-800">
-          {panes.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 p-4">
+          {ordered.map((p, i) => (
+            <div
+              key={p.id}
+              draggable
+              onDragStart={(e) => {
+                dragIndex.current = i
+                e.dataTransfer.effectAllowed = 'move'
+              }}
+              onDragEnter={() => onDragEnter(i)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onDrop}
+              onDragEnd={onDrop}
+              className={`flex items-center gap-3 p-4 ${
+                dragIndex.current === i ? 'opacity-50' : ''
+              }`}
+            >
+              <span
+                className="shrink-0 cursor-grab text-slate-600 hover:text-slate-300 active:cursor-grabbing"
+                title={t('panes.reorder')}
+                aria-hidden
+              >
+                <IconGrip width={18} height={18} />
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-100">{p.name}</p>
                 <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">

@@ -158,6 +158,21 @@ func TestPanes(t *testing.T) {
 		t.Errorf("GetPane = %+v", got)
 	}
 
+	// Reorder: put b (Comedy) ahead of a.
+	if err := s.ReorderPanes(ctx, []int64{b.ID, a.ID}); err != nil {
+		t.Fatalf("ReorderPanes: %v", err)
+	}
+	if panes, _ := s.ListPanes(ctx); len(panes) != 2 || panes[0].ID != b.ID || panes[1].ID != a.ID {
+		t.Errorf("after reorder = %+v", panes)
+	}
+
+	// A tagless pane must expose TagIDs as a non-nil slice (JSON [] not null).
+	empty, _ := s.CreatePane(ctx, "All", nil, false)
+	if got, _ := s.GetPane(ctx, empty.ID); got.TagIDs == nil {
+		t.Error("tagless pane TagIDs = nil; want non-nil (marshals as [])")
+	}
+	_ = s.DeletePane(ctx, empty.ID)
+
 	if err := s.DeletePane(ctx, a.ID); err != nil {
 		t.Fatalf("DeletePane: %v", err)
 	}

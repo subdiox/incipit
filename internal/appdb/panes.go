@@ -32,10 +32,12 @@ func encodeTagIDs(ids []int64) string {
 }
 
 func decodeTagIDs(s string) []int64 {
+	// Non-nil so it marshals as [] not null (a tagless "all books" pane must not
+	// send null — the client types tagIds as number[] and reads .length).
+	ids := []int64{}
 	if s == "" {
-		return nil
+		return ids
 	}
-	var ids []int64
 	for _, p := range strings.Split(s, ",") {
 		if n, err := strconv.ParseInt(strings.TrimSpace(p), 10, 64); err == nil && n > 0 {
 			ids = append(ids, n)
@@ -102,6 +104,28 @@ func (s *Store) UpdatePane(ctx context.Context, id int64, name string, tagIDs []
 func (s *Store) DeletePane(ctx context.Context, id int64) error {
 	_, err := s.db.ExecContext(ctx, "DELETE FROM panes WHERE id=?", id)
 	return err
+}
+
+// ReorderPanes sets each pane's position to its index in ids, in one
+// transaction, so ListPanes returns them in the given order. Ids not listed
+// keep their stored position (and sort after by id). Unknown ids are no-ops.
+func (s *Store) ReorderPanes(ctx context.Context, ids []int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	stmt, err := tx.PrepareContext(ctx, "UPDATE panes SET position=? WHERE id=?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for i, id := range ids {
+		if _, err := stmt.ExecContext(ctx, i, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // GetPane returns a single pane or ErrNotFound.

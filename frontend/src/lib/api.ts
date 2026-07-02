@@ -214,6 +214,8 @@ export const api = {
     id: number,
     body: { name: string; tagIds: number[]; matchAny: boolean; position: number },
   ) => request<void>(`/admin/panes/${id}`, { method: 'PUT', ...jsonBody(body) }),
+  reorderPanes: (ids: number[]) =>
+    request<void>('/admin/panes/reorder', { method: 'PUT', ...jsonBody({ ids }) }),
   deletePane: (id: number) => request<void>(`/admin/panes/${id}`, { method: 'DELETE' }),
 
   // Admin

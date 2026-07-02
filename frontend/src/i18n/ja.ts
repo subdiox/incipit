@@ -299,6 +299,7 @@ export const ja: Record<TranslationKey, string> = {
   // ライブラリペイン(管理者定義の保存フィルタ)
   'panes.subtitle': 'ライブラリ下に表示される保存タグフィルタ。ペインはタグに一致する本を一覧します。',
   'panes.new': '新規ペイン',
+  'panes.reorder': 'ドラッグで並べ替え',
   'panes.newTitle': '新規ペイン',
   'panes.editTitle': 'ペインを編集',
   'panes.empty': 'ペインがありません。作成するとライブラリ下に絞り込みビューが追加されます。',

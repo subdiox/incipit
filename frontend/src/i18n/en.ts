@@ -297,6 +297,7 @@ export const en = {
   // Library panes (admin-defined saved filters)
   'panes.subtitle': 'Saved tag filters shown under Library. A pane lists books matching its tags.',
   'panes.new': 'New pane',
+  'panes.reorder': 'Drag to reorder',
   'panes.newTitle': 'New pane',
   'panes.editTitle': 'Edit pane',
   'panes.empty': 'No panes yet. Create one to add a filtered view under Library.',
