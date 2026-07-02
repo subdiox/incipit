@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { mediaUrl } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import { Spinner } from '@/components/Spinner'
-import { IconChevronLeft, IconChevronRight, IconClose } from '@/components/icons'
+import { IconChevronLeft, IconChevronRight, IconClose, IconSettings } from '@/components/icons'
 
 const FONT_KEY = 'incipit.epub.fontSize'
+const FLOW_KEY = 'incipit.epub.flow'
+type Flow = 'paginated' | 'scrolled'
 
 // foliate-view element (from the vendored foliate-js). Typed loosely — it's a
 // custom element with an imperative API.
@@ -46,6 +48,10 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
     const v = Number(localStorage.getItem(FONT_KEY))
     return v >= 80 && v <= 220 ? v : 100
   })
+  const [flow, setFlowState] = useState<Flow>(() =>
+    localStorage.getItem(FLOW_KEY) === 'scrolled' ? 'scrolled' : 'paginated',
+  )
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const locKey = `incipit.epub.loc.${bookId}`
 
@@ -127,7 +133,7 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
         await view.open(file)
         if (cancelled) return
 
-        view.renderer.setAttribute('flow', 'paginated')
+        view.renderer.setAttribute('flow', flow)
         view.renderer.setStyles?.(themeCSS(fontSize))
 
         view.addEventListener('relocate', (e: CustomEvent) => {
@@ -187,6 +193,19 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
     })
   }
 
+  // Switch between horizontal paging and continuous vertical scroll. Applied
+  // live to the open renderer, then the current position is restored.
+  const setFlow = (next: Flow) => {
+    setFlowState(next)
+    localStorage.setItem(FLOW_KEY, next)
+    const view = viewRef.current
+    if (!view) return
+    view.renderer.setAttribute('flow', next)
+    view.renderer.setStyles?.(themeCSS(fontSize))
+    const cfi = localStorage.getItem(locKey)
+    if (cfi) view.goTo(cfi).catch(() => {})
+  }
+
   return (
     <div className="dark fixed inset-0 flex flex-col overflow-hidden overscroll-none bg-ink-950">
       <div className="flex items-center gap-3 border-b border-ink-800 bg-ink-900 px-3 py-2">
@@ -217,8 +236,56 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
           >
             A+
           </button>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((o) => !o)}
+            aria-label={t('reader.settings')}
+            title={t('reader.settings')}
+            className={`rounded-lg p-2 transition-colors hover:bg-ink-700 hover:text-white ${
+              settingsOpen ? 'bg-ink-700 text-white' : 'text-slate-300'
+            }`}
+          >
+            <IconSettings width={18} height={18} />
+          </button>
         </div>
       </div>
+
+      {/* Settings: reading direction (horizontal paging vs vertical scroll). */}
+      {settingsOpen && (
+        <>
+          <button
+            type="button"
+            className="absolute inset-0 z-30 cursor-default"
+            aria-label={t('reader.closeSettings')}
+            onClick={() => setSettingsOpen(false)}
+          />
+          <div className="absolute right-2 top-14 z-40 w-56 rounded-xl border border-ink-700 bg-ink-850 p-3 shadow-soft">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t('reader.flow')}
+            </p>
+            <div className="inline-flex w-full rounded-lg border border-ink-700 bg-ink-800 p-0.5">
+              <button
+                type="button"
+                onClick={() => setFlow('paginated')}
+                className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+                  flow === 'paginated' ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                {t('reader.flowPaged')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFlow('scrolled')}
+                className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+                  flow === 'scrolled' ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                {t('reader.flowScroll')}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="relative flex-1">
         {loading && (
@@ -237,41 +304,45 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
 
         <div ref={hostRef} className="h-full w-full" />
 
-        {/* Side tap zones (middle stays free for selection / links). Pointer-only
-            and non-focusable so an arrow-key press can't leave a focus outline
-            framing the left/right halves. */}
-        <button
-          type="button"
-          tabIndex={-1}
-          {...zoneHandlers(goLeft)}
-          aria-label={t('reader.prevPage')}
-          className="absolute inset-y-0 left-0 z-0 w-[28%] touch-none cursor-w-resize outline-none focus:outline-none"
-        />
-        <button
-          type="button"
-          tabIndex={-1}
-          {...zoneHandlers(goRight)}
-          aria-label={t('reader.nextPage')}
-          className="absolute inset-y-0 right-0 z-0 w-[28%] touch-none cursor-e-resize outline-none focus:outline-none"
-        />
-        <button
-          type="button"
-          tabIndex={-1}
-          onClick={goLeft}
-          aria-label={t('reader.prevPage')}
-          className="absolute left-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white outline-none backdrop-blur transition-colors hover:bg-black/70 focus:outline-none sm:block"
-        >
-          <IconChevronLeft width={22} height={22} />
-        </button>
-        <button
-          type="button"
-          tabIndex={-1}
-          onClick={goRight}
-          aria-label={t('reader.nextPage')}
-          className="absolute right-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white outline-none backdrop-blur transition-colors hover:bg-black/70 focus:outline-none sm:block"
-        >
-          <IconChevronRight width={22} height={22} />
-        </button>
+        {/* Paging controls only in "paged" mode; scrolled mode scrolls freely
+            (side zones would otherwise block vertical scrolling). Side tap zones
+            handle a tap (turn by side) and a horizontal swipe. */}
+        {flow === 'paginated' && (
+          <>
+            <button
+              type="button"
+              tabIndex={-1}
+              {...zoneHandlers(goLeft)}
+              aria-label={t('reader.prevPage')}
+              className="absolute inset-y-0 left-0 z-0 w-[28%] touch-none cursor-w-resize outline-none focus:outline-none"
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              {...zoneHandlers(goRight)}
+              aria-label={t('reader.nextPage')}
+              className="absolute inset-y-0 right-0 z-0 w-[28%] touch-none cursor-e-resize outline-none focus:outline-none"
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={goLeft}
+              aria-label={t('reader.prevPage')}
+              className="absolute left-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white outline-none backdrop-blur transition-colors hover:bg-black/70 focus:outline-none sm:block"
+            >
+              <IconChevronLeft width={22} height={22} />
+            </button>
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={goRight}
+              aria-label={t('reader.nextPage')}
+              className="absolute right-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/40 p-2 text-white outline-none backdrop-blur transition-colors hover:bg-black/70 focus:outline-none sm:block"
+            >
+              <IconChevronRight width={22} height={22} />
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
