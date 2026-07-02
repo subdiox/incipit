@@ -388,10 +388,18 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
       </button>
 
       {filtersOpen && (
-        <div
-          className="fixed inset-x-3 top-[4.25rem] z-40 max-h-[78vh] overflow-y-auto rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-soft animate-fade-in
-            sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:max-h-none sm:w-[min(92vw,44rem)] sm:overflow-visible"
-        >
+        <>
+          {/* Mobile backdrop: dims the page and blocks background scroll/taps
+              (tap to close). Hidden on sm+ where the dropdown is anchored. */}
+          <div
+            className="fixed inset-0 z-30 touch-none bg-black/50 sm:hidden"
+            onClick={() => setFiltersOpen(false)}
+            aria-hidden
+          />
+          <div
+            className="fixed inset-x-3 top-[4.25rem] z-40 max-h-[78vh] overflow-y-auto overscroll-contain rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-soft animate-fade-in
+              sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:max-h-none sm:w-[min(92vw,44rem)] sm:overflow-visible"
+          >
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white">{t('library.filters')}</h2>
             {activeFacetCount > 0 && (
@@ -405,7 +413,8 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
             )}
           </div>
           {facetPanel}
-        </div>
+          </div>
+        </>
       )}
     </div>
   )
