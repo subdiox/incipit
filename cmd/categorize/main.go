@@ -6,7 +6,15 @@
 // cmoa), and safe to run while incipit serves the same library (WAL +
 // busy_timeout). Fine genres (バトル・アクション, アニメ化, …) are left untouched.
 //
-//	go run ./cmd/categorize -library /path/to/library [-dry-run] [-limit 30]
+// Backfill everything (unfiltered cmoa search):
+//
+//	go run ./cmd/categorize -library /path [-dry-run] [-limit 30]
+//
+// Re-crawl a mis-assigned category — e.g. CBZ manga wrongly tagged
+// ジャンル:ライトノベル (an unfiltered search matched the light-novel edition) —
+// searching only the comic genres and replacing the tag:
+//
+//	go run ./cmd/categorize -library /path -recrawl ライトノベル -genre comic
 package main
 
 import (
@@ -32,12 +40,15 @@ type unit struct {
 
 func main() {
 	lib := flag.String("library", os.Getenv("INCIPIT_LIBRARY"), "Calibre library path")
-	prefix := flag.String("prefix", "ジャンル:", "tag prefix for the category")
+	prefix := flag.String("prefix", metadata.CategoryTagPrefix, "tag prefix for the category")
+	genre := flag.String("genre", "all", "cmoa search genre key (all|comic|shonen|…)")
+	recrawl := flag.String("recrawl", "", "re-crawl mode: fix books already tagged <prefix><this> (e.g. ライトノベル)")
+	format := flag.String("format", "CBZ", "recrawl: only books with a file of this format")
 	conc := flag.Int("concurrency", 3, "concurrent cmoa fetches")
 	delay := flag.Duration("delay", 400*time.Millisecond, "cool-down after each unit (politeness)")
 	limit := flag.Int("limit", 0, "process only the first N units (0 = all)")
 	dry := flag.Bool("dry-run", false, "don't write tags, just report")
-	resume := flag.Bool("resume", true, "skip units whose books already carry a prefix tag")
+	resume := flag.Bool("resume", true, "backfill: skip units whose books already carry a prefix tag")
 	flag.Parse()
 	if *lib == "" {
 		log.Fatal("library path required (set INCIPIT_LIBRARY or -library)")
@@ -53,52 +64,33 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Build the work list: one unit per series, plus each standalone book.
-	series, err := a.ListSeries(ctx)
-	if err != nil {
-		log.Fatalf("list series: %v", err)
-	}
-	standalone, err := a.ListStandaloneBooks(ctx)
-	if err != nil {
-		log.Fatalf("list standalone: %v", err)
-	}
-	units := make([]unit, 0, len(series)+len(standalone))
-	for _, s := range series {
-		units = append(units, unit{name: s.Name, books: s.Books})
-	}
-	for _, b := range standalone {
-		units = append(units, unit{name: b.Title, books: []int64{b.ID}})
-	}
-	total := len(units)
-
-	if *resume {
-		done, err := a.BooksWithTagPrefix(ctx, *prefix)
+	var units []unit
+	oldTag := "" // recrawl: the mis-assigned tag to replace
+	if *recrawl != "" {
+		oldTag = *prefix + *recrawl
+		books, err := a.BooksWithTagAndFormat(ctx, oldTag, *format)
 		if err != nil {
-			log.Fatalf("resume scan: %v", err)
+			log.Fatalf("recrawl scan: %v", err)
 		}
-		kept := units[:0]
-		for _, u := range units {
-			// A unit's tag write is atomic, so its first book being tagged means
-			// the whole unit is done.
-			if len(u.books) > 0 && done[u.books[0]] {
-				continue
-			}
-			kept = append(kept, u)
+		units = groupUnits(books)
+		log.Printf("recrawl: %q (%s) → %d books in %d units, searching genre=%q",
+			oldTag, *format, len(books), len(units), *genre)
+	} else {
+		units, err = backfillUnits(ctx, a, *prefix, *resume)
+		if err != nil {
+			log.Fatalf("build units: %v", err)
 		}
-		units = kept
 	}
 	if *limit > 0 && len(units) > *limit {
 		units = units[:*limit]
 	}
+	log.Printf("units to process: %d (concurrency=%d delay=%s dry=%v prefix=%q genre=%q)",
+		len(units), *conc, *delay, *dry, *prefix, *genre)
 
-	log.Printf("units: %d total, %d to process (concurrency=%d delay=%s dry=%v prefix=%q)",
-		total, len(units), *conc, *delay, *dry, *prefix)
-
-	var tagged, nomatch, nocat, errs, processed int64
+	var tagged, nomatch, nocat, errs, processed, unchanged int64
 	cats := map[string]int64{}
 	var catsMu sync.Mutex
 
-	// Progress ticker.
 	start := time.Now()
 	tick := time.NewTicker(5 * time.Second)
 	defer tick.Stop()
@@ -110,9 +102,10 @@ func main() {
 			if rate > 0 {
 				eta = time.Duration(float64(len(units)-int(p))/rate) * time.Second
 			}
-			log.Printf("progress %d/%d  tagged=%d nomatch=%d nocat=%d err=%d  %.1f/s  eta=%s",
-				p, len(units), atomic.LoadInt64(&tagged), atomic.LoadInt64(&nomatch),
-				atomic.LoadInt64(&nocat), atomic.LoadInt64(&errs), rate, eta.Round(time.Second))
+			log.Printf("progress %d/%d  tagged=%d unchanged=%d nomatch=%d nocat=%d err=%d  %.1f/s  eta=%s",
+				p, len(units), atomic.LoadInt64(&tagged), atomic.LoadInt64(&unchanged),
+				atomic.LoadInt64(&nomatch), atomic.LoadInt64(&nocat), atomic.LoadInt64(&errs),
+				rate, eta.Round(time.Second))
 		}
 	}()
 
@@ -128,7 +121,7 @@ func main() {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			meta, err := client.Fetch(ctx, u.name, "all", "", "")
+			meta, err := client.Fetch(ctx, u.name, *genre, "", "")
 			atomic.AddInt64(&processed, 1)
 			switch {
 			case ctx.Err() != nil:
@@ -140,20 +133,37 @@ func main() {
 			case meta.Category == "":
 				atomic.AddInt64(&nocat, 1)
 			default:
-				tag := *prefix + meta.Category
+				newTag := *prefix + meta.Category
+				if oldTag != "" && newTag == oldTag {
+					// Comic search still yielded the same category — leave as-is.
+					atomic.AddInt64(&unchanged, 1)
+					return
+				}
 				catsMu.Lock()
 				cats[meta.Category]++
 				catsMu.Unlock()
 				if *dry {
-					log.Printf("[dry] %-40.40s -> %s (%d vol)", u.name, tag, len(u.books))
-				} else if err := a.AddTagToBooks(ctx, tag, u.books); err != nil {
-					atomic.AddInt64(&errs, 1)
-					log.Printf("write %q: %v", u.name, err)
-					return
+					if oldTag != "" {
+						log.Printf("[dry] %-36.36s  %s → %s (%d vol)", u.name, oldTag, newTag, len(u.books))
+					} else {
+						log.Printf("[dry] %-40.40s -> %s (%d vol)", u.name, newTag, len(u.books))
+					}
+				} else {
+					if oldTag != "" {
+						if err := a.RemoveTagFromBooks(ctx, oldTag, u.books); err != nil {
+							atomic.AddInt64(&errs, 1)
+							log.Printf("remove %q from %q: %v", oldTag, u.name, err)
+							return
+						}
+					}
+					if err := a.AddTagToBooks(ctx, newTag, u.books); err != nil {
+						atomic.AddInt64(&errs, 1)
+						log.Printf("write %q: %v", u.name, err)
+						return
+					}
 				}
 				atomic.AddInt64(&tagged, 1)
 			}
-			// Politeness cool-down, holding the concurrency slot.
 			select {
 			case <-ctx.Done():
 			case <-time.After(*delay):
@@ -162,15 +172,71 @@ func main() {
 	}
 	wg.Wait()
 
-	log.Printf("done: processed=%d tagged=%d nomatch=%d nocat=%d err=%d in %s",
-		processed, tagged, nomatch, nocat, errs, time.Since(start).Round(time.Second))
-	// Category distribution.
+	log.Printf("done: processed=%d tagged=%d unchanged=%d nomatch=%d nocat=%d err=%d in %s",
+		processed, tagged, unchanged, nomatch, nocat, errs, time.Since(start).Round(time.Second))
 	catsMu.Lock()
 	for c, n := range cats {
 		fmt.Printf("  %-16s %d\n", c, n)
 	}
 	catsMu.Unlock()
 	if ctx.Err() != nil {
-		log.Print("interrupted — rerun with -resume to continue")
+		log.Print("interrupted — rerun to continue (backfill: -resume; recrawl reprocesses only remaining)")
 	}
+}
+
+// backfillUnits builds one unit per series plus each standalone book, optionally
+// skipping units already carrying a prefix tag (resume).
+func backfillUnits(ctx context.Context, a *calibre.Adapter, prefix string, resume bool) ([]unit, error) {
+	series, err := a.ListSeries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	standalone, err := a.ListStandaloneBooks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	units := make([]unit, 0, len(series)+len(standalone))
+	for _, s := range series {
+		units = append(units, unit{name: s.Name, books: s.Books})
+	}
+	for _, b := range standalone {
+		units = append(units, unit{name: b.Title, books: []int64{b.ID}})
+	}
+	total := len(units)
+	if resume {
+		done, err := a.BooksWithTagPrefix(ctx, prefix)
+		if err != nil {
+			return nil, err
+		}
+		kept := units[:0]
+		for _, u := range units {
+			if len(u.books) > 0 && done[u.books[0]] {
+				continue
+			}
+			kept = append(kept, u)
+		}
+		units = kept
+	}
+	log.Printf("backfill: %d units total, %d to process", total, len(units))
+	return units, nil
+}
+
+// groupUnits folds tagged books into units: one per series, standalone books
+// (series id 0) each on their own. The series name (or book title) is the query.
+func groupUnits(books []calibre.TaggedBook) []unit {
+	var units []unit
+	bySeries := map[int64]int{}
+	for _, b := range books {
+		if b.SeriesID == 0 {
+			units = append(units, unit{name: b.Title, books: []int64{b.ID}})
+			continue
+		}
+		if i, ok := bySeries[b.SeriesID]; ok {
+			units[i].books = append(units[i].books, b.ID)
+			continue
+		}
+		bySeries[b.SeriesID] = len(units)
+		units = append(units, unit{name: b.SeriesName, books: []int64{b.ID}})
+	}
+	return units
 }

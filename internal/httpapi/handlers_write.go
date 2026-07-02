@@ -336,8 +336,8 @@ func applyMeta(in *calibre.AddBookInput, m *metadata.Meta) {
 	if m.SeriesIndex > 0 {
 		in.SeriesIndex = m.SeriesIndex
 	}
-	if len(m.Tags) > 0 {
-		in.Tags = m.Tags
+	if tags := m.TagsWithCategory(); len(tags) > 0 {
+		in.Tags = tags
 	}
 	if m.Publisher != "" {
 		in.Publisher = m.Publisher

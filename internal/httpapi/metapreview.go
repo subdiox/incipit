@@ -135,7 +135,7 @@ func (s *Server) handleMetadataPreview(w http.ResponseWriter, r *http.Request) {
 		Authors:     m.Authors,
 		Series:      m.Series,
 		SeriesIndex: m.SeriesIndex,
-		Tags:        m.Tags,
+		Tags:        m.TagsWithCategory(),
 		Publisher:   m.Publisher,
 		Rating:      m.Rating,
 		Comments:    m.Comments,

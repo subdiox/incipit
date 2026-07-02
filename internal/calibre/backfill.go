@@ -2,8 +2,87 @@ package calibre
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 )
+
+// TaggedBook is a book carrying a queried tag, with its series (zero when none)
+// for grouping into backfill units.
+type TaggedBook struct {
+	ID         int64
+	SeriesID   int64
+	SeriesName string
+	Title      string
+}
+
+// BooksWithTagAndFormat returns books that carry tagName and have a file of the
+// given format (e.g. "CBZ"), with their series info. Used to re-crawl a
+// mis-assigned category (e.g. a CBZ manga tagged ジャンル:ライトノベル).
+func (a *Adapter) BooksWithTagAndFormat(ctx context.Context, tagName, format string) ([]TaggedBook, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT b.id, COALESCE(s.id, 0), COALESCE(s.name, ''), b.title
+		FROM books b
+		JOIN books_tags_link l ON l.book = b.id
+		JOIN tags t ON t.id = l.tag AND t.name = ?
+		JOIN data d ON d.book = b.id AND d.format = ?
+		LEFT JOIN books_series_link bsl ON bsl.book = b.id
+		LEFT JOIN series s ON s.id = bsl.series
+		GROUP BY b.id
+		ORDER BY COALESCE(s.id, 0), b.id`, tagName, format)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []TaggedBook
+	for rows.Next() {
+		var b TaggedBook
+		if err := rows.Scan(&b.ID, &b.SeriesID, &b.SeriesName, &b.Title); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// RemoveTagFromBooks unlinks tagName from every bookID in one transaction. The
+// tag row itself is left in place (harmless: it drops out of facets at 0 books).
+func (a *Adapter) RemoveTagFromBooks(ctx context.Context, tagName string, bookIDs []int64) error {
+	if a.readOnly {
+		return ErrReadOnly
+	}
+	if strings.TrimSpace(tagName) == "" || len(bookIDs) == 0 {
+		return nil
+	}
+	a.writeMu.Lock()
+	defer a.writeMu.Unlock()
+
+	tx, err := a.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var tagID int64
+	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name=?", tagName).Scan(&tagID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return tx.Commit() // nothing to remove
+	}
+	if err != nil {
+		return err
+	}
+	stmt, err := tx.PrepareContext(ctx, "DELETE FROM books_tags_link WHERE tag=? AND book=?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, id := range bookIDs {
+		if _, err := stmt.ExecContext(ctx, tagID, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
 
 // SeriesRef is a series and its book ids, used by bulk backfills.
 type SeriesRef struct {

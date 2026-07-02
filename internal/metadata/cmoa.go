@@ -123,6 +123,36 @@ var reGenreID = regexp.MustCompile(`genre/(\d+)`)
 // reRankSuffix strips a trailing "(9位)" / "（9位）" ranking off a category label.
 var reRankSuffix = regexp.MustCompile(`[\s\x{3000}]*[(（]\d+位[)）][\s\x{3000}]*$`)
 
+// CategoryTagPrefix namespaces the cmoa top-page category as a Calibre tag
+// (e.g. "ジャンル:少年マンガ"), keeping it distinct from the fine genre tags.
+const CategoryTagPrefix = "ジャンル:"
+
+// CategoryTag returns the namespaced category tag, or "" when the category is
+// unknown.
+func (m *Meta) CategoryTag() string {
+	if m.Category == "" {
+		return ""
+	}
+	return CategoryTagPrefix + m.Category
+}
+
+// TagsWithCategory returns the fine genre tags with the category tag prepended
+// when known (deduped) — the full tag set to persist for a fetched book.
+func (m *Meta) TagsWithCategory() []string {
+	ct := m.CategoryTag()
+	if ct == "" {
+		return m.Tags
+	}
+	out := make([]string, 0, len(m.Tags)+1)
+	out = append(out, ct)
+	for _, t := range m.Tags {
+		if t != ct {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 // Client fetches metadata from cmoa. Root is overridable for tests.
 type Client struct {
 	HTTP *http.Client
