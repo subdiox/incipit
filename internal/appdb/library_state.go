@@ -3,6 +3,7 @@ package appdb
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"time"
@@ -289,8 +290,20 @@ func (s *Store) GetPageCache(ctx context.Context, bookID int64, format string, m
 	if e.MTime != mtime || e.Size != size {
 		return nil, ErrNotFound // stale
 	}
-	if err := json.Unmarshal([]byte(pagesJSON), &e.Pages); err != nil {
+	// Names are base64-encoded so non-UTF-8 (e.g. Shift-JIS) ZIP entry names
+	// round-trip losslessly. Any entry that isn't base64 is a pre-fix (plain
+	// JSON) cache row: treat it as a miss so it re-scans in the new format.
+	var encoded []string
+	if err := json.Unmarshal([]byte(pagesJSON), &encoded); err != nil {
 		return nil, ErrNotFound
+	}
+	e.Pages = make([]string, len(encoded))
+	for i, s := range encoded {
+		b, derr := base64.StdEncoding.DecodeString(s)
+		if derr != nil {
+			return nil, ErrNotFound
+		}
+		e.Pages[i] = string(b)
 	}
 	e.ScannedAt, _ = time.Parse(timeLayout, scanned)
 	return &e, nil
@@ -298,7 +311,13 @@ func (s *Store) GetPageCache(ctx context.Context, bookID int64, format string, m
 
 // PutPageCache stores/updates a page list cache entry.
 func (s *Store) PutPageCache(ctx context.Context, e PageCacheEntry) error {
-	pagesJSON, err := json.Marshal(e.Pages)
+	// base64-encode each name so non-UTF-8 bytes survive (json.Marshal would
+	// otherwise replace them with U+FFFD, breaking page lookup).
+	encoded := make([]string, len(e.Pages))
+	for i, p := range e.Pages {
+		encoded[i] = base64.StdEncoding.EncodeToString([]byte(p))
+	}
+	pagesJSON, err := json.Marshal(encoded)
 	if err != nil {
 		return err
 	}
