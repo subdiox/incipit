@@ -29,7 +29,10 @@ type FoliateView = HTMLElement & {
 // writing-mode/direction so vertical (tategaki) and rtl layout are preserved —
 // foliate's paginator handles those correctly.
 const themeCSS = (fontPercent: number) => `
-  html { color-scheme: dark; }
+  /* Disable mobile text auto-inflation ("font boosting"), which resizes text
+     per-paragraph on phones and makes lines look different sizes — the book is
+     uniform on desktop where inflation is off. */
+  html { color-scheme: dark; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   html, body { background: #0b0b0f !important; color: #cbd5e1 !important; }
   body { font-size: ${fontPercent}% !important; }
   a, a:link, a:visited { color: #9384f2 !important; }
