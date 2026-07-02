@@ -73,33 +73,33 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
   const goLeft = useCallback(() => viewRef.current?.goLeft(), [])
   const goRight = useCallback(() => viewRef.current?.goRight(), [])
 
-  // Tap zones handle both a tap (turn by side) and a horizontal swipe (swipe
-  // left → forward, swipe right → back), so pages turn by swiping the sides too
-  // — foliate handles swipes over its own middle area. Uses the same goLeft/
-  // goRight so direction (LTR/RTL) stays correct.
+  // Paged mode gestures over the whole area (covering foliate's own touch
+  // handling, which would otherwise turn the page on a vertical swipe of a
+  // vertical-writing book). A horizontal swipe turns the page, a tap turns by
+  // the half tapped, and vertical swipes are ignored — no up/down scroll here.
   const swipeStart = useRef<{ x: number; y: number } | null>(null)
-  const zoneHandlers = useCallback(
-    (tap: () => void) => ({
-      onPointerDown: (e: React.PointerEvent) => {
-        swipeStart.current = { x: e.clientX, y: e.clientY }
-        e.currentTarget.setPointerCapture?.(e.pointerId)
-      },
-      onPointerUp: (e: React.PointerEvent) => {
-        const s = swipeStart.current
-        swipeStart.current = null
-        if (!s) return
-        const dx = e.clientX - s.x
-        const dy = e.clientY - s.y
-        if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy)) {
-          if (dx < 0) goRight()
-          else goLeft()
-        } else if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
-          tap()
-        }
-      },
-    }),
-    [goLeft, goRight],
-  )
+  const pageGestures = {
+    onPointerDown: (e: React.PointerEvent) => {
+      swipeStart.current = { x: e.clientX, y: e.clientY }
+      e.currentTarget.setPointerCapture?.(e.pointerId)
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      const s = swipeStart.current
+      swipeStart.current = null
+      if (!s) return
+      const dx = e.clientX - s.x
+      const dy = e.clientY - s.y
+      if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy)) {
+        if (dx < 0) goRight()
+        else goLeft()
+      } else if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        if (e.clientX - rect.left < rect.width / 2) goLeft()
+        else goRight()
+      }
+      // vertical swipe: intentionally ignored (paged mode has no scroll)
+    },
+  }
 
   const onKey = useCallback(
     (e: KeyboardEvent) => {
@@ -304,25 +304,13 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
 
         <div ref={hostRef} className="h-full w-full" />
 
-        {/* Paging controls only in "paged" mode; scrolled mode scrolls freely
-            (side zones would otherwise block vertical scrolling). Side tap zones
-            handle a tap (turn by side) and a horizontal swipe. */}
-        {flow === 'paginated' && (
+        {/* Paging controls only in "paged" mode; scrolled mode scrolls freely.
+            A full-area gesture layer sits over foliate so vertical swipes do
+            nothing (no up/down scroll) and only horizontal swipes / taps turn
+            pages. */}
+        {flow === 'paginated' && !loading && !error && (
           <>
-            <button
-              type="button"
-              tabIndex={-1}
-              {...zoneHandlers(goLeft)}
-              aria-label={t('reader.prevPage')}
-              className="absolute inset-y-0 left-0 z-0 w-[28%] touch-none cursor-w-resize outline-none focus:outline-none"
-            />
-            <button
-              type="button"
-              tabIndex={-1}
-              {...zoneHandlers(goRight)}
-              aria-label={t('reader.nextPage')}
-              className="absolute inset-y-0 right-0 z-0 w-[28%] touch-none cursor-e-resize outline-none focus:outline-none"
-            />
+            <div {...pageGestures} className="absolute inset-0 z-10 touch-none select-none" aria-hidden />
             <button
               type="button"
               tabIndex={-1}
