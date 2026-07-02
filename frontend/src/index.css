@@ -48,7 +48,13 @@
   html,
   body,
   #root {
-    height: 100%;
+    min-height: 100%;
+  }
+
+  /* Paint the background on <html> too so iOS safe areas (notch / home
+     indicator) are filled instead of showing through black. */
+  html {
+    @apply bg-ink-950;
   }
 
   body {

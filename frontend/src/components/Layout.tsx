@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -131,7 +131,31 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
-function TopBar({ onMenu }: { onMenu: () => void }) {
+// useHideOnScroll hides the header when scrolling down and reveals it on the
+// first scroll up (or near the top), driven by the native window scroll.
+function useHideOnScroll() {
+  const [hidden, setHidden] = useState(false)
+  const last = useRef(0)
+  useEffect(() => {
+    const onScroll = () => {
+      // Desktop (lg+) has a persistent sidebar, so keep the header pinned there.
+      if (window.matchMedia('(min-width: 1024px)').matches) {
+        setHidden(false)
+        return
+      }
+      const y = window.scrollY
+      if (y < 8) setHidden(false)
+      else if (y > last.current + 6) setHidden(true)
+      else if (y < last.current - 6) setHidden(false)
+      last.current = y
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+  return hidden
+}
+
+function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -156,7 +180,12 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-ink-800 bg-ink-950/80 px-4 backdrop-blur-md sm:px-6">
+    <header
+      className={`sticky top-0 z-30 flex items-center gap-3 border-b border-ink-800 bg-ink-950/80 px-4 py-3 backdrop-blur-md transition-transform duration-200 sm:px-6 ${
+        hidden ? '-translate-y-full' : 'translate-y-0'
+      }`}
+      style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+    >
       <button
         type="button"
         onClick={onMenu}
@@ -197,11 +226,12 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
 export function Layout() {
   const { t } = useI18n()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const headerHidden = useHideOnScroll()
 
   return (
-    <div className="flex h-full">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r border-ink-800 bg-ink-900 lg:block">
+    <div className="min-h-full">
+      {/* Desktop sidebar: fixed so the page scrolls natively behind it. */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-ink-800 bg-ink-900 lg:block">
         <Sidebar />
       </aside>
 
@@ -227,10 +257,13 @@ export function Layout() {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar onMenu={() => setMobileOpen(true)} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="min-w-0 lg:pl-64">
+        <TopBar onMenu={() => setMobileOpen(true)} hidden={headerHidden} />
+        <main className="overflow-x-clip">
+          <div
+            className="mx-auto w-full max-w-[1600px] px-4 pt-6 sm:px-6 lg:px-8"
+            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+          >
             <Outlet />
           </div>
         </main>
