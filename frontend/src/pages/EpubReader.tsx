@@ -67,6 +67,34 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
   const goLeft = useCallback(() => viewRef.current?.goLeft(), [])
   const goRight = useCallback(() => viewRef.current?.goRight(), [])
 
+  // Tap zones handle both a tap (turn by side) and a horizontal swipe (swipe
+  // left → forward, swipe right → back), so pages turn by swiping the sides too
+  // — foliate handles swipes over its own middle area. Uses the same goLeft/
+  // goRight so direction (LTR/RTL) stays correct.
+  const swipeStart = useRef<{ x: number; y: number } | null>(null)
+  const zoneHandlers = useCallback(
+    (tap: () => void) => ({
+      onPointerDown: (e: React.PointerEvent) => {
+        swipeStart.current = { x: e.clientX, y: e.clientY }
+        e.currentTarget.setPointerCapture?.(e.pointerId)
+      },
+      onPointerUp: (e: React.PointerEvent) => {
+        const s = swipeStart.current
+        swipeStart.current = null
+        if (!s) return
+        const dx = e.clientX - s.x
+        const dy = e.clientY - s.y
+        if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy)) {
+          if (dx < 0) goRight()
+          else goLeft()
+        } else if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+          tap()
+        }
+      },
+    }),
+    [goLeft, goRight],
+  )
+
   const onKey = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') goLeft()
@@ -215,16 +243,16 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
         <button
           type="button"
           tabIndex={-1}
-          onClick={goLeft}
+          {...zoneHandlers(goLeft)}
           aria-label={t('reader.prevPage')}
-          className="absolute inset-y-0 left-0 z-0 w-[28%] cursor-w-resize outline-none focus:outline-none"
+          className="absolute inset-y-0 left-0 z-0 w-[28%] touch-none cursor-w-resize outline-none focus:outline-none"
         />
         <button
           type="button"
           tabIndex={-1}
-          onClick={goRight}
+          {...zoneHandlers(goRight)}
           aria-label={t('reader.nextPage')}
-          className="absolute inset-y-0 right-0 z-0 w-[28%] cursor-e-resize outline-none focus:outline-none"
+          className="absolute inset-y-0 right-0 z-0 w-[28%] touch-none cursor-e-resize outline-none focus:outline-none"
         />
         <button
           type="button"

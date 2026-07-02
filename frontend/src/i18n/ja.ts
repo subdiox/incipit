@@ -36,7 +36,7 @@ export const ja: Record<TranslationKey, string> = {
   // Reading history
   'history.title': '履歴',
   'history.continue': '続きを読む',
-  'history.all': '読んだ履歴',
+  'history.all': '読み終わった本',
   'history.reset': '読んだ位置をリセット',
   'history.empty': 'まだ履歴はありません。',
   'history.pageOf': '{{total}}ページ中 {{page}}ページ目',
