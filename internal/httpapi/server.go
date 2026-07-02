@@ -138,9 +138,9 @@ func (s *Server) Router() http.Handler {
 			r.Get("/languages", s.handleLanguages)
 			r.Get("/stats", s.handleStats)
 
-			// Admin-defined library panes (saved tag filters); the list is
+			// Admin-defined library collections (saved tag filters); the list is
 			// visible to everyone, mutations are admin-only (below).
-			r.Get("/panes", s.handleListPanes)
+			r.Get("/collections", s.handleListCollections)
 
 			r.Get("/shelves", s.handleListShelves)
 			r.Post("/shelves", s.handleCreateShelf)
@@ -158,10 +158,10 @@ func (s *Server) Router() http.Handler {
 
 				r.Put("/site", s.handleUpdateSite)
 
-				r.Post("/panes", s.handleCreatePane)
-				r.Put("/panes/reorder", s.handleReorderPanes)
-				r.Put("/panes/{id}", s.handleUpdatePane)
-				r.Delete("/panes/{id}", s.handleDeletePane)
+				r.Post("/collections", s.handleCreateCollection)
+				r.Put("/collections/reorder", s.handleReorderCollections)
+				r.Put("/collections/{id}", s.handleUpdateCollection)
+				r.Delete("/collections/{id}", s.handleDeleteCollection)
 
 				r.Get("/pageindex", s.handlePageIndexStatus)
 				r.Post("/pageindex", s.handleReindexPages)

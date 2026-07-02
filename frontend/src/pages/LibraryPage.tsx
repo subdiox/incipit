@@ -7,7 +7,7 @@ import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
 import type { TranslationKey } from '@/i18n/en'
 import { useDebounced } from '@/lib/hooks'
-import type { Facet, Pane, SortKey, SortOrder } from '@/types'
+import type { Collection, Facet, SortKey, SortOrder } from '@/types'
 import { BookCard, BookCardSkeleton, BookGrid } from '@/components/BookCard'
 import { ContinueReadingShelf } from '@/components/ReadingShelf'
 import { UploadModal } from '@/components/UploadModal'
@@ -159,7 +159,7 @@ function FacetFilter({
   )
 }
 
-export function LibraryPage({ pane }: { pane?: Pane } = {}) {
+export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   const { user, setUser } = useAuth()
   const { t } = useI18n()
   const [params, setParams] = useSearchParams()
@@ -206,13 +206,13 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   const minPagesQ = pageFilterOn && params.get('minPages') ? Number(params.get('minPages')) : undefined
   const maxPagesQ = pageFilterOn && params.get('maxPages') ? Number(params.get('maxPages')) : undefined
 
-  // On a pane page the pane's tags are a locked base filter. A "match all" pane
-  // ANDs them with any interactive tags; a "match any" pane ORs its own tags as
+  // On a collection page the collection's tags are a locked base filter. A "match all" collection
+  // ANDs them with any interactive tags; a "match any" collection ORs its own tags as
   // one group, still AND-combined with interactive tags added on top.
-  const baseTagIds = pane?.tagIds ?? []
-  const matchAny = !!pane?.matchAny
+  const baseTagIds = collection?.tagIds ?? []
+  const matchAny = !!collection?.matchAny
   const effectiveTagIds = Array.from(new Set([...baseTagIds, ...tagIds])) // for display/locked state
-  // Query params: interactive tags (AND) vs the pane's OR group (any-mode only).
+  // Query params: interactive tags (AND) vs the collection's OR group (any-mode only).
   const andTagIds = matchAny ? tagIds : effectiveTagIds
   const anyTagIds = matchAny ? baseTagIds : []
   const andTagKey = andTagIds.join(',')
@@ -240,7 +240,7 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   }, [debMinPages, debMaxPages])
 
   // author/series are single-select (replace); tags are multi-select and
-  // AND-combined, so toggling adds/removes one tag from the set. A pane's base
+  // AND-combined, so toggling adds/removes one tag from the set. A collection's base
   // tags are locked and cannot be toggled off here.
   const toggleFacet = (kind: FacetKind, id: number) => {
     if (kind === 'tag' && baseTagIds.includes(id)) return
@@ -286,6 +286,15 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   const authors = useQuery({ queryKey: ['facets', 'authors'], queryFn: api.authors, staleTime: 300_000 })
   const series = useQuery({ queryKey: ['facets', 'series'], queryFn: api.series, staleTime: 300_000 })
   const tags = useQuery({ queryKey: ['facets', 'tags'], queryFn: api.tags, staleTime: 300_000 })
+
+  // On a collection page the collection's own tags define the view, so drop them
+  // from the tag filter list (they'd be redundant / can't be toggled off).
+  const baseTagKey = baseTagIds.join(',')
+  const tagFacets = useMemo(
+    () => (baseTagIds.length ? (tags.data ?? []).filter((f) => !baseTagIds.includes(f.id)) : tags.data),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tags.data, baseTagKey],
+  )
 
   const total = data?.total ?? 0
   const hasPageFilter = minPagesQ != null || maxPagesQ != null
@@ -358,7 +367,7 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
       <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3">
         <FacetFilter title={t('library.authors')} kind="author" facets={authors.data} activeIds={authorId != null ? [authorId] : []} onToggle={toggleFacet} searchFirst={isMobile} />
         <FacetFilter title={t('library.series')} kind="series" facets={series.data} activeIds={seriesId != null ? [seriesId] : []} onToggle={toggleFacet} searchFirst={isMobile} />
-        <FacetFilter title={t('library.tags')} kind="tag" facets={tags.data} activeIds={effectiveTagIds} onToggle={toggleFacet} searchFirst={isMobile} />
+        <FacetFilter title={t('library.tags')} kind="tag" facets={tagFacets} activeIds={tagIds} onToggle={toggleFacet} searchFirst={isMobile} />
       </div>
       {pageFilterOn && (
         <div className="border-t border-ink-700 pt-4">
@@ -472,7 +481,7 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-white">
-              {pane ? pane.name : t('library.title')}
+              {collection ? collection.name : t('library.title')}
             </h1>
             <p className="mt-0.5 text-sm text-slate-500">
               {isLoading
@@ -481,16 +490,16 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
                     count: total.toLocaleString(),
                   })}
             </p>
-            {/* Pane base tags: a locked filter the page is scoped to. In "match
+            {/* Collection base tags: a locked filter the page is scoped to. In "match
                 any" mode they OR together, so chips are joined by an "or" hint. */}
-            {pane && pane.tagIds.length > 0 && (
+            {collection && collection.tagIds.length > 0 && (
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <IconFilter width={13} height={13} className="shrink-0 text-slate-500" />
-                {pane.tagIds.map((id, i) => (
+                {collection.tagIds.map((id, i) => (
                   <span key={id} className="flex items-center gap-1.5">
                     {i > 0 && matchAny && (
                       <span className="text-[10px] uppercase tracking-wide text-accentSoft/70">
-                        {t('panes.or')}
+                        {t('collections.or')}
                       </span>
                     )}
                     <span className="chip py-0.5 text-xs text-slate-300">
@@ -511,7 +520,7 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
         </div>
 
         {/* Continue reading: only on the library home, fresh & unfiltered. */}
-        {!pane && !hasFilters && offset === 0 && <ContinueReadingShelf />}
+        {!collection && !hasFilters && offset === 0 && <ContinueReadingShelf />}
 
         {/* Controls: active filter chips + sort (Filters button is in the header). */}
         <div className="mb-5 flex flex-wrap items-center gap-2">

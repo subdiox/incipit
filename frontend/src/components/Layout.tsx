@@ -38,7 +38,7 @@ function NavItem({
       onClick={onClick}
       className={({ isActive }) =>
         `flex items-center gap-3 rounded-xl py-2.5 pr-3 text-sm font-medium transition-colors ${
-          // Panes are children of Library, so indent them a little to the right.
+          // Collections are children of Library, so indent them a little to the right.
           indent ? 'pl-7' : 'pl-3'
         } ${
           isActive
@@ -58,7 +58,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useI18n()
   const siteTitle = useSiteTitle()
   const navigate = useNavigate()
-  const panes = useQuery({ queryKey: ['panes'], queryFn: api.panes }).data ?? []
+  const collections = useQuery({ queryKey: ['collections'], queryFn: api.collections }).data ?? []
 
   const handleLogout = async () => {
     await logout()
@@ -80,13 +80,14 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <nav className="flex-1 space-y-1 px-2">
         <NavItem to="/" icon={<IconLibrary width={18} height={18} />} label={t('nav.library')} onClick={onNavigate} />
-        {/* Admin-defined panes (saved filters) sit just under the library. */}
-        {panes.map((p) => (
+        {/* Admin-defined collections (saved filters) sit just under the library.
+            The URL uses the 1-based display position so it tracks reordering. */}
+        {collections.map((c, i) => (
           <NavItem
-            key={p.id}
-            to={`/panes/${p.id}`}
+            key={c.id}
+            to={`/collections/${i + 1}`}
             icon={<IconFilter width={16} height={16} />}
-            label={p.name}
+            label={c.name}
             onClick={onNavigate}
             indent
           />
@@ -168,10 +169,10 @@ function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
   }, [params.get('search')])
 
   // The search box filters whatever the current page shows: the library and
-  // panes (library search), shelves (across all shelves) and history (by book
+  // collections (library search), shelves (across all shelves) and history (by book
   // title). Other pages (settings, account, book detail) have nothing to search.
   const path = location.pathname
-  const searchable = path === '/' || path.startsWith('/panes/') || path === '/shelves' || path === '/history'
+  const searchable = path === '/' || path.startsWith('/collections/') || path === '/shelves' || path === '/history'
   const placeholder =
     path === '/shelves'
       ? t('nav.searchShelves')

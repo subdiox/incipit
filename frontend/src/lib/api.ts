@@ -13,7 +13,7 @@ import type {
   PageIndexStatus,
   MetaPreview,
   PagesResponse,
-  Pane,
+  Collection,
   Progress,
   ReadingItem,
   SetupStatus,
@@ -90,7 +90,7 @@ export interface BookQuery {
   author?: number
   series?: number
   tags?: number[] // AND-combined
-  anyTags?: number[] // OR-combined as one group ("match any" pane)
+  anyTags?: number[] // OR-combined as one group ("match any" collection)
   publisher?: number
   language?: string
   minPages?: number
@@ -206,17 +206,17 @@ export const api = {
   removeFromShelf: (shelfId: number, bookId: number) =>
     request<void>(`/shelves/${shelfId}/books/${bookId}`, { method: 'DELETE' }),
 
-  // Panes (admin-defined saved tag filters under Library)
-  panes: () => request<Pane[]>('/panes'),
-  createPane: (name: string, tagIds: number[], matchAny: boolean) =>
-    request<Pane>('/admin/panes', { method: 'POST', ...jsonBody({ name, tagIds, matchAny }) }),
-  updatePane: (
+  // Collections (admin-defined saved tag filters under Library)
+  collections: () => request<Collection[]>('/collections'),
+  createCollection: (name: string, tagIds: number[], matchAny: boolean) =>
+    request<Collection>('/admin/collections', { method: 'POST', ...jsonBody({ name, tagIds, matchAny }) }),
+  updateCollection: (
     id: number,
     body: { name: string; tagIds: number[]; matchAny: boolean; position: number },
-  ) => request<void>(`/admin/panes/${id}`, { method: 'PUT', ...jsonBody(body) }),
-  reorderPanes: (ids: number[]) =>
-    request<void>('/admin/panes/reorder', { method: 'PUT', ...jsonBody({ ids }) }),
-  deletePane: (id: number) => request<void>(`/admin/panes/${id}`, { method: 'DELETE' }),
+  ) => request<void>(`/admin/collections/${id}`, { method: 'PUT', ...jsonBody(body) }),
+  reorderCollections: (ids: number[]) =>
+    request<void>('/admin/collections/reorder', { method: 'PUT', ...jsonBody({ ids }) }),
+  deleteCollection: (id: number) => request<void>(`/admin/collections/${id}`, { method: 'DELETE' }),
 
   // Admin
   adminUsers: () => request<User[]>('/admin/users'),

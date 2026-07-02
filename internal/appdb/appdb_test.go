@@ -129,58 +129,58 @@ func TestShelvesAndProgress(t *testing.T) {
 	}
 }
 
-func TestPanes(t *testing.T) {
+func TestCollections(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	a, err := s.CreatePane(ctx, "Action", []int64{1, 2}, true)
+	a, err := s.CreateCollection(ctx, "Action", []int64{1, 2}, true)
 	if err != nil {
-		t.Fatalf("CreatePane: %v", err)
+		t.Fatalf("CreateCollection: %v", err)
 	}
-	b, _ := s.CreatePane(ctx, "Comedy", []int64{3}, false)
+	b, _ := s.CreateCollection(ctx, "Comedy", []int64{3}, false)
 	if b.Position <= a.Position {
 		t.Errorf("positions not increasing: %d, %d", a.Position, b.Position)
 	}
 
-	panes, _ := s.ListPanes(ctx)
-	if len(panes) != 2 || panes[0].Name != "Action" || len(panes[0].TagIDs) != 2 || panes[0].TagIDs[0] != 1 {
-		t.Fatalf("ListPanes = %+v", panes)
+	collections, _ := s.ListCollections(ctx)
+	if len(collections) != 2 || collections[0].Name != "Action" || len(collections[0].TagIDs) != 2 || collections[0].TagIDs[0] != 1 {
+		t.Fatalf("ListCollections = %+v", collections)
 	}
-	if !panes[0].MatchAny || panes[1].MatchAny {
-		t.Errorf("MatchAny not persisted: %+v", panes)
+	if !collections[0].MatchAny || collections[1].MatchAny {
+		t.Errorf("MatchAny not persisted: %+v", collections)
 	}
 
-	if err := s.UpdatePane(ctx, a.ID, "Action!", []int64{1, 2, 5}, false, 0); err != nil {
-		t.Fatalf("UpdatePane: %v", err)
+	if err := s.UpdateCollection(ctx, a.ID, "Action!", []int64{1, 2, 5}, false, 0); err != nil {
+		t.Fatalf("UpdateCollection: %v", err)
 	}
-	got, _ := s.GetPane(ctx, a.ID)
+	got, _ := s.GetCollection(ctx, a.ID)
 	if got.Name != "Action!" || len(got.TagIDs) != 3 || got.MatchAny {
-		t.Errorf("GetPane = %+v", got)
+		t.Errorf("GetCollection = %+v", got)
 	}
 
 	// Reorder: put b (Comedy) ahead of a.
-	if err := s.ReorderPanes(ctx, []int64{b.ID, a.ID}); err != nil {
-		t.Fatalf("ReorderPanes: %v", err)
+	if err := s.ReorderCollections(ctx, []int64{b.ID, a.ID}); err != nil {
+		t.Fatalf("ReorderCollections: %v", err)
 	}
-	if panes, _ := s.ListPanes(ctx); len(panes) != 2 || panes[0].ID != b.ID || panes[1].ID != a.ID {
-		t.Errorf("after reorder = %+v", panes)
+	if collections, _ := s.ListCollections(ctx); len(collections) != 2 || collections[0].ID != b.ID || collections[1].ID != a.ID {
+		t.Errorf("after reorder = %+v", collections)
 	}
 
-	// A tagless pane must expose TagIDs as a non-nil slice (JSON [] not null).
-	empty, _ := s.CreatePane(ctx, "All", nil, false)
-	if got, _ := s.GetPane(ctx, empty.ID); got.TagIDs == nil {
-		t.Error("tagless pane TagIDs = nil; want non-nil (marshals as [])")
+	// A tagless collection must expose TagIDs as a non-nil slice (JSON [] not null).
+	empty, _ := s.CreateCollection(ctx, "All", nil, false)
+	if got, _ := s.GetCollection(ctx, empty.ID); got.TagIDs == nil {
+		t.Error("tagless collection TagIDs = nil; want non-nil (marshals as [])")
 	}
-	_ = s.DeletePane(ctx, empty.ID)
+	_ = s.DeleteCollection(ctx, empty.ID)
 
-	if err := s.DeletePane(ctx, a.ID); err != nil {
-		t.Fatalf("DeletePane: %v", err)
+	if err := s.DeleteCollection(ctx, a.ID); err != nil {
+		t.Fatalf("DeleteCollection: %v", err)
 	}
-	if panes, _ := s.ListPanes(ctx); len(panes) != 1 || panes[0].ID != b.ID {
-		t.Errorf("after delete = %+v", panes)
+	if collections, _ := s.ListCollections(ctx); len(collections) != 1 || collections[0].ID != b.ID {
+		t.Errorf("after delete = %+v", collections)
 	}
-	if _, err := s.GetPane(ctx, a.ID); !errors.Is(err, ErrNotFound) {
-		t.Errorf("GetPane(deleted) err = %v", err)
+	if _, err := s.GetCollection(ctx, a.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("GetCollection(deleted) err = %v", err)
 	}
 }
 

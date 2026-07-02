@@ -7,7 +7,7 @@ import { IconClose, IconSearch } from './icons'
 const LIMIT = 50
 
 // TagPicker is a searchable multi-select over the library's tags, returning the
-// selected Calibre tag IDs. Used to define a pane's filter.
+// selected Calibre tag IDs. Used to define a collection's filter.
 export function TagPicker({ value, onChange }: { value: number[]; onChange: (ids: number[]) => void }) {
   const { t } = useI18n()
   const tags = useQuery({ queryKey: ['facets', 'tags'], queryFn: api.tags, staleTime: 300_000 }).data ?? []

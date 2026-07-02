@@ -12,7 +12,7 @@ import { SettingsContainer } from '@/components/SettingsSaver'
 import { ServerSettings } from '@/components/ServerSettings'
 import { LibrarySettings } from '@/components/LibrarySettings'
 import { LdapSettings } from '@/components/LdapSettings'
-import { PanesSettings } from '@/components/PanesSettings'
+import { CollectionsSettings } from '@/components/CollectionsSettings'
 import { IconCheck, IconEdit, IconPlus, IconTrash } from '@/components/icons'
 
 type Perm = 'isAdmin' | 'canDownload' | 'canUpload' | 'canEdit'
@@ -227,7 +227,7 @@ function EditUserModal({ user, open, onClose }: { user: User; open: boolean; onC
   )
 }
 
-type TabKey = 'general' | 'library' | 'auth' | 'panes' | 'users'
+type TabKey = 'general' | 'library' | 'auth' | 'collections' | 'users'
 
 export function AdminPage() {
   const queryClient = useQueryClient()
@@ -242,7 +242,7 @@ export function AdminPage() {
     { key: 'general', label: t('settings.tabGeneral') },
     { key: 'library', label: t('settings.tabLibrary') },
     { key: 'auth', label: t('settings.tabAuth') },
-    { key: 'panes', label: t('settings.tabPanes') },
+    { key: 'collections', label: t('settings.tabCollections') },
     { key: 'users', label: t('settings.tabUsers') },
   ]
 
@@ -419,7 +419,7 @@ export function AdminPage() {
         </div>
       </SettingsContainer>
 
-      {tab === 'panes' && <PanesSettings />}
+      {tab === 'collections' && <CollectionsSettings />}
       {tab === 'users' && usersTable}
 
       <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} />

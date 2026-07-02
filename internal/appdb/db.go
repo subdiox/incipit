@@ -100,6 +100,9 @@ var migrations = []string{
 	// A pane can OR its tags ("match any") instead of the default AND
 	// ("match all"). 0 = all (AND), 1 = any (OR).
 	`ALTER TABLE panes ADD COLUMN match_any INTEGER NOT NULL DEFAULT 0;`,
+	// The "pane" concept was renamed to "collection" (user-facing and in code);
+	// the table keeps its columns and just changes name.
+	`ALTER TABLE panes RENAME TO collections;`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

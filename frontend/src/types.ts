@@ -112,7 +112,7 @@ export interface ReadingItem {
   updatedAt: string
 }
 
-export interface Pane {
+export interface Collection {
   id: number
   name: string
   tagIds: number[]

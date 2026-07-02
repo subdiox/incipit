@@ -163,7 +163,7 @@ func (a *Adapter) buildFilters(opts ListOptions) (string, []any) {
 		}
 	}
 	// AnyTagIDs form a single OR group (a book needs at least one), which then
-	// ANDs with the other clauses. Used by "match any" panes.
+	// ANDs with the other clauses. Used by "match any" collections.
 	var anyEx []string
 	for _, tid := range opts.AnyTagIDs {
 		if tid > 0 {
