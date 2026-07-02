@@ -545,11 +545,11 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
             </button>
           )}
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
             <select
               value={pageSize}
               onChange={(e) => changePageSize(Number(e.target.value))}
-              className="input w-auto cursor-pointer py-2 pr-8"
+              className="input min-w-0 flex-1 cursor-pointer py-2 pr-8 sm:w-auto sm:flex-none"
               title={t('library.perPage')}
               aria-label={t('library.perPage')}
             >
@@ -563,7 +563,7 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
             <select
               value={sort}
               onChange={(e) => update((p) => p.set('sort', e.target.value))}
-              className="input w-auto cursor-pointer py-2 pr-8"
+              className="input min-w-0 flex-1 cursor-pointer py-2 pr-8 sm:w-auto sm:flex-none"
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -575,7 +575,7 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
             <button
               type="button"
               onClick={() => update((p) => p.set('order', order === 'desc' ? 'asc' : 'desc'))}
-              className="btn-secondary"
+              className="btn-secondary shrink-0"
               title={order === 'desc' ? t('library.descending') : t('library.ascending')}
             >
               {order === 'desc' ? '↓' : '↑'}
