@@ -3,11 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { mediaUrl } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import { Spinner } from '@/components/Spinner'
-import { IconChevronLeft, IconChevronRight, IconClose, IconSettings } from '@/components/icons'
+import { IconChevronLeft, IconChevronRight, IconClose } from '@/components/icons'
 
 const FONT_KEY = 'incipit.epub.fontSize'
-const FLOW_KEY = 'incipit.epub.flow'
-type Flow = 'paginated' | 'scrolled'
 
 // foliate-view element (from the vendored foliate-js). Typed loosely — it's a
 // custom element with an imperative API.
@@ -51,13 +49,9 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
     const v = Number(localStorage.getItem(FONT_KEY))
     return v >= 80 && v <= 220 ? v : 100
   })
-  const [flow, setFlowState] = useState<Flow>(() =>
-    localStorage.getItem(FLOW_KEY) === 'scrolled' ? 'scrolled' : 'paginated',
-  )
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  // The paged/scroll setting (and its full-area gesture layer) is phone-only;
-  // on larger screens we keep the original behavior: paginated with the middle
-  // free for text selection and left/right zones for turning pages.
+  // The full-area gesture layer is phone-only; larger screens keep the original
+  // behavior — paginated with left/right zones and the middle free for text
+  // selection.
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches,
   )
@@ -67,7 +61,6 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
     mq.addEventListener('change', on)
     return () => mq.removeEventListener('change', on)
   }, [])
-  const effectiveFlow: Flow = isMobile ? flow : 'paginated'
 
   const locKey = `incipit.epub.loc.${bookId}`
 
@@ -149,7 +142,7 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
         await view.open(file)
         if (cancelled) return
 
-        view.renderer.setAttribute('flow', effectiveFlow)
+        view.renderer.setAttribute('flow', 'paginated')
         view.renderer.setStyles?.(themeCSS(fontSize))
 
         view.addEventListener('relocate', (e: CustomEvent) => {
@@ -209,25 +202,6 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
     })
   }
 
-  // Phone-only paged/scroll toggle; the effect below applies it to the view.
-  const setFlow = (next: Flow) => {
-    setFlowState(next)
-    localStorage.setItem(FLOW_KEY, next)
-  }
-
-  // Apply the effective flow to the open renderer and restore position. Runs on
-  // toggle and when crossing the mobile breakpoint; the initial open sets it
-  // first (this no-ops until the view exists).
-  useEffect(() => {
-    const view = viewRef.current
-    if (!view) return
-    view.renderer.setAttribute('flow', effectiveFlow)
-    view.renderer.setStyles?.(themeCSS(fontSize))
-    const cfi = localStorage.getItem(locKey)
-    if (cfi) view.goTo(cfi).catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveFlow])
-
   return (
     <div className="dark fixed inset-0 flex flex-col overflow-hidden overscroll-none bg-ink-950">
       <div className="flex items-center gap-3 border-b border-ink-800 bg-ink-900 px-3 py-2">
@@ -258,58 +232,8 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
           >
             A+
           </button>
-          {isMobile && (
-            <button
-              type="button"
-              onClick={() => setSettingsOpen((o) => !o)}
-              aria-label={t('reader.settings')}
-              title={t('reader.settings')}
-              className={`rounded-lg p-2 transition-colors hover:bg-ink-700 hover:text-white ${
-                settingsOpen ? 'bg-ink-700 text-white' : 'text-slate-300'
-              }`}
-            >
-              <IconSettings width={18} height={18} />
-            </button>
-          )}
         </div>
       </div>
-
-      {/* Settings (phone only): paged vs scrolled reading. */}
-      {settingsOpen && isMobile && (
-        <>
-          <button
-            type="button"
-            className="absolute inset-0 z-30 cursor-default"
-            aria-label={t('reader.closeSettings')}
-            onClick={() => setSettingsOpen(false)}
-          />
-          <div className="absolute right-2 top-14 z-40 w-56 rounded-xl border border-ink-700 bg-ink-850 p-3 shadow-soft">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t('reader.flow')}
-            </p>
-            <div className="inline-flex w-full rounded-lg border border-ink-700 bg-ink-800 p-0.5">
-              <button
-                type="button"
-                onClick={() => setFlow('paginated')}
-                className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
-                  flow === 'paginated' ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                {t('reader.flowPaged')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setFlow('scrolled')}
-                className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
-                  flow === 'scrolled' ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                {t('reader.flowScroll')}
-              </button>
-            </div>
-          </div>
-        </>
-      )}
 
       <div className="relative flex-1">
         {loading && (
@@ -328,11 +252,10 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
 
         <div ref={hostRef} className="h-full w-full" />
 
-        {/* Paging controls (only in paged mode; scrolled mode scrolls freely).
-            Phone: a full-area gesture layer turns pages by horizontal swipe/tap
-            and ignores vertical motion. Desktop/tablet: side zones turn pages
-            and the middle stays free for text selection (original behavior). */}
-        {effectiveFlow === 'paginated' && !loading && !error && (
+        {/* Paging controls. Phone: a full-area gesture layer turns pages by
+            horizontal swipe/tap and ignores vertical motion. Desktop/tablet:
+            side zones turn pages, the middle stays free for text selection. */}
+        {!loading && !error && (
           <>
             {isMobile ? (
               <div {...pageGestures} className="absolute inset-0 z-10 touch-none select-none" aria-hidden />
