@@ -33,7 +33,9 @@ function ShelfBook({ book, progress }: { book: Book; progress?: number }) {
           <div className="h-full rounded-full bg-accent-500" style={{ width: `${progress}%` }} />
         </div>
       )}
-      <h3 className="mt-1.5 line-clamp-1 text-xs font-medium text-slate-200">{book.title}</h3>
+      <h3 title={book.title} className="mt-1.5 break-words text-xs font-medium text-slate-200">
+        {book.title}
+      </h3>
       <p className="line-clamp-1 text-[11px] text-slate-500">
         {authorNames(book.authors) || t('common.unknownAuthor')}
       </p>

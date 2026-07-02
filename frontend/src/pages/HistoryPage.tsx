@@ -38,7 +38,10 @@ function HistoryCard({
             <div className="h-full rounded-full bg-accent-500" style={{ width: `${pct}%` }} />
           </div>
         )}
-        <h3 className="mt-1.5 line-clamp-1 text-sm font-medium text-slate-100 group-hover:text-white">
+        <h3
+          title={book.title}
+          className="mt-1.5 break-words text-sm font-medium text-slate-100 group-hover:text-white"
+        >
           {book.title}
         </h3>
         <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
