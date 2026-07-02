@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, mediaUrl } from '@/lib/api'
+import { sortTagNames } from '@/lib/format'
 import { useI18n } from '@/i18n'
 import type { Book, BookUpdate, MetaPreview } from '@/types'
 import { Modal } from './Modal'
@@ -21,6 +22,8 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
 
   const [query, setQuery] = useState(book.title)
   const [genre, setGenre] = useState('comic')
+  const [metaAdd, setMetaAdd] = useState('')
+  const [metaExclude, setMetaExclude] = useState('')
   const [preview, setPreview] = useState<MetaPreview | null>(null)
   const [adopt, setAdopt] = useState<Record<FieldKey, boolean>>({} as Record<FieldKey, boolean>)
   const [tagAdopt, setTagAdopt] = useState(true)
@@ -36,7 +39,13 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
   }).data ?? []
 
   const fetchM = useMutation({
-    mutationFn: () => api.metadataPreview({ query: query.trim(), genre }),
+    mutationFn: () =>
+      api.metadataPreview({
+        query: query.trim(),
+        genre,
+        metaAdd: metaAdd.trim() || undefined,
+        metaExclude: metaExclude.trim() || undefined,
+      }),
     onSuccess: (res) => {
       setPreview(res)
       if (res.matched) {
@@ -114,7 +123,10 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
   )
 
   const p = preview
-  const curTags = book.tags.map((x) => x.name)
+  // Sort both columns by the post-save order (Calibre's ORDER BY name) so the
+  // current/cmoa tag lists line up for easy left/right comparison.
+  const curTags = sortTagNames(book.tags.map((x) => x.name))
+  const srcTags = p?.tags ? sortTagNames(p.tags) : []
 
   return (
     <Modal open={open} onClose={onClose} title={t('enrich.title')} maxWidth="max-w-2xl">
@@ -158,6 +170,42 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
             {fetchM.isPending ? <Spinner className="h-4 w-4" /> : <IconSearch width={16} height={16} />}
             {t('enrich.fetch')}
           </button>
+        </div>
+
+        {/* Refine the cmoa search with extra/excluded words (e.g. exclude
+            "単話版"), same as the uploader. */}
+        <div className="flex flex-wrap gap-2">
+          <div className="min-w-0 flex-1">
+            <label className="label">{t('upload.metaAdd')}</label>
+            <input
+              className="input"
+              value={metaAdd}
+              onChange={(e) => setMetaAdd(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && query.trim()) {
+                  e.preventDefault()
+                  setError(null)
+                  fetchM.mutate()
+                }
+              }}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <label className="label">{t('upload.metaExclude')}</label>
+            <input
+              className="input"
+              placeholder={t('upload.metaExcludePlaceholder')}
+              value={metaExclude}
+              onChange={(e) => setMetaExclude(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && query.trim()) {
+                  e.preventDefault()
+                  setError(null)
+                  fetchM.mutate()
+                }
+              }}
+            />
+          </div>
         </div>
 
         {p && !p.matched && (
@@ -260,8 +308,8 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
                 <div>
                   <p className="mb-1 text-emerald-300/80">{t('enrich.source')}</p>
                   <div className="flex flex-wrap gap-1">
-                    {p.tags?.length ? (
-                      p.tags.map((tg) => (
+                    {srcTags.length ? (
+                      srcTags.map((tg) => (
                         <span
                           key={tg}
                           className={`chip py-0.5 ${curTags.includes(tg) ? '' : 'border-emerald-500/40 text-emerald-200'}`}

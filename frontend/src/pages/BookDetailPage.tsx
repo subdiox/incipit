@@ -5,7 +5,7 @@ import { api, ApiError, mediaUrl } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
 import type { Book, BookUpdate } from '@/types'
-import { formatBytes, formatDate, dateInputValue, languageLabel } from '@/lib/format'
+import { formatBytes, formatDate, dateInputValue, languageLabel, GENRE_TAG_PREFIX } from '@/lib/format'
 import { Cover } from '@/components/Cover'
 import { Rating } from '@/components/Rating'
 import { EnrichModal } from '@/components/EnrichModal'
@@ -377,7 +377,7 @@ export function BookDetailPage() {
 
         {/* Details */}
         <div className="min-w-0">
-          <h1 className="text-3xl font-semibold tracking-tight text-white">{book.title}</h1>
+          <h1 className="break-words text-3xl font-semibold tracking-tight text-white">{book.title}</h1>
           <p className="mt-1.5 text-lg text-slate-400">
             {book.authors.length > 0
               ? book.authors.map((a, i) => (
@@ -407,12 +407,24 @@ export function BookDetailPage() {
           )}
 
           {book.tags.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {book.tags.map((t) => (
-                <Link key={t.id} to={`/?tag=${t.id}`} className="chip">
-                  {t.name}
-                </Link>
-              ))}
+            // Two rows: category/genre tags (the "ジャンル:" ones) on top, the
+            // rest below.
+            <div className="mt-4 space-y-1.5">
+              {[
+                book.tags.filter((t) => t.name.startsWith(GENRE_TAG_PREFIX)),
+                book.tags.filter((t) => !t.name.startsWith(GENRE_TAG_PREFIX)),
+              ].map(
+                (group, i) =>
+                  group.length > 0 && (
+                    <div key={i} className="flex flex-wrap gap-1.5">
+                      {group.map((t) => (
+                        <Link key={t.id} to={`/?tag=${t.id}`} className="chip">
+                          {t.name}
+                        </Link>
+                      ))}
+                    </div>
+                  ),
+              )}
             </div>
           )}
 
