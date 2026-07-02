@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useI18n } from '@/i18n'
@@ -73,10 +73,14 @@ function Section({
 }) {
   const { t } = useI18n()
   const qc = useQueryClient()
+  const [params] = useSearchParams()
+  const search = (params.get('search') ?? '').trim().toLowerCase()
   const { data, isLoading } = useQuery({
     queryKey: ['reading', status === 'finished' ? 'history' : 'continue'],
     queryFn: () => api.myReading(status, 200),
   })
+  // Filter the shown books by title (header search on the History page).
+  const items = search ? (data ?? []).filter((it) => it.book.title.toLowerCase().includes(search)) : data
 
   const reset = useMutation({
     mutationFn: (bookId: number) => api.resetProgress(bookId),
@@ -85,7 +89,7 @@ function Section({
     },
   })
 
-  if (!isLoading && (!data || data.length === 0)) {
+  if (!isLoading && (!items || items.length === 0)) {
     if (status === 'continue') return null // hide empty "continue" section
   }
 
@@ -98,11 +102,13 @@ function Section({
             <BookCardSkeleton key={i} />
           ))}
         </BookGrid>
-      ) : !data || data.length === 0 ? (
-        <p className="text-sm text-slate-500">{t('history.empty')}</p>
+      ) : !items || items.length === 0 ? (
+        <p className="text-sm text-slate-500">
+          {search ? t('library.emptyNoMatch') : t('history.empty')}
+        </p>
       ) : (
         <BookGrid>
-          {data.map((it) => (
+          {items.map((it) => (
             <HistoryCard
               key={it.book.id}
               item={it}

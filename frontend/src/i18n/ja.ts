@@ -30,6 +30,8 @@ export const ja: Record<TranslationKey, string> = {
   'nav.openMenu': 'メニューを開く',
   'nav.closeMenu': 'メニューを閉じる',
   'nav.searchPlaceholder': 'ライブラリを検索…',
+  'nav.searchShelves': '本棚を検索…',
+  'nav.searchHistory': '履歴を検索…',
   'nav.language': '言語',
   'nav.account': 'アカウント',
 

@@ -28,6 +28,8 @@ export const en = {
   'nav.openMenu': 'Open menu',
   'nav.closeMenu': 'Close menu',
   'nav.searchPlaceholder': 'Search your library…',
+  'nav.searchShelves': 'Search shelves…',
+  'nav.searchHistory': 'Search history…',
   'nav.language': 'Language',
   'nav.account': 'Account',
 

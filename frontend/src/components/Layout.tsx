@@ -157,7 +157,6 @@ function useHideOnScroll() {
 
 function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
   const [params, setParams] = useSearchParams()
-  const navigate = useNavigate()
   const location = useLocation()
   const { t } = useI18n()
   const [value, setValue] = useState(params.get('search') ?? '')
@@ -168,22 +167,32 @@ function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.get('search')])
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault()
+  // The search box filters whatever the current page shows: the library and
+  // panes (library search), shelves (across all shelves) and history (by book
+  // title). Other pages (settings, account, book detail) have nothing to search.
+  const path = location.pathname
+  const searchable = path === '/' || path.startsWith('/panes/') || path === '/shelves' || path === '/history'
+  const placeholder =
+    path === '/shelves'
+      ? t('nav.searchShelves')
+      : path === '/history'
+        ? t('nav.searchHistory')
+        : t('nav.searchPlaceholder')
+
+  const setSearch = (v: string) => {
+    setValue(v)
     const next = new URLSearchParams(params)
-    if (value.trim()) next.set('search', value.trim())
+    if (v.trim()) next.set('search', v.trim())
     else next.delete('search')
     next.delete('offset')
-    // Stay on the current pane page when searching there; otherwise the library.
-    const pathname = location.pathname.startsWith('/panes/') ? location.pathname : '/'
-    navigate({ pathname, search: `?${next.toString()}` })
+    setParams(next, { replace: true })
   }
 
   return (
     <header
       className={`sticky top-0 z-30 flex items-center gap-3 border-b border-ink-800 bg-ink-950/80 px-4 py-3 backdrop-blur-md transition-transform duration-200 sm:px-6 ${
         hidden ? '-translate-y-full' : 'translate-y-0'
-      }`}
+      } ${searchable ? '' : 'lg:hidden'}`}
       style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
     >
       <button
@@ -194,29 +203,22 @@ function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
       >
         <IconMenu />
       </button>
-      <form onSubmit={submit} className="relative max-w-xl flex-1">
-        <IconSearch
-          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
-          width={18}
-          height={18}
-        />
-        <input
-          type="search"
-          value={value}
-          onChange={(e) => {
-            const v = e.target.value
-            setValue(v)
-            // Live update only while on the library page via query param.
-            const next = new URLSearchParams(params)
-            if (v.trim()) next.set('search', v.trim())
-            else next.delete('search')
-            next.delete('offset')
-            setParams(next, { replace: true })
-          }}
-          placeholder={t('nav.searchPlaceholder')}
-          className="input pl-10"
-        />
-      </form>
+      {searchable && (
+        <form onSubmit={(e) => e.preventDefault()} className="relative max-w-xl flex-1">
+          <IconSearch
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
+            width={18}
+            height={18}
+          />
+          <input
+            type="search"
+            value={value}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={placeholder}
+            className="input pl-10"
+          />
+        </form>
+      )}
       {/* The library mounts its Filters control here, to the right of search. */}
       <div id="library-filter-slot" className="shrink-0" />
     </header>

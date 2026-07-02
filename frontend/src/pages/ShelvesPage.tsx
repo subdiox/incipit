@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import type { Shelf } from '@/types'
@@ -134,12 +135,46 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
   )
 }
 
+// ShelfSearchResults searches across every shelf's books by title (the header
+// search on the Shelves page), loading each shelf's books and flattening them.
+function ShelfSearchResults({ shelves, search }: { shelves: Shelf[]; search: string }) {
+  const { t } = useI18n()
+  const results = useQueries({
+    queries: shelves.map((s) => ({
+      queryKey: ['shelf-books', s.id],
+      queryFn: () => api.shelfBooks(s.id),
+    })),
+  })
+  if (results.some((r) => r.isLoading)) return <FullPageSpinner />
+
+  const needle = search.toLowerCase()
+  const seen = new Set<number>()
+  const books = results
+    .flatMap((r) => r.data?.books ?? [])
+    .filter((b) => {
+      if (seen.has(b.id) || !b.title.toLowerCase().includes(needle)) return false
+      seen.add(b.id)
+      return true
+    })
+
+  if (books.length === 0) return <p className="text-sm text-slate-500">{t('library.emptyNoMatch')}</p>
+  return (
+    <BookGrid>
+      {books.map((b) => (
+        <BookCard key={b.id} book={b} />
+      ))}
+    </BookGrid>
+  )
+}
+
 export function ShelvesPage() {
   const queryClient = useQueryClient()
   const { t } = useI18n()
   const [createOpen, setCreateOpen] = useState(false)
   const [selected, setSelected] = useState<Shelf | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Shelf | null>(null)
+  const [params] = useSearchParams()
+  const search = (params.get('search') ?? '').trim()
 
   const { data: shelves, isLoading } = useQuery({ queryKey: ['shelves'], queryFn: api.shelves })
 
@@ -151,7 +186,9 @@ export function ShelvesPage() {
     },
   })
 
-  if (selected) {
+  // A search takes over the whole page (across all shelves); otherwise a
+  // selected shelf shows its own detail view.
+  if (selected && !search) {
     // Keep the selected reference fresh from the list when it updates.
     const fresh = shelves?.find((s) => s.id === selected.id) ?? selected
     return <ShelfDetail shelf={fresh} onBack={() => setSelected(null)} />
@@ -172,6 +209,8 @@ export function ShelvesPage() {
 
       {isLoading ? (
         <FullPageSpinner />
+      ) : search ? (
+        <ShelfSearchResults shelves={shelves ?? []} search={search} />
       ) : shelves && shelves.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {shelves.map((shelf) => (
