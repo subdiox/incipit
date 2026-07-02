@@ -387,7 +387,7 @@ export function AdminPage() {
 
       {/* Category tabs. overflow-y-hidden stops the underline from adding a 1px
           vertical scroll (overflow-x-auto would otherwise promote overflow-y). */}
-      <div className="mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-ink-800">
+      <div className="no-scrollbar mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-ink-800">
         {tabs.map((tb) => (
           <button
             key={tb.key}
