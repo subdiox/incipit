@@ -49,6 +49,20 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
 
   const locKey = `incipit.epub.loc.${bookId}`
 
+  // Lock document scroll while the reader is open so the viewport can't drift or
+  // rubber-band up/down on mobile (mirrors the CBZ reader).
+  useEffect(() => {
+    const html = document.documentElement
+    const prevOverflow = document.body.style.overflow
+    const prevOverscroll = html.style.overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    html.style.overscrollBehavior = 'none'
+    return () => {
+      document.body.style.overflow = prevOverflow
+      html.style.overscrollBehavior = prevOverscroll
+    }
+  }, [])
+
   // Physical sides; foliate maps them to prev/next per the book's direction.
   const goLeft = useCallback(() => viewRef.current?.goLeft(), [])
   const goRight = useCallback(() => viewRef.current?.goRight(), [])
@@ -146,7 +160,7 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
   }
 
   return (
-    <div className="dark flex h-screen w-screen flex-col bg-ink-950">
+    <div className="dark fixed inset-0 flex flex-col overflow-hidden overscroll-none bg-ink-950">
       <div className="flex items-center gap-3 border-b border-ink-800 bg-ink-900 px-3 py-2">
         <button
           type="button"
