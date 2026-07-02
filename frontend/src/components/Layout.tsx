@@ -190,7 +190,7 @@ function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
 
   return (
     <header
-      className={`sticky top-0 z-30 flex items-center gap-3 border-b border-ink-800 bg-ink-950/80 px-4 py-3 backdrop-blur-md transition-transform duration-200 sm:px-6 ${
+      className={`fixed inset-x-0 top-0 z-30 flex items-center gap-3 border-b border-ink-800 bg-ink-950/80 px-4 py-3 backdrop-blur-md transition-transform duration-200 sm:px-6 lg:left-64 ${
         hidden ? '-translate-y-full' : 'translate-y-0'
       } ${searchable ? '' : 'lg:hidden'}`}
       style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
@@ -229,6 +229,25 @@ export function Layout() {
   const { t } = useI18n()
   const [mobileOpen, setMobileOpen] = useState(false)
   const headerHidden = useHideOnScroll()
+  const location = useLocation()
+
+  // The header floats (fixed) so content scrolls edge-to-edge into the top safe
+  // area instead of leaving a background band under the notch when it hides.
+  // Measure its height to pad the content beneath it (varies with the search
+  // box and the safe-area inset).
+  const [headerH, setHeaderH] = useState(0)
+  useEffect(() => {
+    const el = document.querySelector('header')
+    if (!el) {
+      setHeaderH(0)
+      return
+    }
+    const measure = () => setHeaderH(el.offsetHeight)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [location.pathname])
 
   return (
     <div className="min-h-full">
@@ -263,8 +282,11 @@ export function Layout() {
         <TopBar onMenu={() => setMobileOpen(true)} hidden={headerHidden} />
         <main className="overflow-x-clip">
           <div
-            className="mx-auto w-full max-w-[1600px] px-4 pt-6 sm:px-6 lg:px-8"
-            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+            className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8"
+            style={{
+              paddingTop: `calc(${headerH}px + 1.5rem)`,
+              paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
+            }}
           >
             <Outlet />
           </div>
