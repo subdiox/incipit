@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -132,26 +132,30 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 // useHideOnScroll hides the header when scrolling down and reveals it on the
-// first scroll up (or near the top), driven by the native window scroll.
-function useHideOnScroll() {
+// first scroll up (or near the top). It watches the app-shell scroll container
+// (a fixed, full-viewport element) rather than the window so content can paint
+// edge-to-edge into the top safe area (notch) behind the floating header.
+function useHideOnScroll(scrollRef: RefObject<HTMLElement>) {
   const [hidden, setHidden] = useState(false)
   const last = useRef(0)
   useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
     const onScroll = () => {
       // Desktop (lg+) has a persistent sidebar, so keep the header pinned there.
       if (window.matchMedia('(min-width: 1024px)').matches) {
         setHidden(false)
         return
       }
-      const y = window.scrollY
+      const y = el.scrollTop
       if (y < 8) setHidden(false)
       else if (y > last.current + 6) setHidden(true)
       else if (y < last.current - 6) setHidden(false)
       last.current = y
     }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [scrollRef])
   return hidden
 }
 
@@ -228,8 +232,15 @@ function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
 export function Layout() {
   const { t } = useI18n()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const headerHidden = useHideOnScroll()
+  const scrollRef = useRef<HTMLElement>(null)
+  const headerHidden = useHideOnScroll(scrollRef)
   const location = useLocation()
+
+  // Reset the app-shell scroll to the top on navigation (the container persists
+  // across routes, so it would otherwise keep the previous page's scroll).
+  useEffect(() => {
+    scrollRef.current?.scrollTo(0, 0)
+  }, [location.pathname])
 
   // The header floats (fixed) so content scrolls edge-to-edge into the top safe
   // area instead of leaving a background band under the notch when it hides.
@@ -278,20 +289,24 @@ export function Layout() {
         </div>
       )}
 
-      <div className="min-w-0 lg:pl-64">
-        <TopBar onMenu={() => setMobileOpen(true)} hidden={headerHidden} />
-        <main className="overflow-x-clip">
-          <div
-            className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8"
-            style={{
-              paddingTop: `calc(${headerH}px + 1.5rem)`,
-              paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
-            }}
-          >
-            <Outlet />
-          </div>
-        </main>
-      </div>
+      <TopBar onMenu={() => setMobileOpen(true)} hidden={headerHidden} />
+      {/* App-shell scroller: a fixed, full-viewport container (reaching into the
+          top safe area) so content scrolls edge-to-edge behind the floating
+          header and up under the notch. */}
+      <main
+        ref={scrollRef}
+        className="fixed inset-0 overflow-x-clip overflow-y-auto lg:left-64"
+      >
+        <div
+          className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8"
+          style={{
+            paddingTop: `calc(${headerH}px + 1.5rem)`,
+            paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
+          }}
+        >
+          <Outlet />
+        </div>
+      </main>
     </div>
   )
 }
