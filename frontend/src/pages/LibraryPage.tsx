@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api, type BookQuery } from '@/lib/api'
@@ -156,6 +157,12 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   const [params, setParams] = useSearchParams()
   const [uploadOpen, setUploadOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  // The Filters control is rendered into the header (right of search) via a
+  // portal, so it lives here (with all its state) but shows up next to search.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setHeaderSlot(document.getElementById('library-filter-slot'))
+  }, [])
 
   const search = params.get('search') ?? ''
   const debouncedSearch = useDebounced(search, 350)
@@ -362,8 +369,47 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
     </div>
   )
 
+  // Filters button + dropdown, portaled into the header slot (right of search).
+  const filtersNode = (
+    <div className="relative" ref={filtersRef}>
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((v) => !v)}
+        className={`btn-secondary ${filtersOpen || activeFacetCount > 0 ? 'border-accent-500/60 text-accentSoft' : ''}`}
+        aria-expanded={filtersOpen}
+      >
+        <IconFilter width={16} height={16} />
+        <span className="hidden sm:inline">{t('library.filters')}</span>
+        {activeFacetCount > 0 && (
+          <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-600 px-1 text-[10px] font-semibold text-onaccent">
+            {activeFacetCount}
+          </span>
+        )}
+      </button>
+
+      {filtersOpen && (
+        <div className="absolute right-0 z-40 mt-2 w-[min(92vw,44rem)] origin-top-right animate-fade-in rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-soft">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-white">{t('library.filters')}</h2>
+            {activeFacetCount > 0 && (
+              <button
+                type="button"
+                onClick={clearFacets}
+                className="text-xs font-medium text-accentSoft hover:text-white"
+              >
+                {t('library.clearFilters')}
+              </button>
+            )}
+          </div>
+          {facetPanel}
+        </div>
+      )}
+    </div>
+  )
+
   return (
       <div className="min-w-0 flex-1">
+        {headerSlot && createPortal(filtersNode, headerSlot)}
         {/* Header */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -409,43 +455,8 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
         {/* Continue reading: only on the library home, fresh & unfiltered. */}
         {!pane && !hasFilters && offset === 0 && <ContinueReadingShelf />}
 
-        {/* Controls: filters + sort, sitting just under the search bar */}
+        {/* Controls: active filter chips + sort (Filters button is in the header). */}
         <div className="mb-5 flex flex-wrap items-center gap-2">
-          <div className="relative" ref={filtersRef}>
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((v) => !v)}
-              className={`btn-secondary ${filtersOpen || activeFacetCount > 0 ? 'border-accent-500/60 text-accentSoft' : ''}`}
-              aria-expanded={filtersOpen}
-            >
-              <IconFilter width={16} height={16} />
-              {t('library.filters')}
-              {activeFacetCount > 0 && (
-                <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-600 px-1 text-[10px] font-semibold text-onaccent">
-                  {activeFacetCount}
-                </span>
-              )}
-            </button>
-
-            {filtersOpen && (
-              <div className="absolute left-0 z-30 mt-2 w-[min(92vw,44rem)] origin-top-left animate-fade-in rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-soft">
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-white">{t('library.filters')}</h2>
-                  {activeFacetCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={clearFacets}
-                      className="text-xs font-medium text-accentSoft hover:text-white"
-                    >
-                      {t('library.clearFilters')}
-                    </button>
-                  )}
-                </div>
-                {facetPanel}
-              </div>
-            )}
-          </div>
-
           {/* Active filter chips, visible while the dropdown is closed */}
           {activeChips.map((c) => (
             <button

@@ -165,7 +165,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
       >
         <IconMenu />
       </button>
-      <form onSubmit={submit} className="relative w-full max-w-xl">
+      <form onSubmit={submit} className="relative max-w-xl flex-1">
         <IconSearch
           className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
           width={18}
@@ -188,6 +188,8 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
           className="input pl-10"
         />
       </form>
+      {/* The library mounts its Filters control here, to the right of search. */}
+      <div id="library-filter-slot" className="shrink-0" />
     </header>
   )
 }
