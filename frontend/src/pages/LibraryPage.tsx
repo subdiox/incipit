@@ -316,8 +316,11 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
   const filtersRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!filtersOpen) return
+    // The mobile sheet is a full-screen portal outside filtersRef and closes via
+    // its own button, so only wire outside-click for the desktop dropdown.
     const onPointer = (e: MouseEvent) => {
-      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) setFiltersOpen(false)
+      if (!isMobile && filtersRef.current && !filtersRef.current.contains(e.target as Node))
+        setFiltersOpen(false)
     }
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFiltersOpen(false)
     document.addEventListener('mousedown', onPointer)
@@ -326,7 +329,7 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
       document.removeEventListener('mousedown', onPointer)
       document.removeEventListener('keydown', onKey)
     }
-  }, [filtersOpen])
+  }, [filtersOpen, isMobile])
 
   const clearFacets = () => {
     setMinPages('')
@@ -406,19 +409,9 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
         )}
       </button>
 
-      {filtersOpen && (
-        <>
-          {/* Mobile backdrop: dims the page and blocks background scroll/taps
-              (tap to close). Hidden on sm+ where the dropdown is anchored. */}
-          <div
-            className="fixed inset-0 z-30 touch-none bg-black/50 sm:hidden"
-            onClick={() => setFiltersOpen(false)}
-            aria-hidden
-          />
-          <div
-            className="fixed inset-x-3 top-[4.25rem] z-40 max-h-[78vh] overflow-y-auto overscroll-contain rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-soft animate-fade-in
-              sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:max-h-none sm:w-[min(92vw,44rem)] sm:overflow-visible"
-          >
+      {/* Desktop: dropdown anchored under the button. */}
+      {filtersOpen && !isMobile && (
+        <div className="absolute right-0 z-40 mt-2 w-[min(92vw,44rem)] origin-top-right animate-fade-in rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-soft">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white">{t('library.filters')}</h2>
             {activeFacetCount > 0 && (
@@ -432,15 +425,49 @@ export function LibraryPage({ pane }: { pane?: Pane } = {}) {
             )}
           </div>
           {facetPanel}
-          </div>
-        </>
+        </div>
       )}
     </div>
   )
 
+  // Mobile: a full-screen sheet, portaled to <body> so the header's
+  // backdrop-filter doesn't trap its fixed positioning. Closed via its own X.
+  const mobileSheet =
+    filtersOpen && isMobile
+      ? createPortal(
+          <div className="fixed inset-0 z-50 flex flex-col bg-ink-850 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-ink-700 p-4">
+              <h2 className="text-base font-semibold text-white">{t('library.filters')}</h2>
+              <div className="flex items-center gap-4">
+                {activeFacetCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearFacets}
+                    className="text-sm font-medium text-accentSoft hover:text-white"
+                  >
+                    {t('library.clearFilters')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen(false)}
+                  className="text-slate-400 hover:text-white"
+                  aria-label={t('common.close')}
+                >
+                  <IconClose width={24} height={24} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4">{facetPanel}</div>
+          </div>,
+          document.body,
+        )
+      : null
+
   return (
       <div className="min-w-0 flex-1">
         {headerSlot && createPortal(filtersNode, headerSlot)}
+        {mobileSheet}
         {/* Header */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
