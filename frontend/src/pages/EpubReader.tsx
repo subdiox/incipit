@@ -55,6 +55,19 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
     localStorage.getItem(FLOW_KEY) === 'scrolled' ? 'scrolled' : 'paginated',
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // The paged/scroll setting (and its full-area gesture layer) is phone-only;
+  // on larger screens we keep the original behavior: paginated with the middle
+  // free for text selection and left/right zones for turning pages.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    const on = () => setIsMobile(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  const effectiveFlow: Flow = isMobile ? flow : 'paginated'
 
   const locKey = `incipit.epub.loc.${bookId}`
 
@@ -136,7 +149,7 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
         await view.open(file)
         if (cancelled) return
 
-        view.renderer.setAttribute('flow', flow)
+        view.renderer.setAttribute('flow', effectiveFlow)
         view.renderer.setStyles?.(themeCSS(fontSize))
 
         view.addEventListener('relocate', (e: CustomEvent) => {
@@ -196,18 +209,24 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
     })
   }
 
-  // Switch between horizontal paging and continuous vertical scroll. Applied
-  // live to the open renderer, then the current position is restored.
+  // Phone-only paged/scroll toggle; the effect below applies it to the view.
   const setFlow = (next: Flow) => {
     setFlowState(next)
     localStorage.setItem(FLOW_KEY, next)
+  }
+
+  // Apply the effective flow to the open renderer and restore position. Runs on
+  // toggle and when crossing the mobile breakpoint; the initial open sets it
+  // first (this no-ops until the view exists).
+  useEffect(() => {
     const view = viewRef.current
     if (!view) return
-    view.renderer.setAttribute('flow', next)
+    view.renderer.setAttribute('flow', effectiveFlow)
     view.renderer.setStyles?.(themeCSS(fontSize))
     const cfi = localStorage.getItem(locKey)
     if (cfi) view.goTo(cfi).catch(() => {})
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveFlow])
 
   return (
     <div className="dark fixed inset-0 flex flex-col overflow-hidden overscroll-none bg-ink-950">
@@ -239,22 +258,24 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
           >
             A+
           </button>
-          <button
-            type="button"
-            onClick={() => setSettingsOpen((o) => !o)}
-            aria-label={t('reader.settings')}
-            title={t('reader.settings')}
-            className={`rounded-lg p-2 transition-colors hover:bg-ink-700 hover:text-white ${
-              settingsOpen ? 'bg-ink-700 text-white' : 'text-slate-300'
-            }`}
-          >
-            <IconSettings width={18} height={18} />
-          </button>
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setSettingsOpen((o) => !o)}
+              aria-label={t('reader.settings')}
+              title={t('reader.settings')}
+              className={`rounded-lg p-2 transition-colors hover:bg-ink-700 hover:text-white ${
+                settingsOpen ? 'bg-ink-700 text-white' : 'text-slate-300'
+              }`}
+            >
+              <IconSettings width={18} height={18} />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Settings: reading direction (horizontal paging vs vertical scroll). */}
-      {settingsOpen && (
+      {/* Settings (phone only): paged vs scrolled reading. */}
+      {settingsOpen && isMobile && (
         <>
           <button
             type="button"
@@ -307,13 +328,32 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
 
         <div ref={hostRef} className="h-full w-full" />
 
-        {/* Paging controls only in "paged" mode; scrolled mode scrolls freely.
-            A full-area gesture layer sits over foliate so vertical swipes do
-            nothing (no up/down scroll) and only horizontal swipes / taps turn
-            pages. */}
-        {flow === 'paginated' && !loading && !error && (
+        {/* Paging controls (only in paged mode; scrolled mode scrolls freely).
+            Phone: a full-area gesture layer turns pages by horizontal swipe/tap
+            and ignores vertical motion. Desktop/tablet: side zones turn pages
+            and the middle stays free for text selection (original behavior). */}
+        {effectiveFlow === 'paginated' && !loading && !error && (
           <>
-            <div {...pageGestures} className="absolute inset-0 z-10 touch-none select-none" aria-hidden />
+            {isMobile ? (
+              <div {...pageGestures} className="absolute inset-0 z-10 touch-none select-none" aria-hidden />
+            ) : (
+              <>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={goLeft}
+                  aria-label={t('reader.prevPage')}
+                  className="absolute inset-y-0 left-0 z-10 w-[28%] cursor-w-resize outline-none focus:outline-none"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={goRight}
+                  aria-label={t('reader.nextPage')}
+                  className="absolute inset-y-0 right-0 z-10 w-[28%] cursor-e-resize outline-none focus:outline-none"
+                />
+              </>
+            )}
             <button
               type="button"
               tabIndex={-1}

@@ -171,7 +171,7 @@ export const en = {
   'reader.unableToLoad': 'Unable to load pages for this book.',
   'reader.backToDetails': 'Back to details',
   'reader.settings': 'Reader settings',
-  'reader.flow': 'Reading direction',
+  'reader.flow': 'Mode',
   'reader.flowPaged': 'Paged',
   'reader.flowScroll': 'Scroll',
   'reader.binding': 'Binding',
