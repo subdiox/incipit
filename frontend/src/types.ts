@@ -116,6 +116,7 @@ export interface Collection {
   id: number
   name: string
   tagIds: number[]
+  excludeTagIds: number[]
   matchAny: boolean
   position: number
   createdAt: string
@@ -140,6 +141,11 @@ export type SortOrder = 'asc' | 'desc'
 export interface SiteConfig {
   title: string
   pageFilter: boolean
+  // Base tag filter always applied to the home ("/") library view (display scope,
+  // set by an admin in server settings): books scoped to homeTags (AND) and with
+  // homeExcludeTags hidden (NOT).
+  homeTags: number[]
+  homeExcludeTags: number[]
 }
 
 export interface PageIndexStatus {

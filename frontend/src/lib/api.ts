@@ -91,6 +91,7 @@ export interface BookQuery {
   series?: number
   tags?: number[] // AND-combined
   anyTags?: number[] // OR-combined as one group ("match any" collection)
+  excludeTags?: number[] // NOT — books with any of these are hidden
   publisher?: number
   language?: string
   minPages?: number
@@ -108,6 +109,7 @@ function bookQueryString(q: BookQuery): string {
   if (q.series != null) params.set('series', String(q.series))
   if (q.tags) q.tags.forEach((t) => params.append('tag', String(t)))
   if (q.anyTags) q.anyTags.forEach((t) => params.append('anyTag', String(t)))
+  if (q.excludeTags) q.excludeTags.forEach((t) => params.append('notTag', String(t)))
   if (q.publisher != null) params.set('publisher', String(q.publisher))
   if (q.language) params.set('language', q.language)
   if (q.minPages != null) params.set('minPages', String(q.minPages))
@@ -139,7 +141,12 @@ export const api = {
   site: () => request<SiteConfig>('/site'),
   browseFs: (path?: string) =>
     request<FsListing>(`/fs${path ? `?path=${encodeURIComponent(path)}` : ''}`),
-  updateSite: (body: { title: string; pageFilter?: boolean }) =>
+  updateSite: (body: {
+    title: string
+    pageFilter?: boolean
+    homeTags?: number[]
+    homeExcludeTags?: number[]
+  }) =>
     request<SiteConfig>('/admin/site', { method: 'PUT', ...jsonBody(body) }),
   pageIndexStatus: () => request<PageIndexStatus>('/admin/pageindex'),
   reindexPages: () => request<PageIndexStatus>('/admin/pageindex', { method: 'POST' }),
@@ -208,11 +215,14 @@ export const api = {
 
   // Collections (admin-defined saved tag filters under Library)
   collections: () => request<Collection[]>('/collections'),
-  createCollection: (name: string, tagIds: number[], matchAny: boolean) =>
-    request<Collection>('/admin/collections', { method: 'POST', ...jsonBody({ name, tagIds, matchAny }) }),
+  createCollection: (name: string, tagIds: number[], excludeTagIds: number[], matchAny: boolean) =>
+    request<Collection>('/admin/collections', {
+      method: 'POST',
+      ...jsonBody({ name, tagIds, excludeTagIds, matchAny }),
+    }),
   updateCollection: (
     id: number,
-    body: { name: string; tagIds: number[]; matchAny: boolean; position: number },
+    body: { name: string; tagIds: number[]; excludeTagIds: number[]; matchAny: boolean; position: number },
   ) => request<void>(`/admin/collections/${id}`, { method: 'PUT', ...jsonBody(body) }),
   reorderCollections: (ids: number[]) =>
     request<void>('/admin/collections/reorder', { method: 'PUT', ...jsonBody({ ids }) }),

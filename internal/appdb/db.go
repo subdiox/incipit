@@ -103,6 +103,9 @@ var migrations = []string{
 	// The "pane" concept was renamed to "collection" (user-facing and in code);
 	// the table keeps its columns and just changes name.
 	`ALTER TABLE panes RENAME TO collections;`,
+	// A collection can also EXCLUDE tags (books carrying any of these are hidden);
+	// exclude_tag_ids is a CSV of Calibre tag IDs, like tag_ids.
+	`ALTER TABLE collections ADD COLUMN exclude_tag_ids TEXT NOT NULL DEFAULT '';`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

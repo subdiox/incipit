@@ -50,17 +50,18 @@ func (a *Adapter) BookFolder(b *Book) string {
 
 // ListOptions controls a book listing query.
 type ListOptions struct {
-	Limit       int
-	Offset      int
-	Sort        string // title|timestamp|pubdate|author|series|rating; default title
-	Desc        bool
-	Search      string
-	AuthorID    int64
-	SeriesID    int64
-	TagIDs      []int64 // multiple tags are AND-combined (a book must have all)
-	AnyTagIDs   []int64 // OR-combined as one group (a book must have at least one)
-	PublisherID int64
-	Language    string
+	Limit         int
+	Offset        int
+	Sort          string // title|timestamp|pubdate|author|series|rating; default title
+	Desc          bool
+	Search        string
+	AuthorID      int64
+	SeriesID      int64
+	TagIDs        []int64 // multiple tags are AND-combined (a book must have all)
+	AnyTagIDs     []int64 // OR-combined as one group (a book must have at least one)
+	ExcludeTagIDs []int64 // a book carrying ANY of these is excluded (NOT EXISTS)
+	PublisherID   int64
+	Language      string
 }
 
 // ListResult is a page of books plus the total matching count.
@@ -173,6 +174,14 @@ func (a *Adapter) buildFilters(opts ListOptions) (string, []any) {
 	}
 	if len(anyEx) > 0 {
 		clauses = append(clauses, "("+strings.Join(anyEx, " OR ")+")")
+	}
+	// Exclude tags: each adds a NOT EXISTS clause, so a book carrying any of them
+	// is filtered out. Used by collection / home-library exclude filters.
+	for _, tid := range opts.ExcludeTagIDs {
+		if tid > 0 {
+			clauses = append(clauses, "NOT EXISTS (SELECT 1 FROM books_tags_link btl WHERE btl.book=b.id AND btl.tag=?)")
+			args = append(args, tid)
+		}
 	}
 	if opts.PublisherID > 0 {
 		clauses = append(clauses, "EXISTS (SELECT 1 FROM books_publishers_link bpl WHERE bpl.book=b.id AND bpl.publisher=?)")

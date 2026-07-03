@@ -198,7 +198,8 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
 
   // Page-count filter (only offered when the admin enabled it). Inputs are local
   // + debounced into the URL so typing doesn't refetch on every keystroke.
-  const pageFilterOn = !!useQuery({ queryKey: ['site'], queryFn: api.site, staleTime: 300_000 }).data?.pageFilter
+  const site = useQuery({ queryKey: ['site'], queryFn: api.site, staleTime: 300_000 }).data
+  const pageFilterOn = !!site?.pageFilter
   const [minPages, setMinPages] = useState(params.get('minPages') ?? '')
   const [maxPages, setMaxPages] = useState(params.get('maxPages') ?? '')
   const debMinPages = useDebounced(minPages, 400)
@@ -206,10 +207,12 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   const minPagesQ = pageFilterOn && params.get('minPages') ? Number(params.get('minPages')) : undefined
   const maxPagesQ = pageFilterOn && params.get('maxPages') ? Number(params.get('maxPages')) : undefined
 
-  // On a collection page the collection's tags are a locked base filter. A "match all" collection
-  // ANDs them with any interactive tags; a "match any" collection ORs its own tags as
-  // one group, still AND-combined with interactive tags added on top.
-  const baseTagIds = collection?.tagIds ?? []
+  // A locked base filter scopes this view: on a collection page it's the
+  // collection's tags; on the home library it's the admin-configured home filter
+  // (server settings). Include tags AND together (a "match any" collection ORs its
+  // own group instead); exclude tags hide any book carrying them.
+  const baseTagIds = collection ? collection.tagIds : (site?.homeTags ?? [])
+  const baseExcludeTagIds = collection ? collection.excludeTagIds : (site?.homeExcludeTags ?? [])
   const matchAny = !!collection?.matchAny
   const effectiveTagIds = Array.from(new Set([...baseTagIds, ...tagIds])) // for display/locked state
   // Query params: interactive tags (AND) vs the collection's OR group (any-mode only).
@@ -217,6 +220,7 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   const anyTagIds = matchAny ? baseTagIds : []
   const andTagKey = andTagIds.join(',')
   const anyTagKey = anyTagIds.join(',')
+  const excludeTagKey = baseExcludeTagIds.join(',')
 
   const update = (mut: (p: URLSearchParams) => void, resetOffset = true) => {
     const next = new URLSearchParams(params)
@@ -269,12 +273,13 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
       series: seriesId ?? undefined,
       tags: andTagKey ? andTagKey.split(',').map(Number) : undefined,
       anyTags: anyTagKey ? anyTagKey.split(',').map(Number) : undefined,
+      excludeTags: excludeTagKey ? excludeTagKey.split(',').map(Number) : undefined,
       minPages: minPagesQ,
       maxPages: maxPagesQ,
       limit: pageSize,
       offset,
     }),
-    [debouncedSearch, sort, order, authorId, seriesId, andTagKey, anyTagKey, minPagesQ, maxPagesQ, offset, pageSize],
+    [debouncedSearch, sort, order, authorId, seriesId, andTagKey, anyTagKey, excludeTagKey, minPagesQ, maxPagesQ, offset, pageSize],
   )
 
   const { data, isLoading, isFetching, isError, error } = useQuery({
@@ -287,13 +292,17 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   const series = useQuery({ queryKey: ['facets', 'series'], queryFn: api.series, staleTime: 300_000 })
   const tags = useQuery({ queryKey: ['facets', 'tags'], queryFn: api.tags, staleTime: 300_000 })
 
-  // On a collection page the collection's own tags define the view, so drop them
-  // from the tag filter list (they'd be redundant / can't be toggled off).
+  // The view's own base tags (include + exclude) define its scope, so drop them
+  // from the interactive tag filter list: they'd be redundant, can't be toggled
+  // off, and including a base-excluded tag would just yield an empty result.
   const baseTagKey = baseTagIds.join(',')
   const tagFacets = useMemo(
-    () => (baseTagIds.length ? (tags.data ?? []).filter((f) => !baseTagIds.includes(f.id)) : tags.data),
+    () => {
+      const hidden = new Set<number>([...baseTagIds, ...baseExcludeTagIds])
+      return hidden.size ? (tags.data ?? []).filter((f) => !hidden.has(f.id)) : tags.data
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tags.data, baseTagKey],
+    [tags.data, baseTagKey, excludeTagKey],
   )
 
   const total = data?.total ?? 0
@@ -505,6 +514,23 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
                     <span className="chip py-0.5 text-xs text-slate-300">
                       {tags.data?.find((f) => f.id === id)?.name ?? `#${id}`}
                     </span>
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* A collection's exclude tags: books carrying them are hidden. */}
+            {collection && collection.excludeTagIds.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <IconClose width={13} height={13} className="shrink-0 text-slate-500" />
+                <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                  {t('collections.excludeBadge')}
+                </span>
+                {collection.excludeTagIds.map((id) => (
+                  <span
+                    key={id}
+                    className="chip py-0.5 text-xs text-slate-400 line-through decoration-slate-600"
+                  >
+                    {tags.data?.find((f) => f.id === id)?.name ?? `#${id}`}
                   </span>
                 ))}
               </div>

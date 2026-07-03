@@ -36,17 +36,18 @@ func (s *Server) bookFromURL(w http.ResponseWriter, r *http.Request) (*calibre.B
 func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	opts := calibre.ListOptions{
-		Search:      q.Get("search"),
-		Sort:        q.Get("sort"),
-		Desc:        q.Get("order") == "desc",
-		AuthorID:    atoi64(q.Get("author")),
-		SeriesID:    atoi64(q.Get("series")),
-		TagIDs:      atoi64s(q["tag"]),    // repeated ?tag= → AND filter
-		AnyTagIDs:   atoi64s(q["anyTag"]), // repeated ?anyTag= → OR group ("match any" collection)
-		PublisherID: atoi64(q.Get("publisher")),
-		Language:    q.Get("language"),
-		Limit:       atoi(q.Get("limit")),
-		Offset:      atoi(q.Get("offset")),
+		Search:        q.Get("search"),
+		Sort:          q.Get("sort"),
+		Desc:          q.Get("order") == "desc",
+		AuthorID:      atoi64(q.Get("author")),
+		SeriesID:      atoi64(q.Get("series")),
+		TagIDs:        atoi64s(q["tag"]),    // repeated ?tag= → AND filter
+		AnyTagIDs:     atoi64s(q["anyTag"]), // repeated ?anyTag= → OR group ("match any" collection)
+		ExcludeTagIDs: atoi64s(q["notTag"]), // repeated ?notTag= → exclude (NOT) filter
+		PublisherID:   atoi64(q.Get("publisher")),
+		Language:      q.Get("language"),
+		Limit:         atoi(q.Get("limit")),
+		Offset:        atoi(q.Get("offset")),
 	}
 	// The normal path lets metadata.db do the filtering, sorting and pagination.
 	// Two things it can't express fall back to the "ID path": sorts ranked by

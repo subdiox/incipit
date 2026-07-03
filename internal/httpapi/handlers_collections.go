@@ -12,10 +12,11 @@ import (
 )
 
 type collectionBody struct {
-	Name     string  `json:"name"`
-	TagIDs   []int64 `json:"tagIds"`
-	MatchAny bool    `json:"matchAny"`
-	Position int     `json:"position"`
+	Name          string  `json:"name"`
+	TagIDs        []int64 `json:"tagIds"`
+	ExcludeTagIDs []int64 `json:"excludeTagIds"`
+	MatchAny      bool    `json:"matchAny"`
+	Position      int     `json:"position"`
 }
 
 // handleListCollections returns all admin-defined collections (visible to every user, for
@@ -40,7 +41,7 @@ func (s *Server) handleCreateCollection(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	collection, err := s.store.CreateCollection(r.Context(), name, body.TagIDs, body.MatchAny)
+	collection, err := s.store.CreateCollection(r.Context(), name, body.TagIDs, body.ExcludeTagIDs, body.MatchAny)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "create collection")
 		return
@@ -60,7 +61,7 @@ func (s *Server) handleUpdateCollection(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	if err := s.store.UpdateCollection(r.Context(), id, name, body.TagIDs, body.MatchAny, body.Position); err != nil {
+	if err := s.store.UpdateCollection(r.Context(), id, name, body.TagIDs, body.ExcludeTagIDs, body.MatchAny, body.Position); err != nil {
 		if errors.Is(err, appdb.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "collection not found")
 			return

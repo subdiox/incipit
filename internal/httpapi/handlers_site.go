@@ -5,6 +5,7 @@ import (
 	"html"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -12,6 +13,44 @@ import (
 // title shown in the UI (sidebar, login, browser tab) and the OPDS feed.
 const SiteTitleKey = "site_title"
 const defaultSiteTitle = "Incipit"
+
+// HomeFilterTagsKey / HomeFilterExcludeTagsKey hold the admin-configured base tag
+// filter always applied to the home ("/") library view: a CSV of Calibre tag IDs
+// the home library is scoped to (include, AND) and one it hides (exclude, NOT).
+// It is a display scope, not access control — books stay reachable via direct
+// links, collections and OPDS.
+const HomeFilterTagsKey = "home_filter_tags"
+const HomeFilterExcludeTagsKey = "home_filter_exclude_tags"
+
+func csvToIDs(s string) []int64 {
+	ids := []int64{} // non-nil so it marshals as [] not null
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p == "" {
+			continue
+		}
+		if n, err := strconv.ParseInt(p, 10, 64); err == nil && n > 0 {
+			ids = append(ids, n)
+		}
+	}
+	return ids
+}
+
+func idsToCSV(ids []int64) string {
+	parts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			parts = append(parts, strconv.FormatInt(id, 10))
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
+// homeFilterTagIDs returns the configured home-library include and exclude tag IDs.
+func (s *Server) homeFilterTagIDs(ctx context.Context) (include, exclude []int64) {
+	iv, _ := s.store.GetSetting(ctx, HomeFilterTagsKey)
+	ev, _ := s.store.GetSetting(ctx, HomeFilterExcludeTagsKey)
+	return csvToIDs(iv), csvToIDs(ev)
+}
 
 // titleRe matches the static <title> element in the built index.html.
 var titleRe = regexp.MustCompile(`<title>[^<]*</title>`)
@@ -44,15 +83,20 @@ func (s *Server) siteTitle(ctx context.Context) string {
 // render the title on the login screen and know which optional features (e.g.
 // the page-count filter) are enabled.
 func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
+	inc, exc := s.homeFilterTagIDs(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{
-		"title":      s.siteTitle(r.Context()),
-		"pageFilter": s.pageFilterEnabled(r.Context()),
+		"title":           s.siteTitle(r.Context()),
+		"pageFilter":      s.pageFilterEnabled(r.Context()),
+		"homeTags":        inc,
+		"homeExcludeTags": exc,
 	})
 }
 
 type siteUpdateBody struct {
-	Title      string `json:"title"`
-	PageFilter *bool  `json:"pageFilter"`
+	Title           string   `json:"title"`
+	PageFilter      *bool    `json:"pageFilter"`
+	HomeTags        *[]int64 `json:"homeTags"`
+	HomeExcludeTags *[]int64 `json:"homeExcludeTags"`
 }
 
 // handleUpdateSite sets the site title and options (admin only).
@@ -88,8 +132,23 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 			s.startPageIndex() // begin/resume indexing when enabled
 		}
 	}
+	if body.HomeTags != nil {
+		if err := s.store.SetSetting(r.Context(), HomeFilterTagsKey, idsToCSV(*body.HomeTags)); err != nil {
+			writeError(w, http.StatusInternalServerError, "save home filter")
+			return
+		}
+	}
+	if body.HomeExcludeTags != nil {
+		if err := s.store.SetSetting(r.Context(), HomeFilterExcludeTagsKey, idsToCSV(*body.HomeExcludeTags)); err != nil {
+			writeError(w, http.StatusInternalServerError, "save home filter")
+			return
+		}
+	}
+	inc, exc := s.homeFilterTagIDs(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{
-		"title":      title,
-		"pageFilter": s.pageFilterEnabled(r.Context()),
+		"title":           title,
+		"pageFilter":      s.pageFilterEnabled(r.Context()),
+		"homeTags":        inc,
+		"homeExcludeTags": exc,
 	})
 }

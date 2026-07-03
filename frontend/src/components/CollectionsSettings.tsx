@@ -13,13 +13,21 @@ function CollectionModal({ collection, open, onClose }: { collection: Collection
   const { t } = useI18n()
   const [name, setName] = useState(collection?.name ?? '')
   const [tagIds, setTagIds] = useState<number[]>(collection?.tagIds ?? [])
+  const [excludeTagIds, setExcludeTagIds] = useState<number[]>(collection?.excludeTagIds ?? [])
   const [matchAny, setMatchAny] = useState<boolean>(collection?.matchAny ?? false)
   const [error, setError] = useState<string | null>(null)
 
   const save = useMutation({
     mutationFn: async () => {
-      if (collection) await api.updateCollection(collection.id, { name: name.trim(), tagIds, matchAny, position: collection.position })
-      else await api.createCollection(name.trim(), tagIds, matchAny)
+      if (collection)
+        await api.updateCollection(collection.id, {
+          name: name.trim(),
+          tagIds,
+          excludeTagIds,
+          matchAny,
+          position: collection.position,
+        })
+      else await api.createCollection(name.trim(), tagIds, excludeTagIds, matchAny)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['collections'] })
@@ -71,6 +79,11 @@ function CollectionModal({ collection, open, onClose }: { collection: Collection
           <p className="mt-1.5 text-xs text-slate-500">
             {matchAny ? t('collections.matchAnyHelp') : t('collections.matchAllHelp')}
           </p>
+        </div>
+        <div>
+          <label className="label">{t('collections.excludeTags')}</label>
+          <p className="mb-2 text-xs text-slate-500">{t('collections.excludeTagsHelp')}</p>
+          <TagPicker value={excludeTagIds} onChange={setExcludeTagIds} />
         </div>
         {error && (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
@@ -190,16 +203,24 @@ export function CollectionsSettings() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-100">{p.name}</p>
                 <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
-                  {p.tagIds.length === 0 ? (
+                  {p.tagIds.length === 0 && p.excludeTagIds.length === 0 ? (
                     t('collections.noTags')
                   ) : (
                     <>
-                      {p.matchAny && p.tagIds.length > 1 && (
-                        <span className="text-accentSoft/80">{t('collections.anyBadge')} </span>
+                      {p.tagIds.length > 0 && (
+                        <>
+                          {p.matchAny && p.tagIds.length > 1 && (
+                            <span className="text-accentSoft/80">{t('collections.anyBadge')} </span>
+                          )}
+                          {p.tagIds.map((id) => tagName.get(id) ?? `#${id}`).join(p.matchAny ? ' / ' : ' · ')}
+                        </>
                       )}
-                      {p.tagIds
-                        .map((id) => tagName.get(id) ?? `#${id}`)
-                        .join(p.matchAny ? ' / ' : ' · ')}
+                      {p.excludeTagIds.length > 0 && (
+                        <span className="text-slate-600">
+                          {p.tagIds.length > 0 ? '　' : ''}
+                          − {p.excludeTagIds.map((id) => tagName.get(id) ?? `#${id}`).join(', ')}
+                        </span>
+                      )}
                     </>
                   )}
                 </p>
