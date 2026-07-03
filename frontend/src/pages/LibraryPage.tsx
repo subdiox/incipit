@@ -325,6 +325,10 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
       if (newOffset > 0) p.set('offset', String(newOffset))
       else p.delete('offset')
     }, false)
+    // Jump back to the top so the next page starts from the first row. Done here
+    // (not in an offset effect) so it doesn't fight history scroll-restoration
+    // when returning to the list from a book.
+    window.scrollTo({ top: 0 })
   }
 
   const activeFacetCount =
