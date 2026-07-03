@@ -15,10 +15,10 @@ import { Modal } from '@/components/Modal'
 import { Spinner, FullPageSpinner } from '@/components/Spinner'
 import { AddToShelfMenu } from '@/components/AddToShelfMenu'
 import {
-  IconBook,
   IconChevronLeft,
   IconDownload,
   IconEdit,
+  IconPlay,
   IconReset,
   IconSearch,
   IconTrash,
@@ -346,12 +346,13 @@ export function BookDetailPage() {
                     rounded="rounded-none"
                     className="md:transition-transform md:duration-500 md:group-hover:scale-105"
                   />
-                  {/* Hover-reveal read affordance (desktop only). */}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden items-center gap-2.5 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-3.5 pb-4 pt-14 text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 md:flex">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-600 text-onaccent shadow-glow ring-2 ring-white/15">
-                      <IconBook width={18} height={18} />
+                  {/* Hover-reveal read affordance (desktop only): a single clean
+                      "play" pill, centered over a soft gradient. */}
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden justify-center bg-gradient-to-t from-black/70 to-transparent px-4 pb-5 pt-16 opacity-0 transition-opacity duration-200 group-hover:opacity-100 md:flex">
+                    <span className="inline-flex max-w-full items-center gap-2 rounded-full bg-accent-600 px-4 py-2 text-sm font-semibold text-onaccent shadow-glow ring-1 ring-white/15">
+                      <IconPlay width={13} height={13} className="shrink-0" />
+                      <span className="truncate">{readLabel}</span>
                     </span>
-                    <span className="min-w-0 truncate text-sm font-semibold">{readLabel}</span>
                   </div>
                   {/* Thin progress bar hugging the bottom edge (both viewports). */}
                   {hasProgress && (
@@ -391,7 +392,7 @@ export function BookDetailPage() {
             {readable && (
               <div className="flex gap-2 md:hidden">
                 <Link to={`/books/${book.id}/read`} className="btn-primary flex-1">
-                  <IconBook width={18} height={18} />
+                  <IconPlay width={14} height={14} />
                   {readLabel}
                 </Link>
                 {hasProgress && (
