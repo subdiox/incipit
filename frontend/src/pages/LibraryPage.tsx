@@ -213,7 +213,7 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   // own group instead); exclude tags hide any book carrying them.
   const baseTagIds = collection ? collection.tagIds : (site?.homeTags ?? [])
   const baseExcludeTagIds = collection ? collection.excludeTagIds : (site?.homeExcludeTags ?? [])
-  const matchAny = !!collection?.matchAny
+  const matchAny = collection ? collection.matchAny : !!site?.homeMatchAny
   const effectiveTagIds = Array.from(new Set([...baseTagIds, ...tagIds])) // for display/locked state
   // Query params: interactive tags (AND) vs the collection's OR group (any-mode only).
   const andTagIds = matchAny ? tagIds : effectiveTagIds

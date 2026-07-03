@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import { Spinner } from './Spinner'
-import { TagPicker } from './TagPicker'
+import { TagFilterFields } from './TagFilterFields'
 import { useRegisterSave } from './SettingsSaver'
 
 export function ServerSettings() {
@@ -31,6 +31,7 @@ export function ServerSettings() {
   const [pageFilter, setPageFilter] = useState(false)
   const [homeTags, setHomeTags] = useState<number[]>([])
   const [homeExcludeTags, setHomeExcludeTags] = useState<number[]>([])
+  const [homeMatchAny, setHomeMatchAny] = useState(false)
 
   useEffect(() => {
     if (data) {
@@ -38,6 +39,7 @@ export function ServerSettings() {
       setPageFilter(data.pageFilter)
       setHomeTags(data.homeTags ?? [])
       setHomeExcludeTags(data.homeExcludeTags ?? [])
+      setHomeMatchAny(data.homeMatchAny ?? false)
     }
   }, [data])
 
@@ -48,11 +50,18 @@ export function ServerSettings() {
     const homeUnchanged =
       !!data &&
       homeTags.join(',') === (data.homeTags ?? []).join(',') &&
-      homeExcludeTags.join(',') === (data.homeExcludeTags ?? []).join(',')
+      homeExcludeTags.join(',') === (data.homeExcludeTags ?? []).join(',') &&
+      homeMatchAny === (data.homeMatchAny ?? false)
     if (data && trimmed === data.title && pageFilter === data.pageFilter && homeUnchanged)
       return { ok: true, label }
     try {
-      const next = await api.updateSite({ title: trimmed, pageFilter, homeTags, homeExcludeTags })
+      const next = await api.updateSite({
+        title: trimmed,
+        pageFilter,
+        homeTags,
+        homeExcludeTags,
+        homeMatchAny,
+      })
       // Shared query key: sidebar, login screen and tab title update at once.
       qc.setQueryData(['site'], next)
       return { ok: true, label }
@@ -101,19 +110,15 @@ export function ServerSettings() {
 
           <div className="border-t border-ink-700 pt-5">
             <h3 className="text-sm font-medium text-slate-200">{t('server.homeFilter')}</h3>
-            <p className="mt-0.5 text-xs text-slate-500">{t('server.homeFilterHelp')}</p>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="label">{t('server.homeFilterInclude')}</label>
-                <p className="mb-2 text-xs text-slate-500">{t('server.homeFilterIncludeHelp')}</p>
-                <TagPicker value={homeTags} onChange={setHomeTags} />
-              </div>
-              <div>
-                <label className="label">{t('server.homeFilterExclude')}</label>
-                <p className="mb-2 text-xs text-slate-500">{t('server.homeFilterExcludeHelp')}</p>
-                <TagPicker value={homeExcludeTags} onChange={setHomeExcludeTags} />
-              </div>
-            </div>
+            <p className="mb-3 mt-0.5 text-xs text-slate-500">{t('server.homeFilterHelp')}</p>
+            <TagFilterFields
+              tagIds={homeTags}
+              onTagIds={setHomeTags}
+              excludeTagIds={homeExcludeTags}
+              onExcludeTagIds={setHomeExcludeTags}
+              matchAny={homeMatchAny}
+              onMatchAny={setHomeMatchAny}
+            />
           </div>
 
           {/* Page-count index progress (only meaningful once the filter is saved on). */}

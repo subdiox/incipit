@@ -22,6 +22,15 @@ const defaultSiteTitle = "Incipit"
 const HomeFilterTagsKey = "home_filter_tags"
 const HomeFilterExcludeTagsKey = "home_filter_exclude_tags"
 
+// HomeFilterMatchAnyKey toggles how the home include tags combine: "true" = any
+// (OR), otherwise all (AND). Mirrors a collection's match mode.
+const HomeFilterMatchAnyKey = "home_filter_match_any"
+
+func (s *Server) homeFilterMatchAny(ctx context.Context) bool {
+	v, _ := s.store.GetSetting(ctx, HomeFilterMatchAnyKey)
+	return v == "true"
+}
+
 func csvToIDs(s string) []int64 {
 	ids := []int64{} // non-nil so it marshals as [] not null
 	for _, p := range strings.Split(s, ",") {
@@ -89,6 +98,7 @@ func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
 		"pageFilter":      s.pageFilterEnabled(r.Context()),
 		"homeTags":        inc,
 		"homeExcludeTags": exc,
+		"homeMatchAny":    s.homeFilterMatchAny(r.Context()),
 	})
 }
 
@@ -97,6 +107,7 @@ type siteUpdateBody struct {
 	PageFilter      *bool    `json:"pageFilter"`
 	HomeTags        *[]int64 `json:"homeTags"`
 	HomeExcludeTags *[]int64 `json:"homeExcludeTags"`
+	HomeMatchAny    *bool    `json:"homeMatchAny"`
 }
 
 // handleUpdateSite sets the site title and options (admin only).
@@ -144,11 +155,22 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if body.HomeMatchAny != nil {
+		val := "false"
+		if *body.HomeMatchAny {
+			val = "true"
+		}
+		if err := s.store.SetSetting(r.Context(), HomeFilterMatchAnyKey, val); err != nil {
+			writeError(w, http.StatusInternalServerError, "save home filter")
+			return
+		}
+	}
 	inc, exc := s.homeFilterTagIDs(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{
 		"title":           title,
 		"pageFilter":      s.pageFilterEnabled(r.Context()),
 		"homeTags":        inc,
 		"homeExcludeTags": exc,
+		"homeMatchAny":    s.homeFilterMatchAny(r.Context()),
 	})
 }

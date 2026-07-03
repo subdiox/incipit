@@ -146,6 +146,8 @@ export interface SiteConfig {
   // homeExcludeTags hidden (NOT).
   homeTags: number[]
   homeExcludeTags: number[]
+  // How homeTags combine: false = all (AND), true = any (OR). Mirrors a collection.
+  homeMatchAny: boolean
 }
 
 export interface PageIndexStatus {

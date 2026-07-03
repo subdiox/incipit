@@ -5,7 +5,7 @@ import { useI18n } from '@/i18n'
 import type { Collection } from '@/types'
 import { Modal } from './Modal'
 import { Spinner, FullPageSpinner } from './Spinner'
-import { TagPicker } from './TagPicker'
+import { TagFilterFields } from './TagFilterFields'
 import { IconEdit, IconGrip, IconPlus, IconTrash } from './icons'
 
 function CollectionModal({ collection, open, onClose }: { collection: Collection | null; open: boolean; onClose: () => void }) {
@@ -55,43 +55,14 @@ function CollectionModal({ collection, open, onClose }: { collection: Collection
           />
         </div>
 
-        {/* Include vs exclude tag pickers, side by side on desktop. */}
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <label className="label mb-0">{t('collections.tags')}</label>
-              <div className="inline-flex shrink-0 rounded-lg border border-ink-700 bg-ink-800 p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setMatchAny(false)}
-                  title={t('collections.matchAllHelp')}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    !matchAny ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  {t('collections.matchAll')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMatchAny(true)}
-                  title={t('collections.matchAnyHelp')}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    matchAny ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  {t('collections.matchAny')}
-                </button>
-              </div>
-            </div>
-            <p className="mb-2 text-xs text-slate-500">{t('collections.tagsHelp')}</p>
-            <TagPicker value={tagIds} onChange={setTagIds} />
-          </div>
-          <div>
-            <label className="label">{t('collections.excludeTags')}</label>
-            <p className="mb-2 text-xs text-slate-500">{t('collections.excludeTagsHelp')}</p>
-            <TagPicker value={excludeTagIds} onChange={setExcludeTagIds} />
-          </div>
-        </div>
+        <TagFilterFields
+          tagIds={tagIds}
+          onTagIds={setTagIds}
+          excludeTagIds={excludeTagIds}
+          onExcludeTagIds={setExcludeTagIds}
+          matchAny={matchAny}
+          onMatchAny={setMatchAny}
+        />
         {error && (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
             {error}

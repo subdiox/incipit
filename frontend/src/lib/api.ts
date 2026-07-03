@@ -146,6 +146,7 @@ export const api = {
     pageFilter?: boolean
     homeTags?: number[]
     homeExcludeTags?: number[]
+    homeMatchAny?: boolean
   }) =>
     request<SiteConfig>('/admin/site', { method: 'PUT', ...jsonBody(body) }),
   pageIndexStatus: () => request<PageIndexStatus>('/admin/pageindex'),
