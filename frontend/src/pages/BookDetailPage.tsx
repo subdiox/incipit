@@ -7,6 +7,8 @@ import { useI18n } from '@/i18n'
 import type { Book, BookUpdate } from '@/types'
 import { formatBytes, formatDate, dateInputValue, languageLabel, GENRE_TAG_PREFIX } from '@/lib/format'
 import { Cover } from '@/components/Cover'
+import { progressPct } from '@/components/ReadingShelf'
+import { isReadable } from '@/lib/book'
 import { Rating } from '@/components/Rating'
 import { EnrichModal } from '@/components/EnrichModal'
 import { Modal } from '@/components/Modal'
@@ -307,8 +309,9 @@ export function BookDetailPage() {
 
   const hasProgress = progress && progress.page > 0 && progress.totalPages > 0
   // Formats with an in-browser reader (CBZ image reader, PDF viewer, EPUB).
-  const readable = book.formats.some((f) => ['cbz', 'pdf', 'epub'].includes(f.format.toLowerCase()))
+  const readable = isReadable(book)
   const downloadable = book.formats.length > 0
+  const pct = hasProgress ? progressPct(progress!.page, progress!.totalPages) : 0
 
   return (
     <div>
@@ -320,24 +323,64 @@ export function BookDetailPage() {
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[300px_1fr]">
         {/* Cover + actions */}
         <div className="md:sticky md:top-20 md:self-start">
-          {/* The cover starts reading directly (resuming saved progress) when the
-              book is readable; otherwise it's just the static image. */}
+          {/* Cover and "read" are one control: the whole cover starts reading
+              (resuming saved progress), with the action fused onto it as an
+              overlay and a progress bar hugging the bottom edge. */}
           {readable ? (
-            <Link
-              to={`/books/${book.id}/read`}
-              aria-label={hasProgress ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages }) : t('book.read')}
-              className="group mx-auto block max-w-[300px] overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700 transition-all hover:shadow-glow hover:ring-accent-500/50"
-            >
-              <Cover
-                bookId={book.id}
-                title={book.title}
-                hasCover={book.hasCover}
-                version={book.lastModified}
-                width={800}
-                rounded="rounded-none"
-                className="transition-transform duration-300 group-hover:scale-[1.03]"
-              />
-            </Link>
+            <div className="group relative mx-auto max-w-[300px]">
+              <Link
+                to={`/books/${book.id}/read`}
+                aria-label={
+                  hasProgress
+                    ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
+                    : t('book.read')
+                }
+                className="block overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700 transition-all hover:shadow-glow hover:ring-accent-500/60"
+              >
+                <div className="relative">
+                  <Cover
+                    bookId={book.id}
+                    title={book.title}
+                    hasCover={book.hasCover}
+                    version={book.lastModified}
+                    width={800}
+                    rounded="rounded-none"
+                    className="transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-2.5 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-3.5 pb-4 pt-14 text-white">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-600 text-onaccent shadow-glow ring-2 ring-white/15 transition-transform duration-200 group-hover:scale-110">
+                      <IconBook width={18} height={18} />
+                    </span>
+                    <span className="min-w-0 truncate text-sm font-semibold">
+                      {hasProgress
+                        ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
+                        : t('book.read')}
+                    </span>
+                  </div>
+                  {hasProgress && (
+                    <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50">
+                      <div className="h-full bg-accent-500" style={{ width: `${pct}%` }} />
+                    </div>
+                  )}
+                </div>
+              </Link>
+              {hasProgress && (
+                <button
+                  type="button"
+                  onClick={() => resetProgress.mutate()}
+                  disabled={resetProgress.isPending}
+                  title={t('history.reset')}
+                  aria-label={t('history.reset')}
+                  className="absolute right-2 top-2 z-10 rounded-lg bg-black/50 p-1.5 text-slate-200 backdrop-blur transition-colors hover:bg-red-600 hover:text-white disabled:opacity-50"
+                >
+                  {resetProgress.isPending ? (
+                    <Spinner className="h-4 w-4" />
+                  ) : (
+                    <IconReset width={16} height={16} />
+                  )}
+                </button>
+              )}
+            </div>
           ) : (
             <div className="mx-auto max-w-[300px] overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700">
               <Cover bookId={book.id} title={book.title} hasCover={book.hasCover} version={book.lastModified} width={800} rounded="rounded-none" />
@@ -345,33 +388,6 @@ export function BookDetailPage() {
           )}
 
           <div className="mt-4 space-y-2">
-            {readable && (
-              <div className="flex gap-2">
-                <Link to={`/books/${book.id}/read`} className="btn-primary flex-1">
-                  <IconBook width={18} height={18} />
-                  {hasProgress
-                    ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
-                    : t('book.read')}
-                </Link>
-                {hasProgress && (
-                  <button
-                    type="button"
-                    className="btn-secondary shrink-0 px-3"
-                    onClick={() => resetProgress.mutate()}
-                    disabled={resetProgress.isPending}
-                    title={t('history.reset')}
-                    aria-label={t('history.reset')}
-                  >
-                    {resetProgress.isPending ? (
-                      <Spinner className="h-4 w-4" />
-                    ) : (
-                      <IconReset width={18} height={18} />
-                    )}
-                  </button>
-                )}
-              </div>
-            )}
-
             {user?.canDownload && downloadable && (
               <a
                 href={mediaUrl.file(book.id)}

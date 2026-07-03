@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Book } from '@/types'
 import { authorNames } from '@/lib/format'
-import { isReadable } from '@/lib/book'
 import { useI18n } from '@/i18n'
 import { Cover } from './Cover'
 
@@ -12,16 +11,9 @@ interface BookCardProps {
 
 export function BookCard({ book, action }: BookCardProps) {
   const { t } = useI18n()
-  const readable = isReadable(book)
   return (
     <div className="group relative">
-      {/* The cover starts reading straight away (resuming saved progress) when
-          the book is readable; the title below still opens the detail page. */}
-      <Link
-        to={readable ? `/books/${book.id}/read` : `/books/${book.id}`}
-        className="block"
-        aria-label={readable ? `${book.title} — ${t('book.read')}` : book.title}
-      >
+      <Link to={`/books/${book.id}`} className="block">
         <div className="overflow-hidden rounded-xl shadow-soft ring-1 ring-ink-700 transition-all duration-200 group-hover:ring-accent-500/50 group-hover:shadow-glow">
           <Cover
             bookId={book.id}
@@ -32,19 +24,19 @@ export function BookCard({ book, action }: BookCardProps) {
             className="transition-transform duration-300 group-hover:scale-[1.03]"
           />
         </div>
-      </Link>
-      <Link to={`/books/${book.id}`} className="mt-2.5 block px-0.5">
-        {/* Wrap the full title on all viewports (titles get cut at one line
-            otherwise). */}
-        <h3
-          title={book.title}
-          className="break-words text-sm font-medium text-slate-100 transition-colors group-hover:text-white"
-        >
-          {book.title}
-        </h3>
-        <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
-          {authorNames(book.authors) || t('common.unknownAuthor')}
-        </p>
+        <div className="mt-2.5 px-0.5">
+          {/* Wrap the full title on all viewports (titles get cut at one line
+              otherwise). */}
+          <h3
+            title={book.title}
+            className="break-words text-sm font-medium text-slate-100 transition-colors group-hover:text-white"
+          >
+            {book.title}
+          </h3>
+          <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
+            {authorNames(book.authors) || t('common.unknownAuthor')}
+          </p>
+        </div>
       </Link>
       {/* Series name links to the series listing (not the volume). Kept outside
           the book link — the title already carries the volume number. */}
