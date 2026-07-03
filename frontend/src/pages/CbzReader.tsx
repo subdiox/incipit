@@ -552,7 +552,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
         aria-valuemin={1}
         aria-valuemax={total}
         aria-valuenow={last + 1}
-        className={`group absolute inset-x-0 bottom-0 z-30 flex h-6 touch-none items-end transition-opacity duration-300 ${
+        className={`absolute inset-x-0 bottom-0 z-30 flex h-6 touch-none items-end transition-opacity duration-300 ${
           chromeVisible ? 'cursor-pointer opacity-100' : 'pointer-events-none opacity-0'
         }`}
       >
@@ -560,13 +560,6 @@ export function CbzReader({ bookId }: { bookId: number }) {
           <div
             className={`h-full bg-accent-500 ${rtl ? 'ml-auto' : ''}`}
             style={{ width: `${((last + 1) / total) * 100}%` }}
-          />
-          {/* Handle at the current position (boundary of the fill). */}
-          <div
-            className="pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-400 shadow ring-2 ring-black/50 transition-transform group-hover:scale-110"
-            style={{
-              left: `${(rtl ? 1 - (last + 1) / total : (last + 1) / total) * 100}%`,
-            }}
           />
         </div>
       </div>
