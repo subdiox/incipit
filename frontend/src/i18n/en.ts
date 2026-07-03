@@ -165,6 +165,7 @@ export const en = {
   'enrich.cover': 'Cover',
   'enrich.tagMerge': 'Merge',
   'enrich.tagReplace': 'Replace',
+  'enrich.tagSelect': 'Selected',
   'enrich.apply': 'Apply selected',
   'enrich.failed': 'Lookup or update failed',
   'book.failedToSave': 'Failed to save changes.',

@@ -167,6 +167,7 @@ export const ja: Record<TranslationKey, string> = {
   'enrich.cover': '表紙',
   'enrich.tagMerge': 'マージ',
   'enrich.tagReplace': '置換',
+  'enrich.tagSelect': '選択したタグ',
   'enrich.apply': '選択を適用',
   'enrich.failed': '取得または更新に失敗しました',
   'book.failedToSave': '変更の保存に失敗しました。',
