@@ -212,12 +212,19 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   // (server settings). Include tags AND together (a "match any" collection ORs its
   // own group instead); exclude tags hide any book carrying them.
   //
-  // The home base filter scopes the *default* home listing only. When drilling
-  // into a specific series or author, it steps aside so that entity's full set
-  // shows — otherwise a work hidden by the home filter would make its series- /
-  // author-name search come up empty. Collections keep their own scope.
-  const homeDrillDown = seriesId != null || authorId != null
-  const applyHomeFilter = !homeDrillDown
+  // The home base filter scopes only the *default* home landing. The moment the
+  // user searches or narrows the library (text search, author/series/tag facets
+  // or the page-count filter), it steps aside so every matching book shows —
+  // otherwise works the filter hides would be unreachable via search/filter.
+  // Collections keep their own scope.
+  const homeQueryActive =
+    !!debouncedSearch ||
+    authorId != null ||
+    seriesId != null ||
+    tagIds.length > 0 ||
+    minPagesQ != null ||
+    maxPagesQ != null
+  const applyHomeFilter = !homeQueryActive
   const baseTagIds = collection ? collection.tagIds : applyHomeFilter ? (site?.homeTags ?? []) : []
   const baseExcludeTagIds = collection
     ? collection.excludeTagIds
