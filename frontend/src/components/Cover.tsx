@@ -28,6 +28,10 @@ export function Cover({
 }: CoverProps) {
   const [loaded, setLoaded] = useState(false)
   const [errored, setErrored] = useState(false)
+  // Clearly-landscape covers (e.g. a double-page spread used as the cover) get
+  // anchored to the left so the thumbnail shows the left portion filling the
+  // 2:3 frame, instead of the squished / centre-cropped whole spread.
+  const [wide, setWide] = useState(false)
   const src = full ? mediaUrl.cover(bookId, version) : mediaUrl.thumbnail(bookId, width, version)
   const showFallback = errored || !hasCover
 
@@ -49,11 +53,15 @@ export function Cover({
           alt={title}
           loading="lazy"
           decoding="async"
-          onLoad={() => setLoaded(true)}
+          onLoad={(e) => {
+            const img = e.currentTarget
+            setWide(img.naturalWidth > img.naturalHeight * 1.2)
+            setLoaded(true)
+          }}
           onError={() => setErrored(true)}
           className={`h-full w-full object-cover transition-opacity duration-300 ${
-            loaded ? 'opacity-100' : 'opacity-0'
-          }`}
+            wide ? 'object-left' : ''
+          } ${loaded ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
     </div>
