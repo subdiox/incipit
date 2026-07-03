@@ -188,6 +188,7 @@ export const en = {
   'reader.nextPage': 'Next page',
   'reader.closeReader': 'Close reader',
   'reader.toggleUi': 'Show/hide controls',
+  'reader.seek': 'Jump to page',
   'reader.enterFullscreen': 'Enter fullscreen',
   'reader.exitFullscreen': 'Exit fullscreen',
   'reader.closeSettings': 'Close settings',

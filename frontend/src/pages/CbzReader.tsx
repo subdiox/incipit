@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type PointerEvent as ReactPointerEvent,
   type TouchEvent as ReactTouchEvent,
 } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -109,6 +110,45 @@ export function CbzReader({ bookId }: { bookId: number }) {
   const canBackward = first > 0
   const canLeft = rtl ? canForward : canBackward
   const canRight = rtl ? canBackward : canForward
+
+  // The bottom progress bar doubles as a scrubber: click or drag along it to
+  // jump to that page. The mapping respects binding direction (RTL fills from
+  // the right, so the left end is the last page).
+  const barRef = useRef<HTMLDivElement>(null)
+  const scrubbing = useRef(false)
+  const pageFromClientX = useCallback(
+    (clientX: number) => {
+      const el = barRef.current
+      if (!el || total <= 0) return 0
+      const rect = el.getBoundingClientRect()
+      const r = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+      const idx = Math.round((rtl ? 1 - r : r) * (total - 1))
+      return Math.min(total - 1, Math.max(0, idx))
+    },
+    [total, rtl],
+  )
+  const onScrubDown = useCallback(
+    (e: ReactPointerEvent) => {
+      scrubbing.current = true
+      e.currentTarget.setPointerCapture(e.pointerId)
+      setPage(pageFromClientX(e.clientX))
+    },
+    [pageFromClientX],
+  )
+  const onScrubMove = useCallback(
+    (e: ReactPointerEvent) => {
+      if (scrubbing.current) setPage(pageFromClientX(e.clientX))
+    },
+    [pageFromClientX],
+  )
+  const onScrubUp = useCallback((e: ReactPointerEvent) => {
+    scrubbing.current = false
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      /* pointer already released */
+    }
+  }, [])
 
   // Swipe navigation. A horizontal swipe turns the page (respecting binding
   // direction, like the tap zones); swipedRef suppresses the tap-zone click that
@@ -499,16 +539,36 @@ export function CbzReader({ bookId }: { bookId: number }) {
         </button>
       </div>
 
-      {/* Bottom progress bar (fills in reading direction) */}
+      {/* Bottom progress bar — also a scrubber: click or drag to jump to a page.
+          A tall transparent strip gives an easy grab area over the thin bar. */}
       <div
-        className={`absolute inset-x-0 bottom-0 z-20 h-1 bg-ink-800 transition-opacity duration-300 ${
-          chromeVisible ? 'opacity-100' : 'opacity-0'
+        ref={barRef}
+        onPointerDown={onScrubDown}
+        onPointerMove={onScrubMove}
+        onPointerUp={onScrubUp}
+        onPointerCancel={onScrubUp}
+        role="slider"
+        aria-label={t('reader.seek')}
+        aria-valuemin={1}
+        aria-valuemax={total}
+        aria-valuenow={last + 1}
+        className={`group absolute inset-x-0 bottom-0 z-30 flex h-6 touch-none items-end transition-opacity duration-300 ${
+          chromeVisible ? 'cursor-pointer opacity-100' : 'pointer-events-none opacity-0'
         }`}
       >
-        <div
-          className={`h-full bg-accent-500 transition-all ${rtl ? 'ml-auto' : ''}`}
-          style={{ width: `${((last + 1) / total) * 100}%` }}
-        />
+        <div className="relative h-1 w-full bg-ink-800">
+          <div
+            className={`h-full bg-accent-500 ${rtl ? 'ml-auto' : ''}`}
+            style={{ width: `${((last + 1) / total) * 100}%` }}
+          />
+          {/* Handle at the current position (boundary of the fill). */}
+          <div
+            className="pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-400 shadow ring-2 ring-black/50 transition-transform group-hover:scale-110"
+            style={{
+              left: `${(rtl ? 1 - (last + 1) / total : (last + 1) / total) * 100}%`,
+            }}
+          />
+        </div>
       </div>
     </div>
   )

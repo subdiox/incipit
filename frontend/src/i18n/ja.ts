@@ -190,6 +190,7 @@ export const ja: Record<TranslationKey, string> = {
   'reader.nextPage': '次のページ',
   'reader.closeReader': 'リーダーを閉じる',
   'reader.toggleUi': 'UIの表示/非表示',
+  'reader.seek': 'ページを移動',
   'reader.enterFullscreen': 'フルスクリーン',
   'reader.exitFullscreen': 'フルスクリーン解除',
   'reader.closeSettings': '設定を閉じる',
