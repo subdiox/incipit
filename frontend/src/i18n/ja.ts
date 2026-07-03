@@ -248,6 +248,7 @@ export const ja: Record<TranslationKey, string> = {
   'shelves.makePublic': 'この本棚を公開する',
   'shelves.failedToCreate': '本棚の作成に失敗しました。',
   'shelves.public': '公開',
+  'shelves.favorites': 'お気に入り',
   'shelves.emptyDetail': 'この本棚は空です。本の詳細ページから追加できます。',
   'shelves.removeFromShelf': '本棚から削除',
   'shelves.noneTitle': '本棚がありません',

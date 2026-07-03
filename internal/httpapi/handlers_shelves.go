@@ -14,6 +14,11 @@ import (
 // handleListShelves returns shelves visible to the user.
 func (s *Server) handleListShelves(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
+	// Every user has a built-in Favorites shelf; create it on demand.
+	if err := s.store.EnsureFavoritesShelf(r.Context(), u.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "ensure favorites")
+		return
+	}
 	shelves, err := s.store.ListShelves(r.Context(), u.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "list shelves")
@@ -76,6 +81,10 @@ func (s *Server) shelfFromURL(w http.ResponseWriter, r *http.Request, requireOwn
 func (s *Server) handleDeleteShelf(w http.ResponseWriter, r *http.Request) {
 	sh, ok := s.shelfFromURL(w, r, true)
 	if !ok {
+		return
+	}
+	if sh.IsDefault {
+		writeError(w, http.StatusForbidden, "the favorites shelf cannot be deleted")
 		return
 	}
 	if err := s.store.DeleteShelf(r.Context(), sh.ID); err != nil {

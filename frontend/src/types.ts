@@ -88,6 +88,7 @@ export interface Shelf {
   userId: number
   name: string
   isPublic: boolean
+  isDefault: boolean
   createdAt: string
   bookCount: number
 }

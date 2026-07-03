@@ -246,6 +246,7 @@ export const en = {
   'shelves.makePublic': 'Make this shelf public',
   'shelves.failedToCreate': 'Failed to create shelf.',
   'shelves.public': 'Public',
+  'shelves.favorites': 'Favorite',
   'shelves.emptyDetail': 'This shelf is empty. Add books from their detail page.',
   'shelves.removeFromShelf': 'Remove from shelf',
   'shelves.noneTitle': 'No shelves yet',

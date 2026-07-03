@@ -11,11 +11,15 @@ import (
 
 // --- Shelves ---
 
+// defaultFavoritesName is the stored name of every user's built-in Favorites
+// shelf; the UI renders a localized label for it.
+const defaultFavoritesName = "Favorite"
+
 // CreateShelf creates a new shelf for a user.
 func (s *Store) CreateShelf(ctx context.Context, sh Shelf) (*Shelf, error) {
 	sh.CreatedAt = time.Now().UTC()
-	res, err := s.db.ExecContext(ctx, `INSERT INTO shelves (user_id, name, is_public, created_at)
-		VALUES (?, ?, ?, ?)`, sh.UserID, sh.Name, b2i(sh.IsPublic), sh.CreatedAt.Format(timeLayout))
+	res, err := s.db.ExecContext(ctx, `INSERT INTO shelves (user_id, name, is_public, is_default, created_at)
+		VALUES (?, ?, ?, ?, ?)`, sh.UserID, sh.Name, b2i(sh.IsPublic), b2i(sh.IsDefault), sh.CreatedAt.Format(timeLayout))
 	if err != nil {
 		return nil, err
 	}
@@ -23,11 +27,28 @@ func (s *Store) CreateShelf(ctx context.Context, sh Shelf) (*Shelf, error) {
 	return &sh, nil
 }
 
+// EnsureFavoritesShelf makes sure the user has their built-in private Favorites
+// shelf, creating it if missing. Safe to call repeatedly.
+func (s *Store) EnsureFavoritesShelf(ctx context.Context, userID int64) error {
+	var n int
+	if err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM shelves WHERE user_id=? AND is_default=1", userID).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx,
+		`INSERT OR IGNORE INTO shelves (user_id, name, is_public, is_default, created_at)
+		 VALUES (?, ?, 0, 1, ?)`, userID, defaultFavoritesName, time.Now().UTC().Format(timeLayout))
+	return err
+}
+
 // ListShelves returns shelves visible to a user: their own plus public ones.
 func (s *Store) ListShelves(ctx context.Context, userID int64) ([]Shelf, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT sh.id, sh.user_id, sh.name, sh.is_public, sh.created_at,
+	rows, err := s.db.QueryContext(ctx, `SELECT sh.id, sh.user_id, sh.name, sh.is_public, sh.is_default, sh.created_at,
 		(SELECT COUNT(*) FROM shelf_books sb WHERE sb.shelf_id=sh.id)
-		FROM shelves sh WHERE sh.user_id=? OR sh.is_public=1 ORDER BY sh.name`, userID)
+		FROM shelves sh WHERE sh.user_id=? OR sh.is_public=1 ORDER BY sh.is_default DESC, sh.name`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -35,12 +56,13 @@ func (s *Store) ListShelves(ctx context.Context, userID int64) ([]Shelf, error) 
 	var out []Shelf
 	for rows.Next() {
 		var sh Shelf
-		var pub int
+		var pub, def int
 		var created string
-		if err := rows.Scan(&sh.ID, &sh.UserID, &sh.Name, &pub, &created, &sh.BookCount); err != nil {
+		if err := rows.Scan(&sh.ID, &sh.UserID, &sh.Name, &pub, &def, &created, &sh.BookCount); err != nil {
 			return nil, err
 		}
 		sh.IsPublic = pub != 0
+		sh.IsDefault = def != 0
 		sh.CreatedAt, _ = time.Parse(timeLayout, created)
 		out = append(out, sh)
 	}
@@ -52,9 +74,10 @@ func (s *Store) GetShelf(ctx context.Context, id int64) (*Shelf, error) {
 	var sh Shelf
 	var pub int
 	var created string
-	err := s.db.QueryRowContext(ctx, `SELECT id, user_id, name, is_public, created_at,
+	var def int
+	err := s.db.QueryRowContext(ctx, `SELECT id, user_id, name, is_public, is_default, created_at,
 		(SELECT COUNT(*) FROM shelf_books sb WHERE sb.shelf_id=shelves.id)
-		FROM shelves WHERE id=?`, id).Scan(&sh.ID, &sh.UserID, &sh.Name, &pub, &created, &sh.BookCount)
+		FROM shelves WHERE id=?`, id).Scan(&sh.ID, &sh.UserID, &sh.Name, &pub, &def, &created, &sh.BookCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -62,6 +85,7 @@ func (s *Store) GetShelf(ctx context.Context, id int64) (*Shelf, error) {
 		return nil, err
 	}
 	sh.IsPublic = pub != 0
+	sh.IsDefault = def != 0
 	sh.CreatedAt, _ = time.Parse(timeLayout, created)
 	return &sh, nil
 }

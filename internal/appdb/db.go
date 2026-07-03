@@ -106,6 +106,11 @@ var migrations = []string{
 	// A collection can also EXCLUDE tags (books carrying any of these are hidden);
 	// exclude_tag_ids is a CSV of Calibre tag IDs, like tag_ids.
 	`ALTER TABLE collections ADD COLUMN exclude_tag_ids TEXT NOT NULL DEFAULT '';`,
+	// Every user has a built-in private "Favorites" shelf (is_default=1) that can't
+	// be deleted; backfill one for existing users.
+	`ALTER TABLE shelves ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0;
+	 INSERT OR IGNORE INTO shelves (user_id, name, is_public, is_default, created_at)
+	   SELECT id, 'Favorite', 0, 1, strftime('%Y-%m-%dT%H:%M:%SZ','now') FROM users;`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

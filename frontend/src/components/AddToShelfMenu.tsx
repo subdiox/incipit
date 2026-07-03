@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import { Spinner } from './Spinner'
-import { IconCheck, IconPlus, IconShelf } from './icons'
+import { IconCheck, IconHeart, IconPlus, IconShelf } from './icons'
 
 export function AddToShelfMenu({ bookId }: { bookId: number }) {
   const { t } = useI18n()
@@ -60,7 +60,10 @@ export function AddToShelfMenu({ bookId }: { bookId: number }) {
                     disabled={addMutation.isPending}
                     className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-ink-700"
                   >
-                    <span className="truncate">{s.name}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      {s.isDefault && <IconHeart width={14} height={14} className="shrink-0 text-accentSoft" />}
+                      <span className="truncate">{s.isDefault ? t('shelves.favorites') : s.name}</span>
+                    </span>
                     {justAdded === s.id ? (
                       <IconCheck width={16} height={16} className="text-emerald-400" />
                     ) : (

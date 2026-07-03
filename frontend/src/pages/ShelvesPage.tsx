@@ -7,7 +7,7 @@ import type { Shelf } from '@/types'
 import { BookCard, BookGrid } from '@/components/BookCard'
 import { Modal } from '@/components/Modal'
 import { Spinner, FullPageSpinner } from '@/components/Spinner'
-import { IconChevronLeft, IconClose, IconPlus, IconShelf, IconTrash } from '@/components/icons'
+import { IconChevronLeft, IconClose, IconHeart, IconPlus, IconShelf, IconTrash } from '@/components/icons'
 
 function CreateShelfModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient()
@@ -93,7 +93,9 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
       </button>
 
       <div className="mb-5 flex items-center gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-white">{shelf.name}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-white">
+          {shelf.isDefault ? t('shelves.favorites') : shelf.name}
+        </h1>
         {shelf.isPublic && (
           <span className="rounded-full bg-accent-500/15 px-2.5 py-0.5 text-xs font-medium text-accentSoft">
             {t('shelves.public')}
@@ -220,10 +222,12 @@ export function ShelvesPage() {
               onClick={() => setSelected(shelf)}
             >
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accentSoft">
-                <IconShelf width={22} height={22} />
+                {shelf.isDefault ? <IconHeart width={22} height={22} /> : <IconShelf width={22} height={22} />}
               </span>
               <div className="min-w-0 flex-1">
-                <h3 className="truncate font-medium text-white">{shelf.name}</h3>
+                <h3 className="truncate font-medium text-white">
+                  {shelf.isDefault ? t('shelves.favorites') : shelf.name}
+                </h3>
                 <p className="text-xs text-slate-500">
                   {t(shelf.bookCount === 1 ? 'common.books_one' : 'common.books_other', {
                     count: shelf.bookCount,
@@ -231,17 +235,20 @@ export function ShelvesPage() {
                   {shelf.isPublic ? ` · ${t('shelves.public')}` : ''}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setConfirmDelete(shelf)
-                }}
-                className="rounded-lg p-2 text-slate-500 opacity-0 transition-all hover:bg-red-500/10 hover:text-red-300 group-hover:opacity-100"
-                aria-label={t('shelves.deleteTitle')}
-              >
-                <IconTrash width={18} height={18} />
-              </button>
+              {/* The built-in Favorites shelf can't be deleted. */}
+              {!shelf.isDefault && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setConfirmDelete(shelf)
+                  }}
+                  className="rounded-lg p-2 text-slate-500 opacity-0 transition-all hover:bg-red-500/10 hover:text-red-300 group-hover:opacity-100"
+                  aria-label={t('shelves.deleteTitle')}
+                >
+                  <IconTrash width={18} height={18} />
+                </button>
+              )}
             </div>
           ))}
         </div>
