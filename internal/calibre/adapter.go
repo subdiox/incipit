@@ -143,19 +143,23 @@ func (a *Adapter) buildFilters(opts ListOptions) (string, []any) {
 	if s := strings.TrimSpace(opts.Search); s != "" {
 		like := "%" + s + "%"
 		// Search across every user-visible field: title, author, series (name +
-		// volume number), tags, publisher and the description/comments. The linked
-		// categories use non-correlated `id IN (subquery)` so each match set is
-		// computed once rather than re-checked per book (much faster than EXISTS
-		// on a large library).
+		// volume number), tags, publisher and the description/comments.
+		//
+		// Each linked category matches names first, then resolves books through the
+		// link table's category index:
+		//   book IN (SELECT book FROM link WHERE cat IN (SELECT id FROM cat WHERE name LIKE ?))
+		// This is critical on a large library: the naive JOIN form makes the planner
+		// SCAN the whole link table (millions of rows, ~1s), whereas matching the
+		// (few) category ids first keeps the whole search ~0.25s on 300k books.
 		clauses = append(clauses, `(
 			b.title LIKE ?
 			OR b.author_sort LIKE ?
 			OR CAST(b.series_index AS TEXT) LIKE ?
-			OR b.id IN (SELECT bal.book FROM books_authors_link bal JOIN authors au ON au.id=bal.author WHERE au.name LIKE ?)
-			OR b.id IN (SELECT bsl.book FROM books_series_link bsl JOIN series se ON se.id=bsl.series WHERE se.name LIKE ?)
-			OR b.id IN (SELECT btl.book FROM books_tags_link btl JOIN tags t ON t.id=btl.tag WHERE t.name LIKE ?)
-			OR b.id IN (SELECT bpl.book FROM books_publishers_link bpl JOIN publishers pu ON pu.id=bpl.publisher WHERE pu.name LIKE ?)
-			OR b.id IN (SELECT cm.book FROM comments cm WHERE cm.text LIKE ?)
+			OR b.id IN (SELECT book FROM books_authors_link WHERE author IN (SELECT id FROM authors WHERE name LIKE ?))
+			OR b.id IN (SELECT book FROM books_series_link WHERE series IN (SELECT id FROM series WHERE name LIKE ?))
+			OR b.id IN (SELECT book FROM books_tags_link WHERE tag IN (SELECT id FROM tags WHERE name LIKE ?))
+			OR b.id IN (SELECT book FROM books_publishers_link WHERE publisher IN (SELECT id FROM publishers WHERE name LIKE ?))
+			OR b.id IN (SELECT book FROM comments WHERE text LIKE ?)
 		)`)
 		args = append(args, like, like, like, like, like, like, like, like)
 	}
