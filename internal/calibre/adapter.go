@@ -142,10 +142,22 @@ func (a *Adapter) buildFilters(opts ListOptions) (string, []any) {
 
 	if s := strings.TrimSpace(opts.Search); s != "" {
 		like := "%" + s + "%"
-		clauses = append(clauses, `(b.title LIKE ? OR b.author_sort LIKE ? OR EXISTS (
-			SELECT 1 FROM books_authors_link bal JOIN authors au ON au.id=bal.author
-			WHERE bal.book=b.id AND au.name LIKE ?))`)
-		args = append(args, like, like, like)
+		// Search across every user-visible field: title, author, series (name +
+		// volume number), tags, publisher and the description/comments. The linked
+		// categories use non-correlated `id IN (subquery)` so each match set is
+		// computed once rather than re-checked per book (much faster than EXISTS
+		// on a large library).
+		clauses = append(clauses, `(
+			b.title LIKE ?
+			OR b.author_sort LIKE ?
+			OR CAST(b.series_index AS TEXT) LIKE ?
+			OR b.id IN (SELECT bal.book FROM books_authors_link bal JOIN authors au ON au.id=bal.author WHERE au.name LIKE ?)
+			OR b.id IN (SELECT bsl.book FROM books_series_link bsl JOIN series se ON se.id=bsl.series WHERE se.name LIKE ?)
+			OR b.id IN (SELECT btl.book FROM books_tags_link btl JOIN tags t ON t.id=btl.tag WHERE t.name LIKE ?)
+			OR b.id IN (SELECT bpl.book FROM books_publishers_link bpl JOIN publishers pu ON pu.id=bpl.publisher WHERE pu.name LIKE ?)
+			OR b.id IN (SELECT cm.book FROM comments cm WHERE cm.text LIKE ?)
+		)`)
+		args = append(args, like, like, like, like, like, like, like, like)
 	}
 	if opts.AuthorID > 0 {
 		clauses = append(clauses, "EXISTS (SELECT 1 FROM books_authors_link bal WHERE bal.book=b.id AND bal.author=?)")
