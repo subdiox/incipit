@@ -309,7 +309,7 @@ export const en = {
   'collections.name': 'Name',
   'collections.namePlaceholder': 'e.g. Action',
   'collections.tags': 'Tags',
-  'collections.tagsHelp': 'Pick the tags this collection filters by. Leave empty to include every book (then optionally narrow with excluded tags below).',
+  'collections.tagsHelp': 'Tags this collection includes. Leave empty to include every book.',
   'collections.noTags': 'No tags (all books)',
   'collections.excludeTags': 'Excluded tags',
   'collections.excludeTagsHelp': 'Books carrying any of these tags are hidden from this collection.',

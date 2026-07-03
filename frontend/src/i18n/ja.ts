@@ -311,7 +311,7 @@ export const ja: Record<TranslationKey, string> = {
   'collections.name': '名前',
   'collections.namePlaceholder': '例: アクション',
   'collections.tags': 'タグ',
-  'collections.tagsHelp': 'このコレクションで絞り込むタグを選択してください。空にすると全書籍が対象になります(下の除外タグだけで絞ることも可能)。',
+  'collections.tagsHelp': 'コレクションに含めるタグ。空にすると全書籍が対象です。',
   'collections.noTags': 'タグなし(全書籍)',
   'collections.excludeTags': '除外タグ',
   'collections.excludeTagsHelp': 'これらのタグを持つ本は、このコレクションから除外(非表示)されます。',
