@@ -116,6 +116,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
   // the right, so the left end is the last page).
   const barRef = useRef<HTMLDivElement>(null)
   const scrubbing = useRef(false)
+  const [isScrubbing, setIsScrubbing] = useState(false)
   const pageFromClientX = useCallback(
     (clientX: number) => {
       const el = barRef.current
@@ -130,6 +131,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
   const onScrubDown = useCallback(
     (e: ReactPointerEvent) => {
       scrubbing.current = true
+      setIsScrubbing(true)
       e.currentTarget.setPointerCapture(e.pointerId)
       setPage(pageFromClientX(e.clientX))
     },
@@ -143,6 +145,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
   )
   const onScrubUp = useCallback((e: ReactPointerEvent) => {
     scrubbing.current = false
+    setIsScrubbing(false)
     try {
       e.currentTarget.releasePointerCapture(e.pointerId)
     } catch {
@@ -560,6 +563,13 @@ export function CbzReader({ bookId }: { bookId: number }) {
           <div
             className={`h-full bg-accent-500 ${rtl ? 'ml-auto' : ''}`}
             style={{ width: `${((last + 1) / total) * 100}%` }}
+          />
+          {/* Handle shown only while actively dragging. */}
+          <div
+            className={`pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-400 shadow ring-2 ring-black/50 transition-opacity duration-150 ${
+              isScrubbing ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{ left: `${(rtl ? 1 - (last + 1) / total : (last + 1) / total) * 100}%` }}
           />
         </div>
       </div>
