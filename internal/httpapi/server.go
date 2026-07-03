@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 
 	"incipit/internal/appdb"
 	"incipit/internal/auth"
@@ -90,6 +91,9 @@ func (s *Server) Router() http.Handler {
 	r.Use(requestLogger)
 
 	r.Route("/api", func(r chi.Router) {
+		// gzip JSON responses — the facet lists (e.g. a 100k+-tag library) are
+		// multi-MB uncompressed, so this dominates their load time.
+		r.Use(middleware.Compress(5))
 		// Unauthenticated endpoints.
 		r.Get("/setup/status", s.handleSetupStatus)
 		r.Post("/setup", s.handleSetup)
