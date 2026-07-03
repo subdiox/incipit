@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, mediaUrl } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
@@ -234,7 +234,17 @@ export function BookDetailPage() {
   const { id } = useParams()
   const bookId = Number(id)
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
+
+  // Back returns to wherever the user came from — a filtered library, a
+  // collection, history or shelves — with its exact query state intact, since
+  // that lives in the URL. Fall back to the library only when there's no
+  // in-app history (e.g. the book was deep-linked or the page was reloaded).
+  const goBack = () => {
+    if (location.key !== 'default') navigate(-1)
+    else navigate('/')
+  }
   const { user } = useAuth()
   const { t } = useI18n()
 
@@ -302,10 +312,10 @@ export function BookDetailPage() {
 
   return (
     <div>
-      <Link to="/" className="btn-ghost mb-4 -ml-2 inline-flex">
+      <button type="button" onClick={goBack} className="btn-ghost mb-4 -ml-2 inline-flex">
         <IconChevronLeft width={18} height={18} />
-        {t('nav.library')}
-      </Link>
+        {t('common.back')}
+      </button>
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[300px_1fr]">
         {/* Cover + actions */}
