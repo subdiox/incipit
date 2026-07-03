@@ -320,9 +320,29 @@ export function BookDetailPage() {
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[300px_1fr]">
         {/* Cover + actions */}
         <div className="md:sticky md:top-20 md:self-start">
-          <div className="mx-auto max-w-[300px] overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700">
-            <Cover bookId={book.id} title={book.title} hasCover={book.hasCover} version={book.lastModified} width={800} rounded="rounded-none" />
-          </div>
+          {/* The cover starts reading directly (resuming saved progress) when the
+              book is readable; otherwise it's just the static image. */}
+          {readable ? (
+            <Link
+              to={`/books/${book.id}/read`}
+              aria-label={hasProgress ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages }) : t('book.read')}
+              className="group mx-auto block max-w-[300px] overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700 transition-all hover:shadow-glow hover:ring-accent-500/50"
+            >
+              <Cover
+                bookId={book.id}
+                title={book.title}
+                hasCover={book.hasCover}
+                version={book.lastModified}
+                width={800}
+                rounded="rounded-none"
+                className="transition-transform duration-300 group-hover:scale-[1.03]"
+              />
+            </Link>
+          ) : (
+            <div className="mx-auto max-w-[300px] overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700">
+              <Cover bookId={book.id} title={book.title} hasCover={book.hasCover} version={book.lastModified} width={800} rounded="rounded-none" />
+            </div>
+          )}
 
           <div className="mt-4 space-y-2">
             {readable && (
