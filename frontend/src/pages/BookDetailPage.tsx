@@ -312,6 +312,9 @@ export function BookDetailPage() {
   const readable = isReadable(book)
   const downloadable = book.formats.length > 0
   const pct = hasProgress ? progressPct(progress!.page, progress!.totalPages) : 0
+  const readLabel = hasProgress
+    ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
+    : t('book.read')
 
   return (
     <div>
@@ -323,19 +326,15 @@ export function BookDetailPage() {
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[300px_1fr]">
         {/* Cover + actions */}
         <div className="md:sticky md:top-20 md:self-start">
-          {/* Cover and "read" are one control: the whole cover starts reading
-              (resuming saved progress), with the action fused onto it as an
-              overlay and a progress bar hugging the bottom edge. */}
+          {/* The cover doubles as the read control. On desktop the read
+              affordance is revealed on hover, so the artwork stays clean by
+              default; on touch (no hover) a dedicated button sits below. */}
           {readable ? (
             <div className="group relative mx-auto max-w-[300px]">
               <Link
                 to={`/books/${book.id}/read`}
-                aria-label={
-                  hasProgress
-                    ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
-                    : t('book.read')
-                }
-                className="block overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700 transition-all hover:shadow-glow hover:ring-accent-500/60"
+                aria-label={readLabel}
+                className="block overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700 transition-all md:hover:shadow-glow md:hover:ring-accent-500/60"
               >
                 <div className="relative">
                   <Cover
@@ -345,25 +344,24 @@ export function BookDetailPage() {
                     version={book.lastModified}
                     width={800}
                     rounded="rounded-none"
-                    className="transition-transform duration-500 group-hover:scale-105"
+                    className="md:transition-transform md:duration-500 md:group-hover:scale-105"
                   />
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-2.5 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-3.5 pb-4 pt-14 text-white">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-600 text-onaccent shadow-glow ring-2 ring-white/15 transition-transform duration-200 group-hover:scale-110">
+                  {/* Hover-reveal read affordance (desktop only). */}
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden items-center gap-2.5 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-3.5 pb-4 pt-14 text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 md:flex">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-600 text-onaccent shadow-glow ring-2 ring-white/15">
                       <IconBook width={18} height={18} />
                     </span>
-                    <span className="min-w-0 truncate text-sm font-semibold">
-                      {hasProgress
-                        ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
-                        : t('book.read')}
-                    </span>
+                    <span className="min-w-0 truncate text-sm font-semibold">{readLabel}</span>
                   </div>
+                  {/* Thin progress bar hugging the bottom edge (both viewports). */}
                   {hasProgress && (
-                    <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50">
+                    <div className="absolute inset-x-0 bottom-0 h-1 bg-black/30">
                       <div className="h-full bg-accent-500" style={{ width: `${pct}%` }} />
                     </div>
                   )}
                 </div>
               </Link>
+              {/* Clear reading progress — revealed on hover (desktop). */}
               {hasProgress && (
                 <button
                   type="button"
@@ -371,7 +369,7 @@ export function BookDetailPage() {
                   disabled={resetProgress.isPending}
                   title={t('history.reset')}
                   aria-label={t('history.reset')}
-                  className="absolute right-2 top-2 z-10 rounded-lg bg-black/50 p-1.5 text-slate-200 backdrop-blur transition-colors hover:bg-red-600 hover:text-white disabled:opacity-50"
+                  className="absolute right-2 top-2 z-10 hidden rounded-lg bg-black/50 p-1.5 text-slate-200 opacity-0 backdrop-blur transition-opacity hover:bg-red-600 hover:text-white focus:opacity-100 group-hover:opacity-100 disabled:opacity-50 md:block"
                 >
                   {resetProgress.isPending ? (
                     <Spinner className="h-4 w-4" />
@@ -388,6 +386,33 @@ export function BookDetailPage() {
           )}
 
           <div className="mt-4 space-y-2">
+            {/* Touch devices have no hover, so give the cover's read action an
+                explicit button (desktop uses the hover overlay instead). */}
+            {readable && (
+              <div className="flex gap-2 md:hidden">
+                <Link to={`/books/${book.id}/read`} className="btn-primary flex-1">
+                  <IconBook width={18} height={18} />
+                  {readLabel}
+                </Link>
+                {hasProgress && (
+                  <button
+                    type="button"
+                    className="btn-secondary shrink-0 px-3"
+                    onClick={() => resetProgress.mutate()}
+                    disabled={resetProgress.isPending}
+                    title={t('history.reset')}
+                    aria-label={t('history.reset')}
+                  >
+                    {resetProgress.isPending ? (
+                      <Spinner className="h-4 w-4" />
+                    ) : (
+                      <IconReset width={18} height={18} />
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
+
             {user?.canDownload && downloadable && (
               <a
                 href={mediaUrl.file(book.id)}
