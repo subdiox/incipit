@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import { useDebounced } from '@/lib/hooks'
-import { useFacetNames } from '@/lib/facets'
+import { useFacetNames, rememberFacets } from '@/lib/facets'
 import { IconClose, IconSearch } from './icons'
 import { Spinner } from './Spinner'
 
@@ -23,6 +23,10 @@ export function TagPicker({ value, onChange }: { value: number[]; onChange: (ids
     staleTime: 60_000,
     placeholderData: keepPreviousData,
   })
+  useEffect(() => {
+    if (results.data) rememberFacets('tags', results.data)
+  }, [results.data])
+
   const names = useFacetNames('tags', api.tags, value)
 
   const selected = useMemo(() => new Set(value), [value])

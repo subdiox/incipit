@@ -9,6 +9,7 @@ import { formatBytes, formatDate, dateInputValue, languageLabel, GENRE_TAG_PREFI
 import { Cover } from '@/components/Cover'
 import { progressPct } from '@/components/ReadingShelf'
 import { isReadable } from '@/lib/book'
+import { rememberFacets } from '@/lib/facets'
 import { Rating } from '@/components/Rating'
 import { EnrichModal } from '@/components/EnrichModal'
 import { Modal } from '@/components/Modal'
@@ -281,6 +282,15 @@ export function BookDetailPage() {
     enabled: Number.isFinite(bookId) && !!book?.formats.some((f) => f.format.toLowerCase() === 'cbz'),
     staleTime: 300_000,
   })
+
+  // Seed the shared facet-name cache so clicking a tag/author here lands on the
+  // library with its chip already named (no "…" while it resolves).
+  useEffect(() => {
+    if (book) {
+      rememberFacets('tags', book.tags)
+      rememberFacets('authors', book.authors)
+    }
+  }, [book])
 
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteBook(bookId),

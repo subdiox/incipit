@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { Facet } from '@/types'
 import type { FacetParams } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import { useDebounced } from '@/lib/hooks'
-import { useFacetNames } from '@/lib/facets'
+import { useFacetNames, rememberFacets } from '@/lib/facets'
 import { IconClose, IconSearch } from './icons'
 import { Spinner } from './Spinner'
 
@@ -42,6 +42,12 @@ export function AsyncFacet({
     staleTime: 60_000,
     placeholderData: keepPreviousData,
   })
+
+  // Feed every result into the shared name cache so a just-picked chip resolves
+  // instantly (no extra lookup round-trip).
+  useEffect(() => {
+    if (results.data) rememberFacets(base, results.data)
+  }, [base, results.data])
 
   const names = useFacetNames(base, fetcher, activeIds)
   const actives = activeIds.map((id) => names.get(id) ?? { id, name: '…', count: 0 })
