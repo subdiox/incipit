@@ -167,6 +167,7 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "add book: "+err.Error())
 		return
 	}
+	s.facets.clear() // a new book adds authors/tags to the facets
 	writeJSON(w, http.StatusCreated, book)
 }
 
@@ -252,6 +253,7 @@ func (s *Server) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "update book: "+err.Error())
 		return
 	}
+	s.facets.clear() // author/tag membership may have changed
 	writeJSON(w, http.StatusOK, updated)
 }
 
@@ -274,6 +276,7 @@ func (s *Server) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "delete book")
 		return
 	}
+	s.facets.clear()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 

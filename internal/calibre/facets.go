@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // facetQuery returns the SQL for a category facet with book counts, filtered to
@@ -33,6 +34,68 @@ func (a *Adapter) Tags(ctx context.Context) ([]Facet, error) {
 	return a.facets(ctx, facetQuery("tags", "books_tags_link", "tag", false))
 }
 
+// FacetQuery filters a facet listing so huge categories (a 100k+-tag library)
+// need not be shipped whole: search by name and cap to Limit, or resolve a
+// specific set of IDs (for rendering already-selected chips).
+type FacetQuery struct {
+	Search string
+	IDs    []int64
+	Limit  int
+}
+
+// likeEscape escapes LIKE wildcards so a search term is matched literally.
+func likeEscape(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
+// facetsSearch returns a category's facets filtered by fq: either the given IDs,
+// or the most-used matches for a name search (capped). Ordered by book count
+// desc so the most relevant/popular entries surface first.
+func (a *Adapter) facetsSearch(ctx context.Context, table, linkTable, linkCol string, hasSort bool, fq FacetQuery) ([]Facet, error) {
+	sortExpr := "''"
+	if hasSort {
+		sortExpr = "COALESCE(c.sort, c.name)"
+	}
+	var where, limit string
+	var args []any
+	if len(fq.IDs) > 0 {
+		ph := make([]string, len(fq.IDs))
+		for i, id := range fq.IDs {
+			ph[i] = "?"
+			args = append(args, id)
+		}
+		where = "WHERE c.id IN (" + strings.Join(ph, ",") + ")"
+	} else {
+		if s := strings.TrimSpace(fq.Search); s != "" {
+			where = `WHERE c.name LIKE ? ESCAPE '\'`
+			args = append(args, "%"+likeEscape(s)+"%")
+		}
+		n := fq.Limit
+		if n <= 0 {
+			n = 40
+		}
+		if n > 500 {
+			n = 500
+		}
+		limit = fmt.Sprintf("LIMIT %d", n)
+	}
+	q := fmt.Sprintf(`SELECT c.id, c.name, %s, COUNT(l.book)
+		FROM %s c JOIN %s l ON l.%s = c.id
+		%s GROUP BY c.id ORDER BY COUNT(l.book) DESC, c.name COLLATE NOCASE %s`,
+		sortExpr, table, linkTable, linkCol, where, limit)
+	return a.facets(ctx, q, args...)
+}
+
+// TagsSearch returns tags matching fq (search+cap, or by IDs).
+func (a *Adapter) TagsSearch(ctx context.Context, fq FacetQuery) ([]Facet, error) {
+	return a.facetsSearch(ctx, "tags", "books_tags_link", "tag", false, fq)
+}
+
+// AuthorsSearch returns authors matching fq (search+cap, or by IDs).
+func (a *Adapter) AuthorsSearch(ctx context.Context, fq FacetQuery) ([]Facet, error) {
+	return a.facetsSearch(ctx, "authors", "books_authors_link", "author", true, fq)
+}
+
 // Publishers returns all publishers with at least one book, sorted.
 func (a *Adapter) Publishers(ctx context.Context) ([]Facet, error) {
 	return a.facets(ctx, facetQuery("publishers", "books_publishers_link", "publisher", true))
@@ -45,8 +108,8 @@ func (a *Adapter) Languages(ctx context.Context) ([]Facet, error) {
 		GROUP BY l.id ORDER BY l.lang_code`)
 }
 
-func (a *Adapter) facets(ctx context.Context, query string) ([]Facet, error) {
-	rows, err := a.db.QueryContext(ctx, query)
+func (a *Adapter) facets(ctx context.Context, query string, args ...any) ([]Facet, error) {
+	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("facets: %w", err)
 	}

@@ -23,16 +23,17 @@ const LibraryPathKey = "library_path"
 
 // Server holds the HTTP dependencies and builds the router.
 type Server struct {
-	cfg      *config.Config
-	libPtr   atomic.Pointer[calibre.Adapter] // set at boot or during setup
-	store    *appdb.Store
-	auth     *auth.Service
-	reader   *reader.Service
-	ldap     *auth.LDAPManager
-	proxyCfg auth.ProxyConfig
+	cfg        *config.Config
+	libPtr     atomic.Pointer[calibre.Adapter] // set at boot or during setup
+	store      *appdb.Store
+	auth       *auth.Service
+	reader     *reader.Service
+	ldap       *auth.LDAPManager
+	proxyCfg   auth.ProxyConfig
 	limiter    *rateLimiter
 	meta       *metadata.Client
 	previews   *previewStore
+	facets     *facetCache
 	indexing   atomic.Bool  // guards the background page-count indexer
 	indexDone  atomic.Int64 // books processed in the current/last index run
 	indexTotal atomic.Int64 // books to process in the current/last index run
@@ -56,11 +57,13 @@ func New(cfg *config.Config, lib *calibre.Adapter, store *appdb.Store, authSvc *
 		limiter:  newRateLimiter(10, time.Minute),
 		meta:     metadata.NewClient(),
 		previews: newPreviewStore(),
+		facets:   newFacetCache(),
 	}
 	if lib != nil {
 		s.libPtr.Store(lib)
 	}
 	s.startPageIndex() // resume page-count indexing if the filter is enabled
+	s.warmFacets()     // precompute the default author/tag lists in the background
 	return s
 }
 

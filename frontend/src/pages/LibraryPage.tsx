@@ -9,6 +9,8 @@ import type { TranslationKey } from '@/i18n/en'
 import { useDebounced } from '@/lib/hooks'
 import type { Collection, Facet, SortKey, SortOrder } from '@/types'
 import { BookCard, BookCardSkeleton, BookGrid } from '@/components/BookCard'
+import { AsyncFacet } from '@/components/AsyncFacet'
+import { useFacetNames } from '@/lib/facets'
 import { ContinueReadingShelf } from '@/components/ReadingShelf'
 import { UploadModal } from '@/components/UploadModal'
 import {
@@ -306,21 +308,27 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
     placeholderData: keepPreviousData,
   })
 
-  const authors = useQuery({ queryKey: ['facets', 'authors'], queryFn: api.authors, staleTime: 300_000 })
+  // Series is small enough to return whole; tags & authors are searched
+  // server-side (the library can have 100k+ of each), so only the *selected* ids
+  // are resolved to names here — for the active filter chips and, on a collection,
+  // its locked base/exclude tag chips.
   const series = useQuery({ queryKey: ['facets', 'series'], queryFn: api.series, staleTime: 300_000 })
-  const tags = useQuery({ queryKey: ['facets', 'tags'], queryFn: api.tags, staleTime: 300_000 })
-
-  // The view's own base tags (include + exclude) define its scope, so drop them
-  // from the interactive tag filter list: they'd be redundant, can't be toggled
-  // off, and including a base-excluded tag would just yield an empty result.
   const baseTagKey = baseTagIds.join(',')
-  const tagFacets = useMemo(
-    () => {
-      const hidden = new Set<number>([...baseTagIds, ...baseExcludeTagIds])
-      return hidden.size ? (tags.data ?? []).filter((f) => !hidden.has(f.id)) : tags.data
-    },
+  const tagIdKey = tagIds.join(',')
+  const tagNameIds = useMemo(
+    () => Array.from(new Set([...tagIds, ...baseTagIds, ...baseExcludeTagIds])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tags.data, baseTagKey, excludeTagKey],
+    [tagIdKey, baseTagKey, excludeTagKey],
+  )
+  const tagNames = useFacetNames('tags', api.tags, tagNameIds)
+  const authorNamesMap = useFacetNames('authors', api.authors, authorId != null ? [authorId] : [])
+  // The view's own base tags (include + exclude) are hidden from the interactive
+  // tag list: redundant, can't be toggled off, and a base-excluded tag would just
+  // empty the view.
+  const hiddenTagIds = useMemo(
+    () => [...baseTagIds, ...baseExcludeTagIds],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [baseTagKey, excludeTagKey],
   )
 
   const total = data?.total ?? 0
@@ -385,20 +393,20 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
 
   const activeChips = [
     ...(authorId != null
-      ? [{ kind: 'author' as const, id: authorId, name: authors.data?.find((f) => f.id === authorId)?.name }]
+      ? [{ kind: 'author' as const, id: authorId, name: authorNamesMap.get(authorId)?.name }]
       : []),
     ...(seriesId != null
       ? [{ kind: 'series' as const, id: seriesId, name: series.data?.find((f) => f.id === seriesId)?.name }]
       : []),
-    ...tagIds.map((id) => ({ kind: 'tag' as const, id, name: tags.data?.find((f) => f.id === id)?.name })),
+    ...tagIds.map((id) => ({ kind: 'tag' as const, id, name: tagNames.get(id)?.name })),
   ]
 
   const facetPanel = (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3">
-        <FacetFilter title={t('library.authors')} kind="author" facets={authors.data} activeIds={authorId != null ? [authorId] : []} onToggle={toggleFacet} searchFirst={isMobile} />
+        <AsyncFacet title={t('library.authors')} base="authors" fetcher={api.authors} activeIds={authorId != null ? [authorId] : []} onToggle={(id) => toggleFacet('author', id)} />
         <FacetFilter title={t('library.series')} kind="series" facets={series.data} activeIds={seriesId != null ? [seriesId] : []} onToggle={toggleFacet} searchFirst={isMobile} />
-        <FacetFilter title={t('library.tags')} kind="tag" facets={tagFacets} activeIds={tagIds} onToggle={toggleFacet} searchFirst={isMobile} />
+        <AsyncFacet title={t('library.tags')} base="tags" fetcher={api.tags} activeIds={tagIds} onToggle={(id) => toggleFacet('tag', id)} hiddenIds={hiddenTagIds} />
       </div>
       {pageFilterOn && (
         <div className="border-t border-ink-700 pt-4">
@@ -534,7 +542,7 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
                       </span>
                     )}
                     <span className="chip py-0.5 text-xs text-slate-300">
-                      {tags.data?.find((f) => f.id === id)?.name ?? `#${id}`}
+                      {tagNames.get(id)?.name ?? `#${id}`}
                     </span>
                   </span>
                 ))}
@@ -552,7 +560,7 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
                     key={id}
                     className="chip py-0.5 text-xs text-slate-400 line-through decoration-slate-600"
                   >
-                    {tags.data?.find((f) => f.id === id)?.name ?? `#${id}`}
+                    {tagNames.get(id)?.name ?? `#${id}`}
                   </span>
                 ))}
               </div>

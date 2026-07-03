@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
+import { useFacetNames } from '@/lib/facets'
 import { useI18n } from '@/i18n'
 import type { Collection } from '@/types'
 import { Modal } from './Modal'
@@ -94,8 +95,17 @@ export function CollectionsSettings() {
   const qc = useQueryClient()
   const { t } = useI18n()
   const { data: collections, isLoading } = useQuery({ queryKey: ['collections'], queryFn: api.collections })
-  const tags = useQuery({ queryKey: ['facets', 'tags'], queryFn: api.tags, staleTime: 300_000 }).data ?? []
-  const tagName = useMemo(() => new Map(tags.map((f) => [f.id, f.name])), [tags])
+  // Resolve names for just the tag ids these collections reference (server-side),
+  // rather than downloading the whole tag list.
+  const idUnion = useMemo(() => {
+    const s = new Set<number>()
+    ;(collections ?? []).forEach((c) => {
+      c.tagIds.forEach((id) => s.add(id))
+      c.excludeTagIds.forEach((id) => s.add(id))
+    })
+    return Array.from(s)
+  }, [collections])
+  const tagNames = useFacetNames('tags', api.tags, idUnion)
 
   const [editing, setEditing] = useState<Collection | null>(null)
   const [creating, setCreating] = useState(false)
@@ -190,13 +200,13 @@ export function CollectionsSettings() {
                           {p.matchAny && p.tagIds.length > 1 && (
                             <span className="text-accentSoft/80">{t('collections.anyBadge')} </span>
                           )}
-                          {p.tagIds.map((id) => tagName.get(id) ?? `#${id}`).join(p.matchAny ? ' / ' : ' · ')}
+                          {p.tagIds.map((id) => tagNames.get(id)?.name ?? `#${id}`).join(p.matchAny ? ' / ' : ' · ')}
                         </>
                       )}
                       {p.excludeTagIds.length > 0 && (
                         <span className="text-slate-600">
                           {p.tagIds.length > 0 ? '　' : ''}
-                          − {p.excludeTagIds.map((id) => tagName.get(id) ?? `#${id}`).join(', ')}
+                          − {p.excludeTagIds.map((id) => tagNames.get(id)?.name ?? `#${id}`).join(', ')}
                         </span>
                       )}
                     </>

@@ -120,6 +120,26 @@ function bookQueryString(q: BookQuery): string {
   return s ? `?${s}` : ''
 }
 
+// Params for a searchable facet (tags/authors). `ids` (when set) resolves those
+// specific rows; otherwise `q` searches by name and `limit` caps the result.
+export interface FacetParams {
+  q?: string
+  ids?: number[]
+  limit?: number
+}
+
+function facetQS(p: FacetParams): string {
+  const params = new URLSearchParams()
+  if (p.ids && p.ids.length) {
+    params.set('ids', p.ids.join(','))
+  } else {
+    if (p.q) params.set('q', p.q)
+    if (p.limit != null) params.set('limit', String(p.limit))
+  }
+  const s = params.toString()
+  return s ? `?${s}` : ''
+}
+
 // ---- Media URL helpers (used directly as <img src>) ----
 // v is a cache-busting version token (e.g. book.lastModified): the cover/
 // thumbnail URLs are long-lived (max-age), so changing v forces a refetch after
@@ -196,9 +216,13 @@ export const api = {
   recordView: (id: number) => request<{ views: number }>(`/books/${id}/views`, { method: 'POST' }),
 
   // Facets & stats
-  authors: () => request<Facet[]>('/authors'),
+  // Tags and authors can be 100k+ rows, so they're searched server-side: with no
+  // params the server returns the most-used top-N; `q` searches by name; `ids`
+  // resolves specific rows (to name already-selected chips). Series/publishers
+  // are small enough to return whole.
+  authors: (p: FacetParams = {}) => request<Facet[]>(`/authors${facetQS(p)}`),
   series: () => request<Facet[]>('/series'),
-  tags: () => request<Facet[]>('/tags'),
+  tags: (p: FacetParams = {}) => request<Facet[]>(`/tags${facetQS(p)}`),
   publishers: () => request<Facet[]>('/publishers'),
   languages: () => request<Facet[]>('/languages'),
   stats: () => request<Stats>('/stats'),
