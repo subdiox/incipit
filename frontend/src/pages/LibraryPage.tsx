@@ -211,8 +211,19 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   // collection's tags; on the home library it's the admin-configured home filter
   // (server settings). Include tags AND together (a "match any" collection ORs its
   // own group instead); exclude tags hide any book carrying them.
-  const baseTagIds = collection ? collection.tagIds : (site?.homeTags ?? [])
-  const baseExcludeTagIds = collection ? collection.excludeTagIds : (site?.homeExcludeTags ?? [])
+  //
+  // The home base filter scopes the *default* home listing only. When drilling
+  // into a specific series or author, it steps aside so that entity's full set
+  // shows — otherwise a work hidden by the home filter would make its series- /
+  // author-name search come up empty. Collections keep their own scope.
+  const homeDrillDown = seriesId != null || authorId != null
+  const applyHomeFilter = !homeDrillDown
+  const baseTagIds = collection ? collection.tagIds : applyHomeFilter ? (site?.homeTags ?? []) : []
+  const baseExcludeTagIds = collection
+    ? collection.excludeTagIds
+    : applyHomeFilter
+      ? (site?.homeExcludeTags ?? [])
+      : []
   const matchAny = collection ? collection.matchAny : !!site?.homeMatchAny
   const effectiveTagIds = Array.from(new Set([...baseTagIds, ...tagIds])) // for display/locked state
   // Query params: interactive tags (AND) vs the collection's OR group (any-mode only).
