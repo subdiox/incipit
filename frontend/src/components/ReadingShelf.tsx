@@ -4,6 +4,7 @@ import { api } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import type { Book } from '@/types'
 import { authorNames } from '@/lib/format'
+import { isReadable } from '@/lib/book'
 import { Cover } from './Cover'
 
 // progressPct maps a 0-based page within totalPages to a 0-100 percentage.
@@ -16,30 +17,40 @@ export function progressPct(page: number, total: number): number {
 // reading-progress bar.
 function ShelfBook({ book, progress }: { book: Book; progress?: number }) {
   const { t } = useI18n()
+  const readable = isReadable(book)
   return (
-    <Link to={`/books/${book.id}`} className="group block w-[120px] shrink-0 sm:w-[136px]">
-      <div className="overflow-hidden rounded-xl shadow-soft ring-1 ring-ink-700 transition-all group-hover:ring-accent-500/50">
-        <Cover
-          bookId={book.id}
-          title={book.title}
-          hasCover={book.hasCover}
-          version={book.lastModified}
-          width={300}
-          rounded="rounded-none"
-        />
-      </div>
+    <div className="group w-[120px] shrink-0 sm:w-[136px]">
+      {/* Cover resumes reading directly; the title opens the detail page. */}
+      <Link
+        to={readable ? `/books/${book.id}/read` : `/books/${book.id}`}
+        className="block"
+        aria-label={readable ? `${book.title} — ${t('book.read')}` : book.title}
+      >
+        <div className="overflow-hidden rounded-xl shadow-soft ring-1 ring-ink-700 transition-all group-hover:ring-accent-500/50">
+          <Cover
+            bookId={book.id}
+            title={book.title}
+            hasCover={book.hasCover}
+            version={book.lastModified}
+            width={300}
+            rounded="rounded-none"
+          />
+        </div>
+      </Link>
       {progress != null && (
         <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink-700">
           <div className="h-full rounded-full bg-accent-500" style={{ width: `${progress}%` }} />
         </div>
       )}
-      <h3 title={book.title} className="mt-1.5 break-words text-xs font-medium text-slate-200">
-        {book.title}
-      </h3>
-      <p className="line-clamp-1 text-[11px] text-slate-500">
-        {authorNames(book.authors) || t('common.unknownAuthor')}
-      </p>
-    </Link>
+      <Link to={`/books/${book.id}`} className="mt-1.5 block">
+        <h3 title={book.title} className="break-words text-xs font-medium text-slate-200">
+          {book.title}
+        </h3>
+        <p className="line-clamp-1 text-[11px] text-slate-500">
+          {authorNames(book.authors) || t('common.unknownAuthor')}
+        </p>
+      </Link>
+    </div>
   )
 }
 

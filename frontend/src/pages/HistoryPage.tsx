@@ -4,6 +4,7 @@ import { api } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import type { ReadingItem } from '@/types'
 import { authorNames } from '@/lib/format'
+import { isReadable } from '@/lib/book'
 import { Cover } from '@/components/Cover'
 import { BookGrid, BookCardSkeleton } from '@/components/BookCard'
 import { progressPct } from '@/components/ReadingShelf'
@@ -21,9 +22,15 @@ function HistoryCard({
   const { t } = useI18n()
   const { book } = item
   const pct = progressPct(item.page, item.totalPages)
+  const readable = isReadable(book)
   return (
     <div className="group relative">
-      <Link to={`/books/${book.id}`} className="block">
+      {/* Cover resumes reading directly; the title opens the detail page. */}
+      <Link
+        to={readable ? `/books/${book.id}/read` : `/books/${book.id}`}
+        className="block"
+        aria-label={readable ? `${book.title} — ${t('book.read')}` : book.title}
+      >
         <div className="overflow-hidden rounded-xl shadow-soft ring-1 ring-ink-700 transition-all group-hover:ring-accent-500/50">
           <Cover
             bookId={book.id}
@@ -33,11 +40,13 @@ function HistoryCard({
             rounded="rounded-none"
           />
         </div>
-        {item.totalPages > 0 && (
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink-700">
-            <div className="h-full rounded-full bg-accent-500" style={{ width: `${pct}%` }} />
-          </div>
-        )}
+      </Link>
+      {item.totalPages > 0 && (
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink-700">
+          <div className="h-full rounded-full bg-accent-500" style={{ width: `${pct}%` }} />
+        </div>
+      )}
+      <Link to={`/books/${book.id}`} className="block">
         <h3
           title={book.title}
           className="mt-1.5 break-words text-sm font-medium text-slate-100 group-hover:text-white"
