@@ -1,29 +1,29 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { mediaUrl } from '@/lib/api'
 import { useI18n } from '@/i18n'
+import { useCloseReader } from '@/lib/hooks'
 import { IconClose } from '@/components/icons'
 
 // PdfReader hands the file to the browser's built-in PDF viewer via an inline
 // iframe — no extra dependency, full pagination/zoom/search for free.
 export function PdfReader({ bookId, title }: { bookId: number; title: string }) {
-  const navigate = useNavigate()
+  const close = useCloseReader(bookId)
   const { t } = useI18n()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') navigate(`/books/${bookId}`)
+      if (e.key === 'Escape') close()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [navigate, bookId])
+  }, [close])
 
   return (
     <div className="dark flex h-screen w-screen flex-col bg-ink-950">
       <div className="flex items-center gap-3 border-b border-ink-800 bg-ink-900 px-3 py-2">
         <button
           type="button"
-          onClick={() => navigate(`/books/${bookId}`)}
+          onClick={close}
           aria-label={t('reader.closeReader')}
           className="rounded-lg p-2 text-slate-200 transition-colors hover:bg-ink-700 hover:text-white"
         >

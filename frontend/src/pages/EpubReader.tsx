@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { mediaUrl } from '@/lib/api'
 import { useI18n } from '@/i18n'
+import { useCloseReader } from '@/lib/hooks'
 import { Spinner } from '@/components/Spinner'
 import { IconChevronLeft, IconChevronRight, IconClose } from '@/components/icons'
 
@@ -38,7 +38,7 @@ const themeCSS = (fontPercent: number) => `
 `
 
 export function EpubReader({ bookId, title }: { bookId: number; title: string }) {
-  const navigate = useNavigate()
+  const close = useCloseReader(bookId)
   const { t } = useI18n()
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<FoliateView | null>(null)
@@ -114,9 +114,9 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
     (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') goLeft()
       else if (e.key === 'ArrowRight') goRight()
-      else if (e.key === 'Escape') navigate(`/books/${bookId}`)
+      else if (e.key === 'Escape') close()
     },
-    [goLeft, goRight, navigate, bookId],
+    [goLeft, goRight, close],
   )
 
   useEffect(() => {
@@ -207,7 +207,7 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
       <div className="flex items-center gap-3 border-b border-ink-800 bg-ink-900 px-3 py-2">
         <button
           type="button"
-          onClick={() => navigate(`/books/${bookId}`)}
+          onClick={close}
           aria-label={t('reader.closeReader')}
           className="rounded-lg p-2 text-slate-200 transition-colors hover:bg-ink-700 hover:text-white"
         >
@@ -244,7 +244,7 @@ export function EpubReader({ bookId, title }: { bookId: number; title: string })
         {error && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-center">
             <p className="text-slate-400">{t('reader.unableToLoad')}</p>
-            <button className="btn-secondary" onClick={() => navigate(`/books/${bookId}`)}>
+            <button className="btn-secondary" onClick={close}>
               {t('reader.backToDetails')}
             </button>
           </div>

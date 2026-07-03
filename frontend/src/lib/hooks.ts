@@ -1,6 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+
+/**
+ * Close the reader by stepping *back* in history, so the entry that opened it
+ * (the book detail, or wherever the user came from) is restored rather than a
+ * fresh forward navigation being pushed — otherwise the browser/back button
+ * would just re-open the reader. Falls back to the book detail (replacing the
+ * reader entry) when the reader was deep-linked or the page was reloaded and
+ * there's no in-app history to return to.
+ */
+export function useCloseReader(bookId: number): () => void {
+  const navigate = useNavigate()
+  const location = useLocation()
+  return useCallback(() => {
+    if (location.key !== 'default') navigate(-1)
+    else navigate(`/books/${bookId}`, { replace: true })
+  }, [navigate, location.key, bookId])
+}
 
 /** The admin-configurable site title, defaulting to "Incipit" while loading. */
 export function useSiteTitle(): string {

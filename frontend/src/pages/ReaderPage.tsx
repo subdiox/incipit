@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useI18n } from '@/i18n'
+import { useCloseReader } from '@/lib/hooks'
 import { Spinner } from '@/components/Spinner'
 
 // Lazy-loaded so each reader (and the heavy epubjs dependency) is only fetched
@@ -21,7 +22,6 @@ const ReaderFallback = () => (
 export function ReaderPage() {
   const { id } = useParams()
   const bookId = Number(id)
-  const navigate = useNavigate()
   const { t } = useI18n()
   const qc = useQueryClient()
 
@@ -38,7 +38,7 @@ export function ReaderPage() {
     api.recordView(bookId).then(() => qc.invalidateQueries({ queryKey: ['views', bookId] })).catch(() => {})
   }, [bookId, qc])
 
-  const back = () => navigate(`/books/${bookId}`)
+  const back = useCloseReader(bookId)
 
   if (isLoading) return <ReaderFallback />
   if (isError || !book)

@@ -7,11 +7,11 @@ import {
   type ReactNode,
   type TouchEvent as ReactTouchEvent,
 } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, mediaUrl } from '@/lib/api'
 import type { Progress } from '@/types'
 import { useI18n } from '@/i18n'
+import { useCloseReader } from '@/lib/hooks'
 import { Spinner } from '@/components/Spinner'
 import {
   useReaderSettings,
@@ -32,7 +32,7 @@ import {
 } from '@/components/icons'
 
 export function CbzReader({ bookId }: { bookId: number }) {
-  const navigate = useNavigate()
+  const close = useCloseReader(bookId)
   const { t } = useI18n()
   const qc = useQueryClient()
 
@@ -245,7 +245,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (settingsOpen) setSettingsOpen(false)
-        else navigate(`/books/${bookId}`)
+        else close()
         return
       }
       if (e.key === 'ArrowRight') {
@@ -264,7 +264,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onLeft, onRight, forward, backward, navigate, bookId, settingsOpen])
+  }, [onLeft, onRight, forward, backward, close, settingsOpen])
 
   // Auto-hide chrome after inactivity (kept open while the settings panel is).
   const revealChrome = useCallback(() => {
@@ -333,7 +333,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 bg-black text-center">
         <p className="text-slate-400">{t('reader.unableToLoad')}</p>
-        <button className="btn-secondary" onClick={() => navigate(`/books/${bookId}`)}>
+        <button className="btn-secondary" onClick={close}>
           {t('reader.backToDetails')}
         </button>
       </div>
@@ -368,7 +368,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
       >
         <button
           type="button"
-          onClick={() => navigate(`/books/${bookId}`)}
+          onClick={close}
           className="pointer-events-auto rounded-lg bg-black/40 p-2 text-slate-200 backdrop-blur transition-colors hover:bg-black/70 hover:text-white"
           aria-label={t('reader.closeReader')}
         >
