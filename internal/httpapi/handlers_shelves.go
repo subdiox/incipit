@@ -109,6 +109,10 @@ func (s *Server) handleUpdateShelf(w http.ResponseWriter, r *http.Request) {
 	if body.IsPublic != nil {
 		isPublic = *body.IsPublic
 	}
+	// The built-in Favorites shelf is always private.
+	if sh.IsDefault {
+		isPublic = false
+	}
 	if err := s.store.UpdateShelf(r.Context(), sh.ID, name, isPublic); err != nil {
 		if errors.Is(err, appdb.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "shelf not found")

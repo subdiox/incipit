@@ -180,7 +180,7 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
             {t('shelves.public')}
           </span>
         )}
-        {owned && (
+        {owned && !shelf.isDefault && (
           <button
             type="button"
             onClick={() => visibility.mutate(!shelf.isPublic)}
