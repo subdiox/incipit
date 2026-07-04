@@ -180,6 +180,9 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
             {t('shelves.public')}
           </span>
         )}
+        {!owned && (
+          <span className="text-sm text-slate-500">{t('shelves.byOwner', { name: shelf.ownerName })}</span>
+        )}
         {owned && !shelf.isDefault && (
           <button
             type="button"
@@ -269,9 +272,65 @@ function ShelfSearchResults({ shelves, search }: { shelves: Shelf[]; search: str
   )
 }
 
+function ShelfCard({
+  shelf,
+  showOwner,
+  canDelete,
+  onOpen,
+  onDelete,
+}: {
+  shelf: Shelf
+  showOwner: boolean
+  canDelete: boolean
+  onOpen: () => void
+  onDelete: () => void
+}) {
+  const { t } = useI18n()
+  const counts: string[] = []
+  if (shelf.seriesCount > 0) counts.push(t('shelves.seriesCount', { count: shelf.seriesCount }))
+  if (shelf.bookCount > 0)
+    counts.push(
+      t(shelf.bookCount === 1 ? 'common.books_one' : 'common.books_other', { count: shelf.bookCount }),
+    )
+  if (counts.length === 0) counts.push(t('shelves.emptyShort'))
+  return (
+    <div
+      className="card group flex cursor-pointer items-center gap-4 p-4 transition-colors hover:border-accent-500/40"
+      onClick={onOpen}
+    >
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accentSoft">
+        {shelf.isDefault ? <IconHeart width={22} height={22} /> : <IconShelf width={22} height={22} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate font-medium text-white">
+          {shelf.isDefault ? t('shelves.favorites') : shelf.name}
+        </h3>
+        <p className="truncate text-xs text-slate-500">
+          {showOwner && <span className="text-accentSoft/80">{shelf.ownerName} · </span>}
+          {counts.join(' · ')}
+        </p>
+      </div>
+      {canDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+          className="rounded-lg p-2 text-slate-500 opacity-0 transition-all hover:bg-red-500/10 hover:text-red-300 group-hover:opacity-100"
+          aria-label={t('shelves.deleteTitle')}
+        >
+          <IconTrash width={18} height={18} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 export function ShelvesPage() {
   const queryClient = useQueryClient()
   const { t } = useI18n()
+  const { user } = useAuth()
   const [createOpen, setCreateOpen] = useState(false)
   const [selected, setSelected] = useState<Shelf | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Shelf | null>(null)
@@ -314,53 +373,57 @@ export function ShelvesPage() {
       ) : search ? (
         <ShelfSearchResults shelves={shelves ?? []} search={search} />
       ) : shelves && shelves.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {shelves.map((shelf) => (
-            <div
-              key={shelf.id}
-              className="card group flex cursor-pointer items-center gap-4 p-4 transition-colors hover:border-accent-500/40"
-              onClick={() => setSelected(shelf)}
-            >
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accentSoft">
-                {shelf.isDefault ? <IconHeart width={22} height={22} /> : <IconShelf width={22} height={22} />}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate font-medium text-white">
-                  {shelf.isDefault ? t('shelves.favorites') : shelf.name}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {(() => {
-                    const parts: string[] = []
-                    if (shelf.seriesCount > 0)
-                      parts.push(t('shelves.seriesCount', { count: shelf.seriesCount }))
-                    if (shelf.bookCount > 0)
-                      parts.push(
-                        t(shelf.bookCount === 1 ? 'common.books_one' : 'common.books_other', {
-                          count: shelf.bookCount,
-                        }),
-                      )
-                    if (parts.length === 0) parts.push(t('shelves.emptyShort'))
-                    if (shelf.isPublic) parts.push(t('shelves.public'))
-                    return parts.join(' · ')
-                  })()}
-                </p>
-              </div>
-              {/* The built-in Favorites shelf can't be deleted. */}
-              {!shelf.isDefault && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setConfirmDelete(shelf)
-                  }}
-                  className="rounded-lg p-2 text-slate-500 opacity-0 transition-all hover:bg-red-500/10 hover:text-red-300 group-hover:opacity-100"
-                  aria-label={t('shelves.deleteTitle')}
-                >
-                  <IconTrash width={18} height={18} />
-                </button>
-              )}
-            </div>
-          ))}
+        <div className="space-y-8">
+          {/* Grouped so it's clear whose shelf is whose: your private shelves,
+              your public ones, then others' public shelves (with owner). */}
+          {(() => {
+            const mine = shelves.filter((s) => s.userId === user?.id)
+            const groups = [
+              {
+                key: 'private',
+                title: t('shelves.sectionPrivate'),
+                items: mine.filter((s) => !s.isPublic),
+                showOwner: false,
+                canDelete: (s: Shelf) => !s.isDefault,
+              },
+              {
+                key: 'myPublic',
+                title: t('shelves.sectionMyPublic'),
+                items: mine.filter((s) => s.isPublic),
+                showOwner: false,
+                canDelete: () => true,
+              },
+              {
+                key: 'others',
+                title: t('shelves.sectionOthers'),
+                items: shelves.filter((s) => s.userId !== user?.id),
+                showOwner: true,
+                canDelete: () => false,
+              },
+            ]
+            return groups
+              .filter((g) => g.items.length > 0)
+              .map((g) => (
+                <section key={g.key}>
+                  <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    {g.title}
+                    <span className="text-[10px] tabular-nums text-slate-600">{g.items.length}</span>
+                  </h2>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {g.items.map((shelf) => (
+                      <ShelfCard
+                        key={shelf.id}
+                        shelf={shelf}
+                        showOwner={g.showOwner}
+                        canDelete={g.canDelete(shelf)}
+                        onOpen={() => setSelected(shelf)}
+                        onDelete={() => setConfirmDelete(shelf)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))
+          })()}
         </div>
       ) : (
         <div className="card flex flex-col items-center gap-4 px-6 py-20 text-center">

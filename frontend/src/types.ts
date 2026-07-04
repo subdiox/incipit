@@ -86,6 +86,7 @@ export interface Stats {
 export interface Shelf {
   id: number
   userId: number
+  ownerName: string
   name: string
   isPublic: boolean
   isDefault: boolean

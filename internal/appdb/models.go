@@ -39,6 +39,7 @@ type Session struct {
 type Shelf struct {
 	ID          int64     `json:"id"`
 	UserID      int64     `json:"userId"`
+	OwnerName   string    `json:"ownerName"` // username of the shelf's owner
 	Name        string    `json:"name"`
 	IsPublic    bool      `json:"isPublic"`
 	IsDefault   bool      `json:"isDefault"` // the built-in per-user Favorites shelf (undeletable)

@@ -46,10 +46,11 @@ func (s *Store) EnsureFavoritesShelf(ctx context.Context, userID int64) error {
 
 // ListShelves returns shelves visible to a user: their own plus public ones.
 func (s *Store) ListShelves(ctx context.Context, userID int64) ([]Shelf, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT sh.id, sh.user_id, sh.name, sh.is_public, sh.is_default, sh.created_at,
+	rows, err := s.db.QueryContext(ctx, `SELECT sh.id, sh.user_id, u.username, sh.name, sh.is_public, sh.is_default, sh.created_at,
 		(SELECT COUNT(*) FROM shelf_books sb WHERE sb.shelf_id=sh.id),
 		(SELECT COUNT(*) FROM shelf_series ss WHERE ss.shelf_id=sh.id)
-		FROM shelves sh WHERE sh.user_id=? OR sh.is_public=1 ORDER BY sh.is_default DESC, sh.name`, userID)
+		FROM shelves sh JOIN users u ON u.id=sh.user_id
+		WHERE sh.user_id=? OR sh.is_public=1 ORDER BY sh.is_default DESC, sh.name`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +60,7 @@ func (s *Store) ListShelves(ctx context.Context, userID int64) ([]Shelf, error) 
 		var sh Shelf
 		var pub, def int
 		var created string
-		if err := rows.Scan(&sh.ID, &sh.UserID, &sh.Name, &pub, &def, &created, &sh.BookCount, &sh.SeriesCount); err != nil {
+		if err := rows.Scan(&sh.ID, &sh.UserID, &sh.OwnerName, &sh.Name, &pub, &def, &created, &sh.BookCount, &sh.SeriesCount); err != nil {
 			return nil, err
 		}
 		sh.IsPublic = pub != 0
@@ -76,10 +77,11 @@ func (s *Store) GetShelf(ctx context.Context, id int64) (*Shelf, error) {
 	var pub int
 	var created string
 	var def int
-	err := s.db.QueryRowContext(ctx, `SELECT id, user_id, name, is_public, is_default, created_at,
-		(SELECT COUNT(*) FROM shelf_books sb WHERE sb.shelf_id=shelves.id),
-		(SELECT COUNT(*) FROM shelf_series ss WHERE ss.shelf_id=shelves.id)
-		FROM shelves WHERE id=?`, id).Scan(&sh.ID, &sh.UserID, &sh.Name, &pub, &def, &created, &sh.BookCount, &sh.SeriesCount)
+	err := s.db.QueryRowContext(ctx, `SELECT sh.id, sh.user_id, u.username, sh.name, sh.is_public, sh.is_default, sh.created_at,
+		(SELECT COUNT(*) FROM shelf_books sb WHERE sb.shelf_id=sh.id),
+		(SELECT COUNT(*) FROM shelf_series ss WHERE ss.shelf_id=sh.id)
+		FROM shelves sh JOIN users u ON u.id=sh.user_id WHERE sh.id=?`, id).
+		Scan(&sh.ID, &sh.UserID, &sh.OwnerName, &sh.Name, &pub, &def, &created, &sh.BookCount, &sh.SeriesCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
