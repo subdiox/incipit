@@ -249,6 +249,11 @@ export const en = {
   'shelves.favorites': 'Favorite',
   'shelves.emptyDetail': 'This shelf is empty. Add books from their detail page.',
   'shelves.removeFromShelf': 'Remove from shelf',
+  'shelves.removeSeries': 'Remove series',
+  'shelves.volumeCount': '{{count}} vols',
+  'shelves.seriesCount': '{{count}} series',
+  'shelves.emptyShort': 'Empty',
+  'shelves.makePrivate': 'Make private',
   'shelves.noneTitle': 'No shelves yet',
   'shelves.noneHint': 'Create a shelf to start grouping your comics.',
   'shelves.deleteTitle': 'Delete shelf',
@@ -259,6 +264,8 @@ export const en = {
   // Add-to-shelf menu
   'addToShelf.button': 'Add to shelf',
   'addToShelf.empty': 'No shelves yet. Create one on the Shelves page.',
+  'addToShelf.volume': 'This volume',
+  'addToShelf.series': 'Series',
 
   // Admin / users
   'admin.subtitle': 'Manage accounts and permissions.',

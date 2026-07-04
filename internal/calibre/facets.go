@@ -96,6 +96,71 @@ func (a *Adapter) AuthorsSearch(ctx context.Context, fq FacetQuery) ([]Facet, er
 	return a.facetsSearch(ctx, "authors", "books_authors_link", "author", true, fq)
 }
 
+// SeriesSummary is a lightweight description of a series for shelf display.
+type SeriesSummary struct {
+	ID          int64
+	Name        string
+	BookCount   int
+	FirstBookID int64 // lowest-volume book, used for the cover thumbnail
+}
+
+// SeriesSummaries returns the name, book count and first (lowest-volume) book id
+// for each given series id, keyed by series id. Unknown ids are omitted.
+func (a *Adapter) SeriesSummaries(ctx context.Context, ids []int64) (map[int64]SeriesSummary, error) {
+	out := map[int64]SeriesSummary{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	ph := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		ph[i] = "?"
+		args[i] = id
+	}
+	in := strings.Join(ph, ",")
+
+	nameRows, err := a.db.QueryContext(ctx, "SELECT id, name FROM series WHERE id IN ("+in+")", args...)
+	if err != nil {
+		return nil, err
+	}
+	defer nameRows.Close()
+	for nameRows.Next() {
+		var id int64
+		var name string
+		if err := nameRows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		out[id] = SeriesSummary{ID: id, Name: name}
+	}
+	if err := nameRows.Err(); err != nil {
+		return nil, err
+	}
+
+	bookRows, err := a.db.QueryContext(ctx, `SELECT bsl.series, bsl.book
+		FROM books_series_link bsl JOIN books b ON b.id=bsl.book
+		WHERE bsl.series IN (`+in+`) ORDER BY bsl.series, b.series_index, b.id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer bookRows.Close()
+	for bookRows.Next() {
+		var series, book int64
+		if err := bookRows.Scan(&series, &book); err != nil {
+			return nil, err
+		}
+		sm, ok := out[series]
+		if !ok {
+			continue
+		}
+		if sm.FirstBookID == 0 {
+			sm.FirstBookID = book
+		}
+		sm.BookCount++
+		out[series] = sm
+	}
+	return out, bookRows.Err()
+}
+
 // Publishers returns all publishers with at least one book, sorted.
 func (a *Adapter) Publishers(ctx context.Context) ([]Facet, error) {
 	return a.facets(ctx, facetQuery("publishers", "books_publishers_link", "publisher", true))

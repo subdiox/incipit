@@ -151,10 +151,14 @@ func (s *Server) Router() http.Handler {
 
 			r.Get("/shelves", s.handleListShelves)
 			r.Post("/shelves", s.handleCreateShelf)
+			r.Put("/shelves/{id}", s.handleUpdateShelf)
 			r.Delete("/shelves/{id}", s.handleDeleteShelf)
 			r.Get("/shelves/{id}/books", s.handleShelfBooks)
+			r.Get("/shelves/{id}/contents", s.handleShelfContents)
 			r.Post("/shelves/{id}/books/{bookId}", s.handleAddToShelf)
 			r.Delete("/shelves/{id}/books/{bookId}", s.handleRemoveFromShelf)
+			r.Post("/shelves/{id}/series/{seriesId}", s.handleAddSeriesToShelf)
+			r.Delete("/shelves/{id}/series/{seriesId}", s.handleRemoveSeriesFromShelf)
 
 			r.Route("/admin", func(r chi.Router) {
 				r.Use(s.requireAdmin)

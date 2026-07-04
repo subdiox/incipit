@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
+import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
-import type { Shelf } from '@/types'
+import type { Shelf, ShelfSeriesCard } from '@/types'
 import { BookCard, BookGrid } from '@/components/BookCard'
+import { Cover } from '@/components/Cover'
 import { Modal } from '@/components/Modal'
 import { Spinner, FullPageSpinner } from '@/components/Spinner'
 import { IconChevronLeft, IconClose, IconHeart, IconPlus, IconShelf, IconTrash } from '@/components/icons'
@@ -69,21 +71,98 @@ function CreateShelfModal({ open, onClose }: { open: boolean; onClose: () => voi
   )
 }
 
+// SeriesShelfCard renders a whole series as a single "stacked" card that links
+// to the series' volumes.
+function SeriesShelfCard({
+  card,
+  canRemove,
+  onRemove,
+}: {
+  card: ShelfSeriesCard
+  canRemove: boolean
+  onRemove: () => void
+}) {
+  const { t } = useI18n()
+  return (
+    <div className="group relative">
+      <Link to={`/?series=${card.id}`} className="block">
+        {/* Offset layers behind the cover imply a stack of volumes. */}
+        <div className="relative">
+          <div className="absolute inset-0 translate-x-1.5 translate-y-1.5 rounded-xl bg-ink-800 ring-1 ring-ink-700" aria-hidden />
+          <div className="absolute inset-0 translate-x-[3px] translate-y-[3px] rounded-xl bg-ink-850 ring-1 ring-ink-700" aria-hidden />
+          <div className="relative overflow-hidden rounded-xl shadow-soft ring-1 ring-ink-700 transition-all group-hover:ring-accent-500/50 group-hover:shadow-glow">
+            {card.cover ? (
+              <Cover
+                bookId={card.cover.id}
+                title={card.name}
+                hasCover={card.cover.hasCover}
+                version={card.cover.lastModified}
+                rounded="rounded-none"
+                className="transition-transform duration-300 group-hover:scale-[1.03]"
+              />
+            ) : (
+              <div className="flex aspect-[2/3] w-full items-center justify-center bg-ink-800 text-slate-600">
+                <IconShelf width={28} height={28} />
+              </div>
+            )}
+            <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+              {t('shelves.volumeCount', { count: card.bookCount })}
+            </span>
+          </div>
+        </div>
+      </Link>
+      <h3
+        title={card.name}
+        className="mt-2.5 break-words px-0.5 text-sm font-medium text-accentSoft transition-colors group-hover:text-accent-300"
+      >
+        {card.name}
+      </h3>
+      {canRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="absolute right-2 top-2 z-10 rounded-lg bg-black/60 p-1.5 text-slate-200 opacity-0 backdrop-blur transition-opacity hover:bg-red-500/80 hover:text-white group-hover:opacity-100"
+          aria-label={t('shelves.removeSeries')}
+          title={t('shelves.removeSeries')}
+        >
+          <IconClose width={14} height={14} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
   const queryClient = useQueryClient()
   const { t } = useI18n()
+  const { user } = useAuth()
+  const owned = shelf.userId === user?.id
+
   const { data, isLoading } = useQuery({
-    queryKey: ['shelf-books', shelf.id],
-    queryFn: () => api.shelfBooks(shelf.id),
+    queryKey: ['shelf-contents', shelf.id],
+    queryFn: () => api.shelfContents(shelf.id),
   })
 
-  const removeMutation = useMutation({
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['shelf-contents', shelf.id] })
+    queryClient.invalidateQueries({ queryKey: ['shelves'] })
+  }
+  const removeBook = useMutation({
     mutationFn: (bookId: number) => api.removeFromShelf(shelf.id, bookId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shelf-books', shelf.id] })
-      queryClient.invalidateQueries({ queryKey: ['shelves'] })
-    },
+    onSuccess: invalidate,
   })
+  const removeSeries = useMutation({
+    mutationFn: (seriesId: number) => api.removeSeriesFromShelf(shelf.id, seriesId),
+    onSuccess: invalidate,
+  })
+  const visibility = useMutation({
+    mutationFn: (isPublic: boolean) => api.updateShelf(shelf.id, { isPublic }),
+    onSuccess: invalidate,
+  })
+
+  const series = data?.series ?? []
+  const books = data?.books ?? []
+  const empty = series.length === 0 && books.length === 0
 
   return (
     <div>
@@ -92,7 +171,7 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
         {t('shelves.title')}
       </button>
 
-      <div className="mb-5 flex items-center gap-2">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold tracking-tight text-white">
           {shelf.isDefault ? t('shelves.favorites') : shelf.name}
         </h1>
@@ -101,37 +180,58 @@ function ShelfDetail({ shelf, onBack }: { shelf: Shelf; onBack: () => void }) {
             {t('shelves.public')}
           </span>
         )}
+        {owned && (
+          <button
+            type="button"
+            onClick={() => visibility.mutate(!shelf.isPublic)}
+            disabled={visibility.isPending}
+            className="btn-secondary ml-auto px-3 py-1.5 text-xs"
+          >
+            {visibility.isPending && <Spinner className="h-3.5 w-3.5" />}
+            {shelf.isPublic ? t('shelves.makePrivate') : t('shelves.makePublic')}
+          </button>
+        )}
       </div>
 
       {isLoading ? (
         <FullPageSpinner />
-      ) : data && data.books.length > 0 ? (
+      ) : empty ? (
+        <div className="card px-6 py-16 text-center text-sm text-slate-500">
+          {t('shelves.emptyDetail')}
+        </div>
+      ) : (
         <BookGrid>
-          {data.books.map((book) => (
+          {series.map((c) => (
+            <SeriesShelfCard
+              key={`s${c.id}`}
+              card={c}
+              canRemove={owned}
+              onRemove={() => removeSeries.mutate(c.id)}
+            />
+          ))}
+          {books.map((book) => (
             <BookCard
-              key={book.id}
+              key={`b${book.id}`}
               book={book}
               action={
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    removeMutation.mutate(book.id)
-                  }}
-                  className="rounded-lg bg-black/60 p-1.5 text-slate-200 opacity-0 backdrop-blur transition-opacity hover:bg-red-500/80 hover:text-white group-hover:opacity-100"
-                  aria-label={t('shelves.removeFromShelf')}
-                  title={t('shelves.removeFromShelf')}
-                >
-                  <IconClose width={14} height={14} />
-                </button>
+                owned ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      removeBook.mutate(book.id)
+                    }}
+                    className="rounded-lg bg-black/60 p-1.5 text-slate-200 opacity-0 backdrop-blur transition-opacity hover:bg-red-500/80 hover:text-white group-hover:opacity-100"
+                    aria-label={t('shelves.removeFromShelf')}
+                    title={t('shelves.removeFromShelf')}
+                  >
+                    <IconClose width={14} height={14} />
+                  </button>
+                ) : undefined
               }
             />
           ))}
         </BookGrid>
-      ) : (
-        <div className="card px-6 py-16 text-center text-sm text-slate-500">
-          {t('shelves.emptyDetail')}
-        </div>
       )}
     </div>
   )
@@ -229,10 +329,20 @@ export function ShelvesPage() {
                   {shelf.isDefault ? t('shelves.favorites') : shelf.name}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  {t(shelf.bookCount === 1 ? 'common.books_one' : 'common.books_other', {
-                    count: shelf.bookCount,
-                  })}
-                  {shelf.isPublic ? ` · ${t('shelves.public')}` : ''}
+                  {(() => {
+                    const parts: string[] = []
+                    if (shelf.seriesCount > 0)
+                      parts.push(t('shelves.seriesCount', { count: shelf.seriesCount }))
+                    if (shelf.bookCount > 0)
+                      parts.push(
+                        t(shelf.bookCount === 1 ? 'common.books_one' : 'common.books_other', {
+                          count: shelf.bookCount,
+                        }),
+                      )
+                    if (parts.length === 0) parts.push(t('shelves.emptyShort'))
+                    if (shelf.isPublic) parts.push(t('shelves.public'))
+                    return parts.join(' · ')
+                  })()}
                 </p>
               </div>
               {/* The built-in Favorites shelf can't be deleted. */}

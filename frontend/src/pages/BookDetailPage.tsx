@@ -435,7 +435,10 @@ export function BookDetailPage() {
               </a>
             )}
 
-            <AddToShelfMenu bookId={book.id} />
+            <AddToShelfMenu
+              bookId={book.id}
+              series={book.series ? { id: book.series.id, name: book.series.name } : undefined}
+            />
 
             {user?.canEdit && (
               <div className="space-y-2 border-t border-ink-700 pt-3">

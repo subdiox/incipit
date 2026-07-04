@@ -251,6 +251,11 @@ export const ja: Record<TranslationKey, string> = {
   'shelves.favorites': 'お気に入り',
   'shelves.emptyDetail': 'この本棚は空です。本の詳細ページから追加できます。',
   'shelves.removeFromShelf': '本棚から削除',
+  'shelves.removeSeries': 'シリーズを外す',
+  'shelves.volumeCount': '{{count}}巻',
+  'shelves.seriesCount': '{{count}}シリーズ',
+  'shelves.emptyShort': '空',
+  'shelves.makePrivate': '非公開にする',
   'shelves.noneTitle': '本棚がありません',
   'shelves.noneHint': '本棚を作ってコミックをまとめましょう。',
   'shelves.deleteTitle': '本棚を削除',
@@ -261,6 +266,8 @@ export const ja: Record<TranslationKey, string> = {
   // Add-to-shelf menu
   'addToShelf.button': '本棚に追加',
   'addToShelf.empty': '本棚がありません。本棚ページで作成してください。',
+  'addToShelf.volume': 'この本',
+  'addToShelf.series': 'シリーズ',
 
   // Admin / users
   'admin.subtitle': 'アカウントと権限を管理します。',

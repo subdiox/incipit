@@ -91,6 +91,20 @@ export interface Shelf {
   isDefault: boolean
   createdAt: string
   bookCount: number
+  seriesCount: number
+}
+
+// A whole series added to a shelf: shown as one card that expands to its volumes.
+export interface ShelfSeriesCard {
+  id: number
+  name: string
+  bookCount: number
+  cover?: Book // first volume, for the thumbnail
+}
+
+export interface ShelfContents {
+  series: ShelfSeriesCard[]
+  books: Book[]
 }
 
 export interface Progress {

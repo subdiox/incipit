@@ -5,11 +5,21 @@ import { useI18n } from '@/i18n'
 import { Spinner } from './Spinner'
 import { IconCheck, IconHeart, IconPlus, IconShelf } from './icons'
 
-export function AddToShelfMenu({ bookId }: { bookId: number }) {
+// AddToShelfMenu adds a book and/or its whole series to a shelf. When both a
+// book and a series are given (a volume's detail page) it offers a toggle to
+// pick which to add; with only one, it adds that.
+export function AddToShelfMenu({
+  bookId,
+  series,
+}: {
+  bookId?: number
+  series?: { id: number; name: string }
+}) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
+  const [target, setTarget] = useState<'book' | 'series'>(bookId ? 'book' : 'series')
 
   const { data: shelves, isLoading } = useQuery({
     queryKey: ['shelves'],
@@ -20,11 +30,14 @@ export function AddToShelfMenu({ bookId }: { bookId: number }) {
   const [justAdded, setJustAdded] = useState<number | null>(null)
 
   const addMutation = useMutation({
-    mutationFn: (shelfId: number) => api.addToShelf(shelfId, bookId),
+    mutationFn: (shelfId: number) =>
+      target === 'series' && series
+        ? api.addSeriesToShelf(shelfId, series.id)
+        : api.addToShelf(shelfId, bookId!),
     onSuccess: (_data, shelfId) => {
       setJustAdded(shelfId)
       queryClient.invalidateQueries({ queryKey: ['shelves'] })
-      queryClient.invalidateQueries({ queryKey: ['shelf-books', shelfId] })
+      queryClient.invalidateQueries({ queryKey: ['shelf-contents', shelfId] })
       setTimeout(() => setJustAdded(null), 1500)
     },
   })
@@ -46,6 +59,23 @@ export function AddToShelfMenu({ bookId }: { bookId: number }) {
       </button>
       {open && (
         <div className="absolute inset-x-0 z-20 mt-2 animate-fade-in rounded-xl border border-ink-700 bg-ink-800 p-1.5 shadow-soft">
+          {/* Choose whether to add just this volume or the whole series. */}
+          {bookId && series && (
+            <div className="mb-1.5 flex rounded-lg border border-ink-700 bg-ink-900 p-0.5 text-xs font-medium">
+              {(['book', 'series'] as const).map((tgt) => (
+                <button
+                  key={tgt}
+                  type="button"
+                  onClick={() => setTarget(tgt)}
+                  className={`flex-1 truncate rounded-md px-2 py-1 transition-colors ${
+                    target === tgt ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  {tgt === 'book' ? t('addToShelf.volume') : t('addToShelf.series')}
+                </button>
+              ))}
+            </div>
+          )}
           {isLoading ? (
             <div className="flex justify-center py-4">
               <Spinner className="h-4 w-4 text-accent-400" />
@@ -74,9 +104,7 @@ export function AddToShelfMenu({ bookId }: { bookId: number }) {
               ))}
             </ul>
           ) : (
-            <p className="px-3 py-3 text-center text-xs text-slate-500">
-              {t('addToShelf.empty')}
-            </p>
+            <p className="px-3 py-3 text-center text-xs text-slate-500">{t('addToShelf.empty')}</p>
           )}
         </div>
       )}

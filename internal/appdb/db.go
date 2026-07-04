@@ -111,6 +111,16 @@ var migrations = []string{
 	`ALTER TABLE shelves ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0;
 	 INSERT OR IGNORE INTO shelves (user_id, name, is_public, is_default, created_at)
 	   SELECT id, 'Favorite', 0, 1, strftime('%Y-%m-%dT%H:%M:%SZ','now') FROM users;`,
+	// A shelf can hold whole series (by Calibre series id), not just individual
+	// books — kept as the series identity so it shows as one entry that expands
+	// to its volumes.
+	`CREATE TABLE shelf_series (
+		shelf_id  INTEGER NOT NULL,
+		series_id INTEGER NOT NULL,
+		position  INTEGER NOT NULL DEFAULT 0,
+		added_at  TEXT NOT NULL,
+		PRIMARY KEY(shelf_id, series_id)
+	);`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

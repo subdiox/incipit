@@ -18,6 +18,7 @@ import type {
   ReadingItem,
   SetupStatus,
   Shelf,
+  ShelfContents,
   SiteConfig,
   SortKey,
   SortOrder,
@@ -231,12 +232,19 @@ export const api = {
   shelves: () => request<Shelf[]>('/shelves'),
   createShelf: (name: string, isPublic: boolean) =>
     request<Shelf>('/shelves', { method: 'POST', ...jsonBody({ name, isPublic }) }),
+  updateShelf: (id: number, body: { name?: string; isPublic?: boolean }) =>
+    request<Shelf>(`/shelves/${id}`, { method: 'PUT', ...jsonBody(body) }),
   deleteShelf: (id: number) => request<void>(`/shelves/${id}`, { method: 'DELETE' }),
   shelfBooks: (id: number) => request<BooksResponse>(`/shelves/${id}/books`),
+  shelfContents: (id: number) => request<ShelfContents>(`/shelves/${id}/contents`),
   addToShelf: (shelfId: number, bookId: number) =>
     request<void>(`/shelves/${shelfId}/books/${bookId}`, { method: 'POST' }),
   removeFromShelf: (shelfId: number, bookId: number) =>
     request<void>(`/shelves/${shelfId}/books/${bookId}`, { method: 'DELETE' }),
+  addSeriesToShelf: (shelfId: number, seriesId: number) =>
+    request<void>(`/shelves/${shelfId}/series/${seriesId}`, { method: 'POST' }),
+  removeSeriesFromShelf: (shelfId: number, seriesId: number) =>
+    request<void>(`/shelves/${shelfId}/series/${seriesId}`, { method: 'DELETE' }),
 
   // Collections (admin-defined saved tag filters under Library)
   collections: () => request<Collection[]>('/collections'),

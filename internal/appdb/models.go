@@ -37,13 +37,14 @@ type Session struct {
 
 // Shelf is a user-owned collection of books.
 type Shelf struct {
-	ID        int64     `json:"id"`
-	UserID    int64     `json:"userId"`
-	Name      string    `json:"name"`
-	IsPublic  bool      `json:"isPublic"`
-	IsDefault bool      `json:"isDefault"` // the built-in per-user Favorites shelf (undeletable)
-	CreatedAt time.Time `json:"createdAt"`
-	BookCount int       `json:"bookCount"`
+	ID          int64     `json:"id"`
+	UserID      int64     `json:"userId"`
+	Name        string    `json:"name"`
+	IsPublic    bool      `json:"isPublic"`
+	IsDefault   bool      `json:"isDefault"` // the built-in per-user Favorites shelf (undeletable)
+	CreatedAt   time.Time `json:"createdAt"`
+	BookCount   int       `json:"bookCount"`
+	SeriesCount int       `json:"seriesCount"`
 }
 
 // Progress is a user's reading position in a book.

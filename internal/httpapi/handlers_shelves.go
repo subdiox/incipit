@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -77,6 +78,53 @@ func (s *Server) shelfFromURL(w http.ResponseWriter, r *http.Request, requireOwn
 	return sh, true
 }
 
+type updateShelfBody struct {
+	Name     *string `json:"name"`
+	IsPublic *bool   `json:"isPublic"`
+}
+
+// handleUpdateShelf renames a shelf and/or changes its visibility (public vs
+// private) after creation.
+func (s *Server) handleUpdateShelf(w http.ResponseWriter, r *http.Request) {
+	sh, ok := s.shelfFromURL(w, r, true)
+	if !ok {
+		return
+	}
+	var body updateShelfBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	name := sh.Name
+	// The built-in Favorites shelf keeps its (localized) name; only its
+	// visibility can change.
+	if body.Name != nil && !sh.IsDefault {
+		name = strings.TrimSpace(*body.Name)
+		if name == "" {
+			writeError(w, http.StatusBadRequest, "name required")
+			return
+		}
+	}
+	isPublic := sh.IsPublic
+	if body.IsPublic != nil {
+		isPublic = *body.IsPublic
+	}
+	if err := s.store.UpdateShelf(r.Context(), sh.ID, name, isPublic); err != nil {
+		if errors.Is(err, appdb.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "shelf not found")
+			return
+		}
+		writeError(w, http.StatusConflict, "shelf name already exists")
+		return
+	}
+	updated, err := s.store.GetShelf(r.Context(), sh.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load shelf")
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
 // handleDeleteShelf deletes a shelf the user owns.
 func (s *Server) handleDeleteShelf(w http.ResponseWriter, r *http.Request) {
 	sh, ok := s.shelfFromURL(w, r, true)
@@ -112,6 +160,76 @@ func (s *Server) handleShelfBooks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, calibre.ListResult{Books: books, Total: len(books)})
+}
+
+type shelfSeriesCard struct {
+	ID        int64         `json:"id"`
+	Name      string        `json:"name"`
+	BookCount int           `json:"bookCount"`
+	Cover     *calibre.Book `json:"cover,omitempty"` // first volume, for the card thumbnail
+}
+
+type shelfContents struct {
+	Series []shelfSeriesCard `json:"series"`
+	Books  []calibre.Book    `json:"books"`
+}
+
+// handleShelfContents returns a shelf's whole-series entries (as cards that
+// expand to their volumes) plus its individual books.
+func (s *Server) handleShelfContents(w http.ResponseWriter, r *http.Request) {
+	sh, ok := s.shelfFromURL(w, r, false)
+	if !ok {
+		return
+	}
+	bookIDs, err := s.store.ShelfBookIDs(r.Context(), sh.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "shelf books")
+		return
+	}
+	books, err := s.lib().BooksByIDs(r.Context(), bookIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load books")
+		return
+	}
+	if books == nil {
+		books = []calibre.Book{}
+	}
+
+	seriesIDs, err := s.store.ShelfSeriesIDs(r.Context(), sh.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "shelf series")
+		return
+	}
+	sums, err := s.lib().SeriesSummaries(r.Context(), seriesIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "series summaries")
+		return
+	}
+	var coverIDs []int64
+	for _, sm := range sums {
+		if sm.FirstBookID > 0 {
+			coverIDs = append(coverIDs, sm.FirstBookID)
+		}
+	}
+	coverBooks, _ := s.lib().BooksByIDs(r.Context(), coverIDs)
+	coverByID := make(map[int64]calibre.Book, len(coverBooks))
+	for i := range coverBooks {
+		coverByID[coverBooks[i].ID] = coverBooks[i]
+	}
+	cards := make([]shelfSeriesCard, 0, len(seriesIDs))
+	for _, sid := range seriesIDs {
+		sm, ok := sums[sid]
+		if !ok {
+			continue // series no longer in the library
+		}
+		card := shelfSeriesCard{ID: sid, Name: sm.Name, BookCount: sm.BookCount}
+		if b, ok := coverByID[sm.FirstBookID]; ok {
+			bc := b
+			card.Cover = &bc
+		}
+		cards = append(cards, card)
+	}
+	writeJSON(w, http.StatusOK, shelfContents{Series: cards, Books: books})
 }
 
 func (s *Server) bookIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -156,6 +274,49 @@ func (s *Server) handleRemoveFromShelf(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.store.RemoveBookFromShelf(r.Context(), sh.ID, bookID); err != nil {
 		writeError(w, http.StatusInternalServerError, "remove from shelf")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
+}
+
+func (s *Server) seriesIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "seriesId"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid series id")
+		return 0, false
+	}
+	return id, true
+}
+
+// handleAddSeriesToShelf adds a whole series to a shelf.
+func (s *Server) handleAddSeriesToShelf(w http.ResponseWriter, r *http.Request) {
+	sh, ok := s.shelfFromURL(w, r, true)
+	if !ok {
+		return
+	}
+	seriesID, ok := s.seriesIDParam(w, r)
+	if !ok {
+		return
+	}
+	if err := s.store.AddSeriesToShelf(r.Context(), sh.ID, seriesID); err != nil {
+		writeError(w, http.StatusInternalServerError, "add series to shelf")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "added"})
+}
+
+// handleRemoveSeriesFromShelf removes a series from a shelf.
+func (s *Server) handleRemoveSeriesFromShelf(w http.ResponseWriter, r *http.Request) {
+	sh, ok := s.shelfFromURL(w, r, true)
+	if !ok {
+		return
+	}
+	seriesID, ok := s.seriesIDParam(w, r)
+	if !ok {
+		return
+	}
+	if err := s.store.RemoveSeriesFromShelf(r.Context(), sh.ID, seriesID); err != nil {
+		writeError(w, http.StatusInternalServerError, "remove series from shelf")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})

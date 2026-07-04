@@ -47,7 +47,8 @@ func (s *Store) EnsureFavoritesShelf(ctx context.Context, userID int64) error {
 // ListShelves returns shelves visible to a user: their own plus public ones.
 func (s *Store) ListShelves(ctx context.Context, userID int64) ([]Shelf, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT sh.id, sh.user_id, sh.name, sh.is_public, sh.is_default, sh.created_at,
-		(SELECT COUNT(*) FROM shelf_books sb WHERE sb.shelf_id=sh.id)
+		(SELECT COUNT(*) FROM shelf_books sb WHERE sb.shelf_id=sh.id),
+		(SELECT COUNT(*) FROM shelf_series ss WHERE ss.shelf_id=sh.id)
 		FROM shelves sh WHERE sh.user_id=? OR sh.is_public=1 ORDER BY sh.is_default DESC, sh.name`, userID)
 	if err != nil {
 		return nil, err
@@ -58,7 +59,7 @@ func (s *Store) ListShelves(ctx context.Context, userID int64) ([]Shelf, error) 
 		var sh Shelf
 		var pub, def int
 		var created string
-		if err := rows.Scan(&sh.ID, &sh.UserID, &sh.Name, &pub, &def, &created, &sh.BookCount); err != nil {
+		if err := rows.Scan(&sh.ID, &sh.UserID, &sh.Name, &pub, &def, &created, &sh.BookCount, &sh.SeriesCount); err != nil {
 			return nil, err
 		}
 		sh.IsPublic = pub != 0
@@ -76,8 +77,9 @@ func (s *Store) GetShelf(ctx context.Context, id int64) (*Shelf, error) {
 	var created string
 	var def int
 	err := s.db.QueryRowContext(ctx, `SELECT id, user_id, name, is_public, is_default, created_at,
-		(SELECT COUNT(*) FROM shelf_books sb WHERE sb.shelf_id=shelves.id)
-		FROM shelves WHERE id=?`, id).Scan(&sh.ID, &sh.UserID, &sh.Name, &pub, &def, &created, &sh.BookCount)
+		(SELECT COUNT(*) FROM shelf_books sb WHERE sb.shelf_id=shelves.id),
+		(SELECT COUNT(*) FROM shelf_series ss WHERE ss.shelf_id=shelves.id)
+		FROM shelves WHERE id=?`, id).Scan(&sh.ID, &sh.UserID, &sh.Name, &pub, &def, &created, &sh.BookCount, &sh.SeriesCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -90,19 +92,34 @@ func (s *Store) GetShelf(ctx context.Context, id int64) (*Shelf, error) {
 	return &sh, nil
 }
 
-// DeleteShelf removes a shelf and its membership rows.
+// UpdateShelf changes a shelf's name and visibility.
+func (s *Store) UpdateShelf(ctx context.Context, id int64, name string, isPublic bool) error {
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE shelves SET name=?, is_public=? WHERE id=?", name, b2i(isPublic), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteShelf removes a shelf and its membership rows (books and series).
 func (s *Store) DeleteShelf(ctx context.Context, id int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, "DELETE FROM shelf_books WHERE shelf_id=?", id); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, "DELETE FROM shelves WHERE id=?", id); err != nil {
-		tx.Rollback()
-		return err
+	for _, q := range []string{
+		"DELETE FROM shelf_books WHERE shelf_id=?",
+		"DELETE FROM shelf_series WHERE shelf_id=?",
+		"DELETE FROM shelves WHERE id=?",
+	} {
+		if _, err := tx.ExecContext(ctx, q, id); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 	return tx.Commit()
 }
@@ -123,7 +140,30 @@ func (s *Store) RemoveBookFromShelf(ctx context.Context, shelfID, bookID int64) 
 
 // ShelfBookIDs returns the ordered Calibre book ids on a shelf.
 func (s *Store) ShelfBookIDs(ctx context.Context, shelfID int64) ([]int64, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT book_id FROM shelf_books WHERE shelf_id=? ORDER BY position", shelfID)
+	return s.shelfMemberIDs(ctx, "SELECT book_id FROM shelf_books WHERE shelf_id=? ORDER BY position", shelfID)
+}
+
+// AddSeriesToShelf adds a Calibre series id to a shelf (idempotent).
+func (s *Store) AddSeriesToShelf(ctx context.Context, shelfID, seriesID int64) error {
+	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO shelf_series (shelf_id, series_id, position, added_at)
+		VALUES (?, ?, (SELECT COALESCE(MAX(position), 0)+1 FROM shelf_series WHERE shelf_id=?), ?)`,
+		shelfID, seriesID, shelfID, time.Now().UTC().Format(timeLayout))
+	return err
+}
+
+// RemoveSeriesFromShelf removes a series from a shelf.
+func (s *Store) RemoveSeriesFromShelf(ctx context.Context, shelfID, seriesID int64) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM shelf_series WHERE shelf_id=? AND series_id=?", shelfID, seriesID)
+	return err
+}
+
+// ShelfSeriesIDs returns the ordered Calibre series ids on a shelf.
+func (s *Store) ShelfSeriesIDs(ctx context.Context, shelfID int64) ([]int64, error) {
+	return s.shelfMemberIDs(ctx, "SELECT series_id FROM shelf_series WHERE shelf_id=? ORDER BY position", shelfID)
+}
+
+func (s *Store) shelfMemberIDs(ctx context.Context, query string, shelfID int64) ([]int64, error) {
+	rows, err := s.db.QueryContext(ctx, query, shelfID)
 	if err != nil {
 		return nil, err
 	}
