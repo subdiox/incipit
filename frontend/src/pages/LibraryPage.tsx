@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type BookQuery } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
@@ -13,12 +13,21 @@ import { AsyncFacet } from '@/components/AsyncFacet'
 import { useFacetNames } from '@/lib/facets'
 import { ContinueReadingShelf } from '@/components/ReadingShelf'
 import { UploadModal } from '@/components/UploadModal'
+import { BulkEditModal } from '@/components/BulkEditModal'
+import { MetaCompareModal } from '@/components/MetaCompareModal'
+import { Modal } from '@/components/Modal'
+import { Spinner } from '@/components/Spinner'
+import { mapPool } from '@/lib/pool'
+import type { Book } from '@/types'
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconCheck,
   IconClose,
+  IconEdit,
   IconFilter,
   IconSearch,
+  IconTrash,
   IconUpload,
   IconLibrary,
 } from '@/components/icons'
@@ -167,6 +176,30 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   const [params, setParams] = useSearchParams()
   const [uploadOpen, setUploadOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const canEdit = !!user?.canEdit
+  // Multi-select: a select mode toggle, the chosen books (kept as full Book
+  // objects so the bulk/compare modals don't need to refetch), and the three
+  // bulk actions. Selection is scoped to the current view and cleared when the
+  // query changes.
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Map<number, Book>>(new Map())
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [compareOpen, setCompareOpen] = useState(false)
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+  const [deleteProgress, setDeleteProgress] = useState<{ done: number; total: number } | null>(null)
+  const selectedBooks = useMemo(() => Array.from(selected.values()), [selected])
+  const toggleSelect = (book: Book) =>
+    setSelected((prev) => {
+      const next = new Map(prev)
+      if (next.has(book.id)) next.delete(book.id)
+      else next.set(book.id, book)
+      return next
+    })
+  const clearSelection = () => setSelected(new Map())
+  const exitSelectMode = () => {
+    setSelectMode(false)
+    clearSelection()
+  }
   // The Filters control is rendered into the header (right of search) via a
   // portal, so it lives here (with all its state) but shows up next to search.
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
@@ -306,6 +339,35 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
     queryKey: ['books', query],
     queryFn: () => api.books(query),
     placeholderData: keepPreviousData,
+  })
+
+  // Selection is view-scoped: drop it whenever the query changes (page, filter,
+  // search, sort) so a stale cross-view selection can't be acted on.
+  const queryKeyStr = JSON.stringify(query)
+  useEffect(() => {
+    setSelected(new Map())
+  }, [queryKeyStr])
+
+  const qc = useQueryClient()
+  const bulkDelete = useMutation({
+    mutationFn: async () => {
+      setDeleteProgress({ done: 0, total: selectedBooks.length })
+      const res = await mapPool(
+        selectedBooks,
+        1,
+        (b) => api.deleteBook(b.id),
+        (done, total) => setDeleteProgress({ done, total }),
+      )
+      return res.filter((r) => !r.ok).length
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['books'] })
+      qc.invalidateQueries({ queryKey: ['facets'] })
+      setDeleteProgress(null)
+      setConfirmBulkDelete(false)
+      exitSelectMode()
+    },
+    onError: () => setDeleteProgress(null),
   })
 
   // Series is small enough to return whole; tags & authors are searched
@@ -567,12 +629,24 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
             )}
           </div>
 
-          {user?.canUpload && (
-            <button type="button" onClick={() => setUploadOpen(true)} className="btn-primary">
-              <IconUpload width={16} height={16} />
-              <span className="hidden sm:inline">{t('library.upload')}</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+                className={`btn-secondary ${selectMode ? 'border-accent-500/60 text-accentSoft' : ''}`}
+              >
+                <IconCheck width={16} height={16} />
+                <span className="hidden sm:inline">{selectMode ? t('select.exit') : t('select.enter')}</span>
+              </button>
+            )}
+            {user?.canUpload && (
+              <button type="button" onClick={() => setUploadOpen(true)} className="btn-primary">
+                <IconUpload width={16} height={16} />
+                <span className="hidden sm:inline">{t('library.upload')}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Continue reading: only on the library home, fresh & unfiltered. */}
@@ -664,7 +738,13 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
             <div className={isFetching ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
               <BookGrid>
                 {(data.books ?? []).map((book) => (
-                  <BookCard key={book.id} book={book} />
+                  <BookCard
+                    key={book.id}
+                    book={book}
+                    selectable={selectMode}
+                    selected={selected.has(book.id)}
+                    onToggleSelect={toggleSelect}
+                  />
                 ))}
               </BookGrid>
             </div>
@@ -721,7 +801,131 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
           </div>
         )}
 
+        {/* Spacer so the floating action bar never hides the last row. */}
+        {selectMode && <div className="h-24" />}
+
         <UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
+
+        {/* Floating bulk-action bar (select mode). */}
+        {selectMode &&
+          createPortal(
+            <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-3 sm:pb-4">
+              <div className="flex w-full max-w-3xl flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-ink-700 bg-ink-850/95 px-4 py-3 shadow-soft backdrop-blur">
+                <span className="text-sm font-semibold text-white">
+                  {t('select.count', { count: selected.size })}
+                </span>
+                <div className="flex items-center gap-3 text-xs">
+                  <button
+                    type="button"
+                    className="font-medium text-accentSoft hover:text-white"
+                    onClick={() =>
+                      setSelected((prev) => {
+                        const next = new Map(prev)
+                        ;(data?.books ?? []).forEach((b) => next.set(b.id, b))
+                        return next
+                      })
+                    }
+                  >
+                    {t('select.all')}
+                  </button>
+                  <button
+                    type="button"
+                    className="font-medium text-slate-400 hover:text-white disabled:opacity-40"
+                    disabled={selected.size === 0}
+                    onClick={clearSelection}
+                  >
+                    {t('select.none')}
+                  </button>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={selected.size === 0}
+                    onClick={() => setCompareOpen(true)}
+                  >
+                    <IconSearch width={16} height={16} />
+                    <span className="hidden sm:inline">{t('select.compare')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={selected.size === 0}
+                    onClick={() => setBulkEditOpen(true)}
+                  >
+                    <IconEdit width={16} height={16} />
+                    <span className="hidden sm:inline">{t('select.edit')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={selected.size === 0}
+                    onClick={() => setConfirmBulkDelete(true)}
+                  >
+                    <IconTrash width={16} height={16} />
+                    <span className="hidden sm:inline">{t('select.delete')}</span>
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
+
+        {bulkEditOpen && (
+          <BulkEditModal
+            books={selectedBooks}
+            open={bulkEditOpen}
+            onClose={(changed) => {
+              setBulkEditOpen(false)
+              if (changed) exitSelectMode()
+            }}
+          />
+        )}
+
+        {compareOpen && (
+          <MetaCompareModal
+            books={selectedBooks}
+            open={compareOpen}
+            onClose={(changed) => {
+              setCompareOpen(false)
+              if (changed) exitSelectMode()
+            }}
+          />
+        )}
+
+        <Modal
+          open={confirmBulkDelete}
+          onClose={() => !bulkDelete.isPending && setConfirmBulkDelete(false)}
+          title={t('bulk.deleteTitle', { count: selected.size })}
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-slate-300">{t('bulk.deleteConfirm', { count: selected.size })}</p>
+            <div className="flex items-center justify-end gap-3">
+              {deleteProgress && (
+                <span className="mr-auto text-xs text-slate-400">
+                  {t('bulk.deleting', { done: deleteProgress.done, total: deleteProgress.total })}
+                </span>
+              )}
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setConfirmBulkDelete(false)}
+                disabled={bulkDelete.isPending}
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:opacity-50"
+                onClick={() => bulkDelete.mutate()}
+                disabled={bulkDelete.isPending}
+              >
+                {bulkDelete.isPending && <Spinner className="h-4 w-4" />}
+                {t('bulk.deleteConfirmBtn', { count: selected.size })}
+              </button>
+            </div>
+          </div>
+        </Modal>
       </div>
   )
 }

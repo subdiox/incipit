@@ -1,43 +1,18 @@
 import { Fragment, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, ApiError, mediaUrl } from '@/lib/api'
-import { sortTagNames } from '@/lib/format'
+import { api, ApiError } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import type { Book, BookUpdate, MetaPreview } from '@/types'
 import { Modal } from './Modal'
 import { Spinner } from './Spinner'
 import { Rating } from './Rating'
-import { Cover } from './Cover'
-import { IconBook, IconSearch } from './icons'
+import { IconSearch } from './icons'
+import { CoverCompare, TagMergeSelector, initTagSelection, finalTags, type TagSelection } from './MetaAdopt'
 
 type FieldKey = 'title' | 'authors' | 'series' | 'seriesIndex' | 'publisher' | 'pubdate' | 'rating' | 'comments'
 
 function stripHtml(s: string): string {
   return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-}
-
-type TagMode = 'merge' | 'replace' | 'custom'
-
-// The tag selection is modelled as the exact final set of tags, split across the
-// two columns (current + cmoa). "Merge" and "Replace" are presets that compute
-// that selection; toggling any chip flips into the free-form "custom" mode.
-//
-// Merge  = keep everything currently on the book, plus the cmoa tags that are new.
-// Replace = adopt every cmoa tag; on the current side keep only those that also
-//           exist on cmoa (i.e. the ones that survive the replace).
-function mergeSel(cur: string[], src: string[]) {
-  return { cur: new Set(cur), src: new Set(src.filter((t) => !cur.includes(t))) }
-}
-function replaceSel(cur: string[], src: string[]) {
-  return { cur: new Set(cur.filter((t) => src.includes(t))), src: new Set(src) }
-}
-
-function chipCls(selected: boolean): string {
-  return `rounded-full border px-2 py-0.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-    selected
-      ? 'border-accent-500/60 bg-accent-500/20 text-accentSoft'
-      : 'border-ink-600 bg-transparent text-slate-500 hover:border-slate-500 hover:text-slate-300'
-  }`
 }
 
 export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean; onClose: () => void }) {
@@ -50,10 +25,7 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
   const [metaExclude, setMetaExclude] = useState('')
   const [preview, setPreview] = useState<MetaPreview | null>(null)
   const [adopt, setAdopt] = useState<Record<FieldKey, boolean>>({} as Record<FieldKey, boolean>)
-  const [tagAdopt, setTagAdopt] = useState(true)
-  const [tagMode, setTagMode] = useState<TagMode>('merge')
-  const [selCur, setSelCur] = useState<Set<string>>(new Set())
-  const [selSrc, setSelSrc] = useState<Set<string>>(new Set())
+  const [tagSel, setTagSel] = useState<TagSelection>(() => initTagSelection([], []))
   const [coverAdopt, setCoverAdopt] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -85,14 +57,7 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
           rating: !!res.rating,
           comments: !!res.comments,
         })
-        setTagAdopt(!!res.tags?.length)
-        // Default to the "merge" preset over the freshly fetched tag lists.
-        const cur = sortTagNames(book.tags.map((x) => x.name))
-        const src = res.tags ? sortTagNames(res.tags) : []
-        const sel = mergeSel(cur, src)
-        setSelCur(sel.cur)
-        setSelSrc(sel.src)
-        setTagMode('merge')
+        setTagSel(initTagSelection(book.tags.map((x) => x.name), res.tags ?? []))
         setCoverAdopt(!!res.hasCover)
       }
     },
@@ -111,11 +76,7 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
       if (adopt.pubdate && p.pubdate) body.pubdate = p.pubdate
       if (adopt.rating && p.rating) body.rating = p.rating
       if (adopt.comments && p.comments) body.comments = p.comments
-      if (tagAdopt) {
-        // The selection already encodes the exact final set; dedupe across the
-        // two columns (a tag can be selected on both sides) and set it wholesale.
-        body.tags = Array.from(new Set([...selCur, ...selSrc]))
-      }
+      if (tagSel.enabled) body.tags = finalTags(tagSel)
       let updated = book
       if (Object.keys(body).length > 0) updated = await api.updateBook(book.id, body)
       if (coverAdopt && p.hasCover && p.token) {
@@ -135,43 +96,9 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
   })
 
   const set = (k: FieldKey, v: boolean) => setAdopt((a) => ({ ...a, [k]: v }))
-
   const p = preview
-  // Sort both columns by the post-save order (Calibre's ORDER BY name) so the
-  // current/cmoa tag lists line up for easy left/right comparison.
-  const curTags = sortTagNames(book.tags.map((x) => x.name))
-  const srcTags = p?.tags ? sortTagNames(p.tags) : []
 
-  // Switching the radio recomputes the whole selection from a preset; toggling
-  // an individual chip preserves the selection and drops into "custom".
-  const pickMode = (m: TagMode) => {
-    if (m === 'merge') {
-      const s = mergeSel(curTags, srcTags)
-      setSelCur(s.cur)
-      setSelSrc(s.src)
-    } else if (m === 'replace') {
-      const s = replaceSel(curTags, srcTags)
-      setSelCur(s.cur)
-      setSelSrc(s.src)
-    } else {
-      // "custom" starts from a clean slate — nothing selected.
-      setSelCur(new Set())
-      setSelSrc(new Set())
-    }
-    setTagMode(m)
-  }
-  const toggleTag = (side: 'cur' | 'src', name: string) => {
-    const setter = side === 'cur' ? setSelCur : setSelSrc
-    setter((prev) => {
-      const n = new Set(prev)
-      if (n.has(name)) n.delete(name)
-      else n.add(name)
-      return n
-    })
-    setTagMode('custom')
-  }
-
-  // One comparison row: [checkbox + label] [current] [cmoa].
+  // One comparison row: [checkbox + label] [current] [source].
   const row = (k: FieldKey, label: string, cur: React.ReactNode, next: React.ReactNode, available: boolean) => (
     <Fragment key={k}>
       <label className="flex items-center gap-2 py-1">
@@ -319,107 +246,22 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
               )}
             </div>
 
-            {/* Tags */}
-            <div className="rounded-xl border border-ink-700 bg-ink-900 p-3">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-accent-500"
-                  disabled={!curTags.length && !srcTags.length}
-                  checked={(!!curTags.length || !!srcTags.length) && tagAdopt}
-                  onChange={(e) => setTagAdopt(e.target.checked)}
-                />
-                <span className="text-xs font-medium text-slate-400">{t('book.fieldTags')}</span>
-                <span className="ml-auto flex gap-3 text-xs">
-                  {(['merge', 'replace', 'custom'] as const).map((m) => (
-                    <label key={m} className="flex items-center gap-1">
-                      <input
-                        type="radio"
-                        className="accent-accent-500"
-                        disabled={!tagAdopt}
-                        checked={tagMode === m}
-                        onChange={() => pickMode(m)}
-                      />
-                      {t(m === 'merge' ? 'enrich.tagMerge' : m === 'replace' ? 'enrich.tagReplace' : 'enrich.tagSelect')}
-                    </label>
-                  ))}
-                </span>
-              </label>
-              {/* Click a chip to include/exclude it in the final tag set; the
-                  radio jumps to "custom" as soon as you do. */}
-              <div className="mt-2 grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <p className="mb-1 text-slate-500">{t('enrich.current')}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {curTags.length ? (
-                      curTags.map((tg) => (
-                        <button
-                          key={tg}
-                          type="button"
-                          disabled={!tagAdopt}
-                          onClick={() => toggleTag('cur', tg)}
-                          className={chipCls(selCur.has(tg))}
-                        >
-                          {tg}
-                        </button>
-                      ))
-                    ) : (
-                      <span className="text-slate-600">—</span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-1 text-emerald-300/80">{t('enrich.source')}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {srcTags.length ? (
-                      srcTags.map((tg) => (
-                        <button
-                          key={tg}
-                          type="button"
-                          disabled={!tagAdopt}
-                          onClick={() => toggleTag('src', tg)}
-                          className={chipCls(selSrc.has(tg))}
-                        >
-                          {tg}
-                        </button>
-                      ))
-                    ) : (
-                      <span className="text-slate-600">—</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <TagMergeSelector
+              current={book.tags.map((x) => x.name)}
+              source={p.tags ?? []}
+              value={tagSel}
+              onChange={setTagSel}
+            />
 
-            {/* Cover */}
-            <div className="flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 p-3">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-accent-500"
-                disabled={!p.hasCover}
-                checked={!!p.hasCover && coverAdopt}
-                onChange={(e) => setCoverAdopt(e.target.checked)}
-              />
-              <span className="text-xs font-medium text-slate-400">{t('enrich.cover')}</span>
-              <div className="ml-auto flex items-end gap-4">
-                <div className="text-center">
-                  <p className="mb-1 text-[11px] text-slate-500">{t('enrich.current')}</p>
-                  <div className="w-16 overflow-hidden rounded">
-                    <Cover bookId={book.id} title={book.title} hasCover={book.hasCover} width={200} rounded="rounded" />
-                  </div>
-                </div>
-                <div className="text-center">
-                  <p className="mb-1 text-[11px] text-emerald-300/80">{t('enrich.source')}</p>
-                  <div className="flex aspect-[2/3] w-16 items-center justify-center overflow-hidden rounded bg-ink-800">
-                    {p.hasCover && p.token ? (
-                      <img src={mediaUrl.metaPreviewCover(p.token)} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <IconBook width={20} height={20} className="text-ink-600" />
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <CoverCompare
+              bookId={book.id}
+              title={book.title}
+              hasCover={book.hasCover}
+              version={book.lastModified}
+              token={p.hasCover ? p.token : undefined}
+              checked={coverAdopt}
+              onChange={setCoverAdopt}
+            />
           </>
         )}
 
