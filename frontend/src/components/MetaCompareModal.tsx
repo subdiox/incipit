@@ -88,6 +88,10 @@ export function MetaCompareModal({
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [changed, setChanged] = useState(false)
+  // Search refinement applied to every book's cmoa lookup (same as the single
+  // enrich flow): extra AND word(s) and excluded word(s), space-separated.
+  const [metaAdd, setMetaAdd] = useState('')
+  const [metaExclude, setMetaExclude] = useState('')
 
   const genres = useQuery({ queryKey: ['metadata-genres'], queryFn: api.metadataGenres, enabled: open, staleTime: Infinity }).data ?? []
 
@@ -120,15 +124,37 @@ export function MetaCompareModal({
   const setAdopt = (i: number, k: FieldKey, v: boolean) =>
     setRows((prev) => prev.map((r, j) => (j === i ? { ...r, adopt: { ...r.adopt, [k]: v } } : r)))
 
+  const previewArgs = (row: Row) => ({
+    query: row.query.trim() || row.book.title,
+    genre: row.genre,
+    metaAdd: metaAdd.trim() || undefined,
+    metaExclude: metaExclude.trim() || undefined,
+  })
+
   const refetch = async (i: number) => {
     const row = rows[i]
     patch(i, { status: 'loading' })
     try {
-      const p = await api.metadataPreview({ query: row.query.trim() || row.book.title, genre: row.genre })
+      const p = await api.metadataPreview(previewArgs(row))
       setRows((prev) => prev.map((r, j) => (j === i ? applyPreview(r, p) : r)))
     } catch {
       patch(i, { status: 'error' })
     }
+  }
+
+  // Re-run every book's lookup with the current add/exclude (and each row's own
+  // title/genre) — used after editing the shared refinement words.
+  const refetchAll = () => {
+    const current = rows
+    setRows((prev) => prev.map((r) => ({ ...r, status: 'loading' as Status })))
+    mapPool(current, 4, async (row, i) => {
+      try {
+        const p = await api.metadataPreview(previewArgs(row))
+        setRows((prev) => prev.map((r, j) => (j === i ? applyPreview(r, p) : r)))
+      } catch {
+        setRows((prev) => prev.map((r, j) => (j === i ? { ...r, status: 'error' as Status } : r)))
+      }
+    })
   }
 
   const buildBody = (row: Row): BookUpdate => {
@@ -240,6 +266,33 @@ export function MetaCompareModal({
               {t('compare.selectNone')}
             </button>
           </div>
+        </div>
+
+        {/* Shared cmoa search refinement, applied to every book. */}
+        <div className="flex flex-wrap items-end gap-2 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2.5">
+          <div className="min-w-0 flex-1">
+            <label className="label">{t('upload.metaAdd')}</label>
+            <input
+              className="input h-9 py-1.5 text-sm"
+              value={metaAdd}
+              onChange={(e) => setMetaAdd(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), refetchAll())}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <label className="label">{t('upload.metaExclude')}</label>
+            <input
+              className="input h-9 py-1.5 text-sm"
+              placeholder={t('upload.metaExcludePlaceholder')}
+              value={metaExclude}
+              onChange={(e) => setMetaExclude(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), refetchAll())}
+            />
+          </div>
+          <button type="button" className="btn-secondary h-9 py-1.5" onClick={refetchAll} disabled={stillLoading}>
+            <IconSearch width={15} height={15} />
+            {t('compare.refetchAll')}
+          </button>
         </div>
 
         <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">

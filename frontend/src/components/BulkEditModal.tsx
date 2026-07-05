@@ -54,13 +54,23 @@ export function BulkEditModal({
   const [tagsOn, setTagsOn] = useState(false)
   const [tagsMode, setTagsMode] = useState<TagsMode>('add')
   const [tagsValue, setTagsValue] = useState('')
+  // Title is a per-book field, so it can't be *set* in bulk — but a find/replace
+  // keeps each title unique while fixing a shared substring.
+  const [titleOn, setTitleOn] = useState(false)
+  const [titleFind, setTitleFind] = useState('')
+  const [titleReplace, setTitleReplace] = useState('')
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const anyEnabled = tagsOn || (Object.values(enabled) as boolean[]).some(Boolean)
+  const titleActive = titleOn && titleFind !== ''
+  const anyEnabled = tagsOn || titleActive || (Object.values(enabled) as boolean[]).some(Boolean)
 
   const buildBody = (book: Book): BookUpdate => {
     const body: BookUpdate = {}
+    if (titleActive) {
+      const next = book.title.split(titleFind).join(titleReplace)
+      if (next !== book.title && next.trim() !== '') body.title = next
+    }
     if (enabled.authors) body.authors = split(vals.authors)
     if (enabled.series) body.series = vals.series
     if (enabled.publisher) body.publisher = vals.publisher
@@ -125,7 +135,37 @@ export function BulkEditModal({
         <p className="text-sm text-slate-400">{t('bulk.editHint')}</p>
 
         <div className="space-y-2.5">
-          {/* Tags first — the most common bulk operation. */}
+          {/* Title find/replace: substring-replaces across every selected book,
+              so each title stays distinct (unlike the other "set" fields). */}
+          <div className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2.5">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 accent-accent-500"
+                checked={titleOn}
+                onChange={(e) => setTitleOn(e.target.checked)}
+              />
+              <span className="label mb-0 flex-1">{t('book.fieldTitle')}</span>
+              <span className="text-[11px] text-slate-500">{t('bulk.replace')}</span>
+            </div>
+            <div className={`mt-2 grid grid-cols-2 gap-2 ${titleOn ? '' : 'pointer-events-none opacity-40'}`}>
+              <input
+                className="input"
+                placeholder={t('bulk.find')}
+                value={titleFind}
+                onChange={(e) => setTitleFind(e.target.value)}
+              />
+              <input
+                className="input"
+                placeholder={t('bulk.replaceWith')}
+                value={titleReplace}
+                onChange={(e) => setTitleReplace(e.target.value)}
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] text-slate-500">{t('bulk.replaceHint')}</p>
+          </div>
+
+          {/* Tags — the most common bulk operation. */}
           <div className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2.5">
             <div className="flex items-center gap-3">
               <input
