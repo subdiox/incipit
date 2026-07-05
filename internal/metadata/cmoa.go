@@ -258,6 +258,19 @@ func searchTokens(word string) []string {
 	return out
 }
 
+// splitWords splits a free-text field on half/full-width whitespace into
+// individual words (dropping empties), so each add/exclude word becomes its own
+// cmoa AND-term. Unlike searchTokens it does not treat dashes as separators.
+func splitWords(s string) []string {
+	var out []string
+	for _, w := range wsSplit.Split(strings.TrimSpace(s), -1) {
+		if w != "" {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
 // findBookURL searches the given genre (nil = all) for series and returns the
 // first hit's book URL, or "" when there is no match.
 func (c *Client) findBookURL(ctx context.Context, series string, genreID *int, add, exclude string) (string, error) {
@@ -270,11 +283,14 @@ func (c *Client) findBookURL(ctx context.Context, series string, genreID *int, a
 	} else {
 		parts = append(parts, url.QueryEscape(series))
 	}
-	if add != "" {
-		parts = append(parts, url.QueryEscape(add))
+	// add/exclude may each hold several space-separated words; make every word
+	// its own cmoa AND-term ("+word" / "+-word") so e.g. exclude "単話版 分冊版"
+	// excludes both, not the single phrase "単話版 分冊版".
+	for _, w := range splitWords(add) {
+		parts = append(parts, url.QueryEscape(w)) // +word
 	}
-	if exclude != "" {
-		parts = append(parts, "-"+url.QueryEscape(exclude))
+	for _, w := range splitWords(exclude) {
+		parts = append(parts, "-"+url.QueryEscape(w)) // +-word
 	}
 	word := strings.Join(parts, "+")
 	searchURL := c.root() + searchPath + word
