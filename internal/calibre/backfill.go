@@ -173,6 +173,27 @@ func (a *Adapter) BooksWithTagPrefix(ctx context.Context, prefix string) (map[in
 	return seen, rows.Err()
 }
 
+// BooksWithIdentifier returns the set of book ids that already carry a non-empty
+// identifier of the given type (e.g. "isbn"). Used to make the ISBN backfill
+// resumable — already-identified books are skipped.
+func (a *Adapter) BooksWithIdentifier(ctx context.Context, idType string) (map[int64]bool, error) {
+	rows, err := a.db.QueryContext(ctx,
+		`SELECT DISTINCT book FROM identifiers WHERE type=? AND val<>''`, idType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	seen := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		seen[id] = true
+	}
+	return seen, rows.Err()
+}
+
 // AddTagToBooks links tagName to every bookID in a single transaction, creating
 // the tag if needed and keeping any existing links (INSERT OR IGNORE). It does
 // NOT rewrite per-book metadata.opf — it's for bulk backfills, not user edits.

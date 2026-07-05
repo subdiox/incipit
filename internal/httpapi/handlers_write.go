@@ -357,6 +357,14 @@ func applyMeta(in *calibre.AddBookInput, m *metadata.Meta) {
 	if !m.PubDate.IsZero() {
 		in.PubDate = m.PubDate
 	}
+	if m.ISBN != "" {
+		ids := map[string]string{"isbn": m.ISBN}
+		// Derive the Amazon ASIN (= ISBN-10) so future Amazon lookups have a key.
+		if asin := metadata.ISBNToASIN(m.ISBN); asin != "" {
+			ids["amazon"] = asin
+		}
+		in.Identifiers = ids
+	}
 }
 
 // coverFromURL downloads and re-encodes a cover image as JPEG. It returns nil on

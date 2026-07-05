@@ -101,6 +101,7 @@ type Meta struct {
 	Rating      int    // 0-10 (Calibre scale, 2 per star); 0 when unknown
 	Languages   []string
 	CoverURL    string
+	ISBN        string // 13- or 10-digit ISBN from cmoa's info table; "" when unknown
 }
 
 // topCategory maps a cmoa genre_id to its top-page category label, taken
@@ -486,6 +487,12 @@ func parseBookPage(doc *goquery.Document, series string, volume int, hasVolume b
 		if a := r.Find("a").First(); a.Length() > 0 {
 			meta.Publisher = strings.TrimSpace(a.Text())
 		}
+	}
+
+	// ISBN: the "ISBN" info row's value cell holds the plain digits (in a <pre>),
+	// e.g. "： 9784803005950". Keep only the ISBN, ignoring the "：" separator.
+	if r, ok := infos["ISBN"]; ok {
+		meta.ISBN = NormalizeISBN(r.Text())
 	}
 
 	// Series name: the breadcrumb's last link, e.g.
