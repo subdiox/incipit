@@ -46,6 +46,16 @@ func (a *Adapter) AddBook(ctx context.Context, in AddBookInput) (*Book, error) {
 		return nil, errors.New("calibre: format and data are required")
 	}
 
+	// Normalize all text to NFC before it becomes rows and folder names, so a
+	// macOS-NFD upload matches NFC search terms and cmoa/Amazon values.
+	in.Title = NFC(in.Title)
+	in.Authors = nfcSlice(in.Authors)
+	in.Series = NFC(in.Series)
+	in.Tags = nfcSlice(in.Tags)
+	in.Publisher = NFC(in.Publisher)
+	in.Languages = nfcSlice(in.Languages)
+	in.Comments = NFC(in.Comments)
+
 	a.writeMu.Lock()
 	defer a.writeMu.Unlock()
 
@@ -189,6 +199,17 @@ func (a *Adapter) UpdateBook(ctx context.Context, id int64, in UpdateBookInput) 
 	if a.readOnly {
 		return nil, ErrReadOnly
 	}
+
+	// Normalize incoming text to NFC (see NFC / AddBook). Nil fields stay nil.
+	in.Title = nfcPtr(in.Title)
+	in.Authors = nfcSlicePtr(in.Authors)
+	in.Series = nfcPtr(in.Series)
+	in.Tags = nfcSlicePtr(in.Tags)
+	in.AddTags = nfcSlicePtr(in.AddTags)
+	in.Publisher = nfcPtr(in.Publisher)
+	in.Languages = nfcSlicePtr(in.Languages)
+	in.Comments = nfcPtr(in.Comments)
+
 	a.writeMu.Lock()
 	defer a.writeMu.Unlock()
 

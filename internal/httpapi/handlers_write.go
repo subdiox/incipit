@@ -102,6 +102,9 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 	if title == "" {
 		title = strings.TrimSuffix(header.Filename, extOf(header.Filename))
 	}
+	// macOS filenames are NFD; normalize now so the cmoa lookup query (below) and
+	// the stored title are both NFC. AddBook also normalizes as a safety net.
+	title = calibre.NFC(title)
 
 	in := calibre.AddBookInput{
 		Title:       title,

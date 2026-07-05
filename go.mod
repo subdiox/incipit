@@ -10,6 +10,7 @@ require (
 	golang.org/x/crypto v0.53.0
 	golang.org/x/image v0.42.0
 	golang.org/x/net v0.55.0
+	golang.org/x/text v0.38.0
 	modernc.org/sqlite v1.52.0
 )
 
