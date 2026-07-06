@@ -235,6 +235,7 @@ export const api = {
 
   // Shelves
   shelves: () => request<Shelf[]>('/shelves'),
+  getShelf: (id: number) => request<Shelf>(`/shelves/${id}`),
   createShelf: (name: string, isPublic: boolean) =>
     request<Shelf>('/shelves', { method: 'POST', ...jsonBody({ name, isPublic }) }),
   updateShelf: (id: number, body: { name?: string; isPublic?: boolean }) =>

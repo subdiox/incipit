@@ -152,6 +152,7 @@ func (s *Server) Router() http.Handler {
 
 			r.Get("/shelves", s.handleListShelves)
 			r.Post("/shelves", s.handleCreateShelf)
+			r.Get("/shelves/{id}", s.handleGetShelf)
 			r.Put("/shelves/{id}", s.handleUpdateShelf)
 			r.Delete("/shelves/{id}", s.handleDeleteShelf)
 			r.Get("/shelves/{id}/books", s.handleShelfBooks)

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
@@ -327,17 +327,60 @@ function ShelfCard({
   )
 }
 
+// ShelfUnavailable is shown for a deep link to a shelf that is private (not
+// yours) or no longer exists.
+function ShelfUnavailable({ onBack }: { onBack: () => void }) {
+  const { t } = useI18n()
+  return (
+    <div>
+      <button type="button" className="btn-ghost mb-4 -ml-2 inline-flex" onClick={onBack}>
+        <IconChevronLeft width={16} height={16} />
+        {t('shelves.title')}
+      </button>
+      <div className="card flex flex-col items-center gap-4 px-6 py-20 text-center">
+        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-ink-800 text-slate-500">
+          <IconShelf width={28} height={28} />
+        </span>
+        <div>
+          <h2 className="text-lg font-medium text-white">{t('shelves.unavailableTitle')}</h2>
+          <p className="mt-1 text-sm text-slate-500">{t('shelves.unavailableHint')}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ShelvesPage() {
   const queryClient = useQueryClient()
   const { t } = useI18n()
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const { id: routeId } = useParams()
   const [createOpen, setCreateOpen] = useState(false)
-  const [selected, setSelected] = useState<Shelf | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Shelf | null>(null)
   const [params] = useSearchParams()
   const search = (params.get('search') ?? '').trim()
 
   const { data: shelves, isLoading } = useQuery({ queryKey: ['shelves'], queryFn: api.shelves })
+
+  // Deep-link resolution. "favorites" is personal — it maps to the viewer's OWN
+  // default shelf, so sharing /shelves/favorites shows the recipient's favorites,
+  // never the sharer's (and a favorites shelf is never exposed as a numeric link).
+  const ownFavorite = shelves?.find((s) => s.isDefault && s.userId === user?.id)
+  const numericId = routeId && routeId !== 'favorites' ? Number(routeId) : undefined
+  const listShelf = numericId != null ? shelves?.find((s) => s.id === numericId) : undefined
+  // A shelf not in the list (a shared public link) is fetched directly; the
+  // backend 403s private shelves that aren't yours.
+  const fetchNeeded = numericId != null && !listShelf
+  const shelfQ = useQuery({
+    queryKey: ['shelf', numericId],
+    queryFn: () => api.getShelf(numericId!),
+    enabled: fetchNeeded && !isLoading,
+    retry: false,
+  })
+
+  const openShelf = (shelf: Shelf) =>
+    navigate(`/shelves/${shelf.isDefault && shelf.userId === user?.id ? 'favorites' : shelf.id}`)
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.deleteShelf(id),
@@ -348,11 +391,12 @@ export function ShelvesPage() {
   })
 
   // A search takes over the whole page (across all shelves); otherwise a
-  // selected shelf shows its own detail view.
-  if (selected && !search) {
-    // Keep the selected reference fresh from the list when it updates.
-    const fresh = shelves?.find((s) => s.id === selected.id) ?? selected
-    return <ShelfDetail shelf={fresh} onBack={() => setSelected(null)} />
+  // deep-linked shelf shows its own detail view.
+  if (routeId && !search) {
+    if (isLoading || (fetchNeeded && shelfQ.isLoading)) return <FullPageSpinner />
+    const shelf = routeId === 'favorites' ? ownFavorite : (listShelf ?? shelfQ.data)
+    if (!shelf) return <ShelfUnavailable onBack={() => navigate('/shelves')} />
+    return <ShelfDetail shelf={shelf} onBack={() => navigate('/shelves')} />
   }
 
   return (
@@ -416,7 +460,7 @@ export function ShelvesPage() {
                         shelf={shelf}
                         showOwner={g.showOwner}
                         canDelete={g.canDelete(shelf)}
-                        onOpen={() => setSelected(shelf)}
+                        onOpen={() => openShelf(shelf)}
                         onDelete={() => setConfirmDelete(shelf)}
                       />
                     ))}

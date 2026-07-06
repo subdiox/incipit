@@ -31,6 +31,17 @@ func (s *Server) handleListShelves(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, shelves)
 }
 
+// handleGetShelf returns one shelf's metadata, enforcing visibility: a private
+// shelf is only returned to its owner (or an admin), so a shared link to a
+// private shelf 403s. Used to resolve a /shelves/:id deep link.
+func (s *Server) handleGetShelf(w http.ResponseWriter, r *http.Request) {
+	sh, ok := s.shelfFromURL(w, r, false)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, sh)
+}
+
 type createShelfBody struct {
 	Name     string `json:"name"`
 	IsPublic bool   `json:"isPublic"`

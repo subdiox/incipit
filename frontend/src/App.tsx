@@ -44,6 +44,7 @@ export function App() {
         <Route path="/collections/:id" element={<CollectionPage />} />
         <Route path="/books/:id" element={<BookDetailPage />} />
         <Route path="/shelves" element={<ShelvesPage />} />
+        <Route path="/shelves/:id" element={<ShelvesPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route
