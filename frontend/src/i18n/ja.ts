@@ -148,6 +148,7 @@ export const ja: Record<TranslationKey, string> = {
   'book.fieldSeriesIndex': '巻',
   'book.fieldTags': 'タグ（カンマ区切り）',
   'book.fieldPublisher': '出版社',
+  'book.fieldIsbn': 'ISBN',
   'book.fieldLanguages': '言語（カンマ区切り）',
   'book.fieldPubdate': '出版日',
   'book.fieldRating': '評価',

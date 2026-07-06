@@ -9,7 +9,7 @@ import { Rating } from './Rating'
 import { IconSearch } from './icons'
 import { CoverCompare, TagMergeSelector, initTagSelection, finalTags, type TagSelection } from './MetaAdopt'
 
-type FieldKey = 'title' | 'authors' | 'series' | 'seriesIndex' | 'publisher' | 'pubdate' | 'rating' | 'comments'
+type FieldKey = 'title' | 'authors' | 'series' | 'seriesIndex' | 'publisher' | 'pubdate' | 'rating' | 'comments' | 'isbn'
 
 function stripHtml(s: string): string {
   return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
@@ -56,6 +56,7 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
           pubdate: !!res.pubdate,
           rating: !!res.rating,
           comments: !!res.comments,
+          isbn: !!res.isbn,
         })
         setTagSel(initTagSelection(book.tags.map((x) => x.name), res.tags ?? []))
         setCoverAdopt(!!res.hasCover)
@@ -76,6 +77,12 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
       if (adopt.pubdate && p.pubdate) body.pubdate = p.pubdate
       if (adopt.rating && p.rating) body.rating = p.rating
       if (adopt.comments && p.comments) body.comments = p.comments
+      if (adopt.isbn && p.isbn) {
+        const ids = { ...book.identifiers }
+        delete ids.amazon // let the server re-derive the ASIN from the new ISBN
+        ids.isbn = p.isbn
+        body.identifiers = ids
+      }
       if (tagSel.enabled) body.tags = finalTags(tagSel)
       let updated = book
       if (Object.keys(body).length > 0) updated = await api.updateBook(book.id, body)
@@ -244,6 +251,7 @@ export function EnrichModal({ book, open, onClose }: { book: Book; open: boolean
                 <span className="line-clamp-2 text-xs">{stripHtml(p.comments ?? '')}</span>,
                 !!p.comments,
               )}
+              {row('isbn', t('book.fieldIsbn'), book.identifiers?.isbn ?? '', p.isbn, !!p.isbn)}
             </div>
 
             <TagMergeSelector

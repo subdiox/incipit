@@ -242,6 +242,9 @@ func (s *Server) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		Comments:    body.Comments,
 		Identifiers: body.Identifiers,
 	}
+	if in.Identifiers != nil {
+		deriveASIN(*in.Identifiers)
+	}
 	if body.PubDate != nil {
 		if t, err := time.Parse("2006-01-02", *body.PubDate); err == nil {
 			in.PubDate = &t
@@ -362,11 +365,20 @@ func applyMeta(in *calibre.AddBookInput, m *metadata.Meta) {
 	}
 	if m.ISBN != "" {
 		ids := map[string]string{"isbn": m.ISBN}
-		// Derive the Amazon ASIN (= ISBN-10) so future Amazon lookups have a key.
-		if asin := metadata.ISBNToASIN(m.ISBN); asin != "" {
-			ids["amazon"] = asin
-		}
+		deriveASIN(ids)
 		in.Identifiers = ids
+	}
+}
+
+// deriveASIN fills the "amazon" identifier (= ISBN-10) from "isbn" when the ISBN
+// is a convertible ISBN-13 and amazon isn't already set — so a manually entered
+// or cmoa-fetched ISBN automatically gains an Amazon key for future lookups.
+func deriveASIN(ids map[string]string) {
+	if _, ok := ids["amazon"]; ok {
+		return
+	}
+	if asin := metadata.ISBNToASIN(ids["isbn"]); asin != "" {
+		ids["amazon"] = asin
 	}
 }
 

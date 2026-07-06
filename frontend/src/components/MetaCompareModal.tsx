@@ -11,8 +11,8 @@ import { Cover } from './Cover'
 import { IconSearch, IconCheck } from './icons'
 import { CoverCompare, TagMergeSelector, initTagSelection, finalTags, type TagSelection } from './MetaAdopt'
 
-type FieldKey = 'title' | 'authors' | 'series' | 'seriesIndex' | 'publisher' | 'pubdate' | 'rating' | 'comments'
-const FIELD_KEYS: FieldKey[] = ['title', 'authors', 'series', 'seriesIndex', 'publisher', 'pubdate', 'rating', 'comments']
+type FieldKey = 'title' | 'authors' | 'series' | 'seriesIndex' | 'publisher' | 'pubdate' | 'rating' | 'comments' | 'isbn'
+const FIELD_KEYS: FieldKey[] = ['title', 'authors', 'series', 'seriesIndex', 'publisher', 'pubdate', 'rating', 'comments', 'isbn']
 
 type Status = 'loading' | 'ok' | 'nomatch' | 'error'
 
@@ -50,6 +50,7 @@ function applyPreview(row: Row, p: MetaPreview): Row {
       pubdate: !!p.pubdate,
       rating: !!p.rating,
       comments: !!p.comments,
+      isbn: !!p.isbn,
     },
     tagSel: initTagSelection(row.book.tags.map((x) => x.name), p.tags ?? []),
     coverOn: !!p.hasCover,
@@ -63,7 +64,7 @@ function blankRow(book: Book): Row {
     genre: 'comic',
     status: 'loading',
     include: false,
-    adopt: { title: false, authors: false, series: false, seriesIndex: false, publisher: false, pubdate: false, rating: false, comments: false },
+    adopt: { title: false, authors: false, series: false, seriesIndex: false, publisher: false, pubdate: false, rating: false, comments: false, isbn: false },
     tagSel: initTagSelection([], []),
     coverOn: false,
   }
@@ -168,6 +169,12 @@ export function MetaCompareModal({
     if (row.adopt.pubdate && p.pubdate) body.pubdate = p.pubdate
     if (row.adopt.rating && p.rating) body.rating = p.rating
     if (row.adopt.comments && p.comments) body.comments = p.comments
+    if (row.adopt.isbn && p.isbn) {
+      const ids = { ...row.book.identifiers }
+      delete ids.amazon // server re-derives the ASIN from the new ISBN
+      ids.isbn = p.isbn
+      body.identifiers = ids
+    }
     if (row.tagSel.enabled) body.tags = finalTags(row.tagSel)
     return body
   }
@@ -394,6 +401,8 @@ export function MetaCompareModal({
                             return fieldRow(i, row, k, t('book.fieldRating'), row.book.rating > 0 ? <Rating value={row.book.rating} size={12} /> : '', p.rating ? <Rating value={p.rating} size={12} /> : '', !!p.rating)
                           case 'comments':
                             return fieldRow(i, row, k, t('book.fieldComments'), <span className="line-clamp-2 text-[11px] text-slate-400">{stripHtml(row.book.comments ?? '')}</span>, <span className="line-clamp-2 text-[11px]">{stripHtml(p.comments ?? '')}</span>, !!p.comments)
+                          case 'isbn':
+                            return fieldRow(i, row, k, t('book.fieldIsbn'), row.book.identifiers?.isbn ?? '', p.isbn, !!p.isbn)
                         }
                       })}
                     </div>

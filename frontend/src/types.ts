@@ -190,6 +190,7 @@ export interface MetaPreview {
   pubdate?: string
   rating?: number
   comments?: string
+  isbn?: string
   hasCover?: boolean
 }
 

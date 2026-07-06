@@ -146,6 +146,7 @@ export const en = {
   'book.fieldSeriesIndex': 'Volume',
   'book.fieldTags': 'Tags (comma separated)',
   'book.fieldPublisher': 'Publisher',
+  'book.fieldIsbn': 'ISBN',
   'book.fieldLanguages': 'Languages (comma separated)',
   'book.fieldPubdate': 'Publication date',
   'book.fieldRating': 'Rating',

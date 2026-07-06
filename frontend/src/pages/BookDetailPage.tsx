@@ -49,6 +49,7 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
     rating: book.rating,
     comments: book.comments ?? '',
     pubdate: dateInputValue(book.pubdate),
+    isbn: book.identifiers?.isbn ?? '',
   })
   const [error, setError] = useState<string | null>(null)
   // Optional manual cover replacement — the fallback when cmoa has no match or
@@ -99,6 +100,14 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
       comments: form.comments,
     }
     if (form.pubdate) body.pubdate = form.pubdate
+    // Merge the ISBN edit into the existing identifiers. Dropping "amazon" lets
+    // the server re-derive the ASIN from the new ISBN (or clears it when blank).
+    const ids: Record<string, string> = { ...book.identifiers }
+    delete ids.amazon
+    const isbn = form.isbn.trim()
+    if (isbn) ids.isbn = isbn
+    else delete ids.isbn
+    body.identifiers = ids
     mutation.mutate(body)
   }
 
@@ -181,6 +190,15 @@ function EditModal({ book, open, onClose }: { book: Book; open: boolean; onClose
           <div>
             <label className="label">{t('book.fieldPublisher')}</label>
             <input className="input" value={form.publisher} onChange={(e) => setForm({ ...form, publisher: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">{t('book.fieldIsbn')}</label>
+            <input
+              className="input"
+              inputMode="numeric"
+              value={form.isbn}
+              onChange={(e) => setForm({ ...form, isbn: e.target.value })}
+            />
           </div>
           <div>
             <label className="label">{t('book.fieldLanguages')}</label>
