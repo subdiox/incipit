@@ -58,9 +58,15 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 	maxPages := atoi(q.Get("maxPages"))
 	pageFiltered := (minPages > 0 || maxPages > 0) && s.pageFilterEnabled(r.Context())
 	ranked := opts.Sort == "views" || opts.Sort == "lastread"
-	// Series-grouped browse: one tile per series (+ standalone books). Only when
-	// the two Go-side paths aren't needed (they operate on individual books).
-	if q.Get("group") == "series" && !ranked && !pageFiltered {
+	// Series-grouped browse: one tile per series (+ standalone books). The
+	// page-count filter operates on individual volumes, so it isn't expressible
+	// here and falls through to the flat path; the per-user "recently read" /
+	// "most viewed" sorts ARE supported, ranked in Go against app.db data.
+	if q.Get("group") == "series" && !pageFiltered {
+		if ranked {
+			s.listGroupedRanked(w, r, opts)
+			return
+		}
 		res, err := s.lib().ListGrouped(r.Context(), opts)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "list grouped: "+err.Error())
@@ -109,6 +115,110 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 		ids = filterIDsByPages(ids, counts, minPages, maxPages)
 	}
 	s.writeBookPage(w, r, opts, ids)
+}
+
+// listGroupedRanked serves the series-grouped view under a per-user sort
+// (recently read / most viewed) that metadata.db can't express. It groups the
+// filtered volumes into units (a whole series, or a standalone book) and scores
+// each unit from app.db data: a series takes its most-recently-read volume (or
+// the sum of its volumes' views), so reading ANY one volume ranks the whole
+// series in the ordering. Units are then ordered, paginated and hydrated into
+// the same GroupedResult shape as the plain grouped view.
+func (s *Server) listGroupedRanked(w http.ResponseWriter, r *http.Request, opts calibre.ListOptions) {
+	ctx := r.Context()
+	ids, err := s.lib().FilteredIDs(ctx, opts)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list grouped")
+		return
+	}
+	seriesOf, err := s.lib().AllBookSeries(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "series map")
+		return
+	}
+
+	var last map[int64]time.Time
+	var views map[int64]int64
+	switch opts.Sort {
+	case "lastread":
+		last, err = s.store.AllBookLastRead(ctx)
+	case "views":
+		views, err = s.store.AllBookViewCounts(ctx)
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "rank data")
+		return
+	}
+
+	// Fold volumes into units, preserving first-appearance order (ids come from
+	// FilteredIDs newest-first) so equal-score ties stay stable through the sort.
+	type agg struct {
+		ref   calibre.GroupRef
+		last  time.Time
+		views int64
+	}
+	var units []*agg
+	idx := make(map[string]*agg, len(ids))
+	for _, id := range ids {
+		ref := calibre.GroupRef{Kind: "book", Key: id}
+		if sid, ok := seriesOf[id]; ok {
+			ref = calibre.GroupRef{Kind: "series", Key: sid}
+		}
+		k := ref.Kind + ":" + strconv.FormatInt(ref.Key, 10)
+		u := idx[k]
+		if u == nil {
+			u = &agg{ref: ref}
+			idx[k] = u
+			units = append(units, u)
+		}
+		if t, ok := last[id]; ok && t.After(u.last) {
+			u.last = t // series = its most-recently-read volume
+		}
+		u.views += views[id]
+	}
+
+	// before reports whether a sorts ahead of b under descending intent; the
+	// stable sort keeps first-appearance order for equal scores.
+	before := func(a, b *agg) bool {
+		if opts.Sort == "views" {
+			return a.views > b.views
+		}
+		return a.last.After(b.last)
+	}
+	sort.SliceStable(units, func(i, j int) bool {
+		if opts.Desc {
+			return before(units[i], units[j])
+		}
+		return before(units[j], units[i])
+	})
+
+	total := len(units)
+	limit := opts.Limit
+	if limit <= 0 || limit > 500 {
+		limit = 50
+	}
+	start := opts.Offset
+	if start < 0 {
+		start = 0
+	}
+	if start > total {
+		start = total
+	}
+	end := start + limit
+	if end > total {
+		end = total
+	}
+	page := make([]calibre.GroupRef, 0, end-start)
+	for _, u := range units[start:end] {
+		page = append(page, u.ref)
+	}
+
+	res, err := s.lib().HydrateUnits(ctx, page, total)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "hydrate units")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 // sortIDsStable sorts ids in place by a "a before b" comparator (descending

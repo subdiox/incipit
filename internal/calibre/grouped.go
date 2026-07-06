@@ -28,6 +28,14 @@ type GroupedResult struct {
 	Total int         `json:"total"`
 }
 
+// GroupRef references one grouped unit — a whole series ("series") or a
+// standalone book ("book"), by id. It carries a unit ordering computed outside
+// the SQL query (e.g. a Go-side per-user ranking) into HydrateUnits.
+type GroupRef struct {
+	Kind string
+	Key  int64
+}
+
 // groupedSortExprs returns the per-unit sort expressions for the series subquery
 // (an aggregate over the series' volumes) and the standalone-book subquery, plus
 // the direction. Sorts that can't be expressed here (views/lastread, per-user)
@@ -99,24 +107,14 @@ func (a *Adapter) ListGrouped(ctx context.Context, opts ListOptions) (*GroupedRe
 	if err != nil {
 		return nil, fmt.Errorf("list grouped: %w", err)
 	}
-	type unit struct {
-		kind string
-		key  int64
-	}
-	var order []unit
-	var seriesIDs, bookIDs []int64
+	var order []GroupRef
 	for rows.Next() {
-		var u unit
-		if err := rows.Scan(&u.kind, &u.key); err != nil {
+		var ref GroupRef
+		if err := rows.Scan(&ref.Kind, &ref.Key); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		order = append(order, u)
-		if u.kind == "series" {
-			seriesIDs = append(seriesIDs, u.key)
-		} else {
-			bookIDs = append(bookIDs, u.key)
-		}
+		order = append(order, ref)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -124,12 +122,31 @@ func (a *Adapter) ListGrouped(ctx context.Context, opts ListOptions) (*GroupedRe
 	}
 	rows.Close()
 
+	return a.HydrateUnits(ctx, order, total)
+}
+
+// HydrateUnits resolves an ordered list of unit references into a page of
+// GroupUnits (series cards + standalone books), preserving order; total is the
+// full unit count for the caller's pagination. It lets a caller that computed
+// the ordering itself — e.g. the per-user "recently read" / "most viewed" sorts,
+// which rank in Go over app.db data metadata.db can't see — reuse the same
+// hydration as ListGrouped.
+func (a *Adapter) HydrateUnits(ctx context.Context, order []GroupRef, total int) (*GroupedResult, error) {
+	var seriesIDs, bookIDs []int64
+	for _, ref := range order {
+		if ref.Kind == "series" {
+			seriesIDs = append(seriesIDs, ref.Key)
+		} else {
+			bookIDs = append(bookIDs, ref.Key)
+		}
+	}
+
 	summaries, err := a.SeriesSummaries(ctx, seriesIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	// Hydrate every book we need to show: standalone books + each series' latest
+	// Hydrate every book we need to show: standalone books + each series' first
 	// volume (its cover).
 	need := append([]int64{}, bookIDs...)
 	for _, sid := range seriesIDs {
@@ -149,19 +166,44 @@ func (a *Adapter) ListGrouped(ctx context.Context, opts ListOptions) (*GroupedRe
 	}
 
 	units := make([]GroupUnit, 0, len(order))
-	for _, u := range order {
-		if u.kind == "book" {
-			if b := byID[u.key]; b != nil {
+	for _, ref := range order {
+		if ref.Kind == "book" {
+			if b := byID[ref.Key]; b != nil {
 				units = append(units, GroupUnit{Kind: "book", Book: b})
 			}
 			continue
 		}
-		sm := summaries[u.key]
-		card := &SeriesCard{ID: u.key, Name: sm.Name, BookCount: sm.BookCount}
+		sm, ok := summaries[ref.Key]
+		if !ok {
+			continue // series no longer present in the library
+		}
+		card := &SeriesCard{ID: ref.Key, Name: sm.Name, BookCount: sm.BookCount}
 		if sm.FirstBookID != 0 {
 			card.Cover = byID[sm.FirstBookID]
 		}
 		units = append(units, GroupUnit{Kind: "series", Series: card})
 	}
 	return &GroupedResult{Units: units, Total: total}, nil
+}
+
+// AllBookSeries maps every book that belongs to a series to its series id, in a
+// single scan of the link table (books not in a series are absent). It mirrors
+// the whole-table app.db loaders (AllBookLastRead/AllBookViewCounts) so the
+// Go-side grouped ranking can group a large filtered id list into series without
+// a giant per-id IN clause.
+func (a *Adapter) AllBookSeries(ctx context.Context) (map[int64]int64, error) {
+	rows, err := a.db.QueryContext(ctx, "SELECT book, series FROM books_series_link")
+	if err != nil {
+		return nil, fmt.Errorf("all book series: %w", err)
+	}
+	defer rows.Close()
+	out := map[int64]int64{}
+	for rows.Next() {
+		var book, series int64
+		if err := rows.Scan(&book, &series); err != nil {
+			return nil, err
+		}
+		out[book] = series
+	}
+	return out, rows.Err()
 }

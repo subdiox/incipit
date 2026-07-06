@@ -534,6 +534,71 @@ func TestPageCountFilter(t *testing.T) {
 	}
 }
 
+// TestGroupedRecentlyRead covers the series-grouped view under the per-user
+// "recently read" sort: it must return grouped units (not a flat list, which
+// rendered as an empty library), and reading any single volume must rank the
+// whole series to the top.
+func TestGroupedRecentlyRead(t *testing.T) {
+	h := newHarness(t)
+	h.postJSON("/api/setup", credentials{Username: "admin", Password: "supersecret"}).Body.Close()
+
+	upload := func(title string) calibre.Book {
+		resp := h.uploadCBZ(title, makeCBZBytes(t, 5))
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("upload %q = %d", title, resp.StatusCode)
+		}
+		var b calibre.Book
+		decodeBody(t, resp, &b)
+		return b
+	}
+	setSeries := func(id int64, name string, idx float64) {
+		resp := h.putJSON(bookPath(id, ""), updateBookBody{Series: &name, SeriesIndex: &idx})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("set series = %d", resp.StatusCode)
+		}
+		resp.Body.Close()
+	}
+
+	// Two volumes of one series + one standalone book => 2 grouped units.
+	vol1 := upload("Saga Vol 1")
+	vol2 := upload("Saga Vol 2")
+	upload("Standalone")
+	const seriesName = "Saga"
+	setSeries(vol1.ID, seriesName, 1)
+	setSeries(vol2.ID, seriesName, 2)
+
+	groupedLastRead := func() calibre.GroupedResult {
+		var res calibre.GroupedResult
+		decodeBody(t, h.do(http.MethodGet, "/api/books?group=series&sort=lastread&order=desc", nil, ""), &res)
+		return res
+	}
+
+	// Regression: grouped + lastread returned a flat ListResult (no units), which
+	// the grouped UI rendered as "library empty".
+	res := groupedLastRead()
+	if len(res.Units) == 0 {
+		t.Fatalf("grouped+lastread returned no units (series-grouped recently-read showed empty)")
+	}
+	if res.Total != 2 {
+		t.Errorf("total units = %d, want 2 (series + standalone)", res.Total)
+	}
+
+	// Reading one volume ranks the whole series to the top.
+	resp := h.putJSON(bookPath(vol2.ID, "/progress"), progressBody{Page: 3, TotalPages: 5})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("set progress = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	res = groupedLastRead()
+	if len(res.Units) == 0 || res.Units[0].Kind != "series" || res.Units[0].Series == nil {
+		t.Fatalf("first unit = %+v, want the read series first", res.Units)
+	}
+	if res.Units[0].Series.Name != seriesName || res.Units[0].Series.BookCount != 2 {
+		t.Errorf("top series = %+v, want %q with 2 volumes", res.Units[0].Series, seriesName)
+	}
+}
+
 func bookPath(id int64, suffix string) string {
 	return "/api/books/" + strconv.FormatInt(id, 10) + suffix
 }
