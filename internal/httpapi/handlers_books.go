@@ -58,6 +58,17 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 	maxPages := atoi(q.Get("maxPages"))
 	pageFiltered := (minPages > 0 || maxPages > 0) && s.pageFilterEnabled(r.Context())
 	ranked := opts.Sort == "views" || opts.Sort == "lastread"
+	// Series-grouped browse: one tile per series (+ standalone books). Only when
+	// the two Go-side paths aren't needed (they operate on individual books).
+	if q.Get("group") == "series" && !ranked && !pageFiltered {
+		res, err := s.lib().ListGrouped(r.Context(), opts)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "list grouped: "+err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, res)
+		return
+	}
 	if !ranked && !pageFiltered {
 		res, err := s.lib().ListBooks(r.Context(), opts)
 		if err != nil {

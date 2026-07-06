@@ -4,6 +4,7 @@ import type {
   BookUpdate,
   Facet,
   FsListing,
+  GroupedResponse,
   LdapImportResult,
   LdapSettings,
   LdapTestResult,
@@ -99,6 +100,7 @@ export interface BookQuery {
   maxPages?: number
   limit?: number
   offset?: number
+  group?: 'series' // collapse series into one tile
 }
 
 function bookQueryString(q: BookQuery): string {
@@ -117,6 +119,7 @@ function bookQueryString(q: BookQuery): string {
   if (q.maxPages != null) params.set('maxPages', String(q.maxPages))
   if (q.limit != null) params.set('limit', String(q.limit))
   if (q.offset != null) params.set('offset', String(q.offset))
+  if (q.group) params.set('group', q.group)
   const s = params.toString()
   return s ? `?${s}` : ''
 }
@@ -193,6 +196,8 @@ export const api = {
 
   // Books
   books: (q: BookQuery = {}) => request<BooksResponse>(`/books${bookQueryString(q)}`),
+  booksGrouped: (q: BookQuery = {}) =>
+    request<GroupedResponse>(`/books${bookQueryString({ ...q, group: 'series' })}`),
   book: (id: number) => request<Book>(`/books/${id}`),
   createBook: (form: FormData) => request<Book>('/books', { method: 'POST', body: form }),
   updateBook: (id: number, body: BookUpdate) =>

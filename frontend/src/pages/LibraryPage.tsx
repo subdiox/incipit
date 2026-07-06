@@ -8,7 +8,7 @@ import { useI18n } from '@/i18n'
 import type { TranslationKey } from '@/i18n/en'
 import { useDebounced } from '@/lib/hooks'
 import type { Collection, Facet, SortKey, SortOrder } from '@/types'
-import { BookCard, BookCardSkeleton, BookGrid } from '@/components/BookCard'
+import { BookCard, BookCardSkeleton, BookGrid, LibrarySeriesCard } from '@/components/BookCard'
 import { AsyncFacet } from '@/components/AsyncFacet'
 import { useFacetNames } from '@/lib/facets'
 import { ContinueReadingShelf } from '@/components/ReadingShelf'
@@ -177,6 +177,23 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const canEdit = !!user?.canEdit
+  // Series-grouped browse: one tile per series. Persisted, default on. Only
+  // applies while browsing (no search/facet filter) and not selecting.
+  const [groupMode, setGroupMode] = useState(() => {
+    try {
+      return localStorage.getItem('libGroup') !== '0'
+    } catch {
+      return true
+    }
+  })
+  const setGroup = (v: boolean) => {
+    setGroupMode(v)
+    try {
+      localStorage.setItem('libGroup', v ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
   // Multi-select: a select mode toggle, the chosen books (kept as full Book
   // objects so the bulk/compare modals don't need to refetch), and the three
   // bulk actions. Selection is scoped to the current view and cleared when the
@@ -335,11 +352,28 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
     [debouncedSearch, sort, order, authorId, seriesId, andTagKey, anyTagKey, excludeTagKey, minPagesQ, maxPagesQ, offset, pageSize],
   )
 
-  const { data, isLoading, isFetching, isError, error } = useQuery({
+  // Grouping only applies while plainly browsing (no interactive query) and not
+  // multi-selecting — searching/filtering shows individual volumes so a specific
+  // one is findable, and selection is per-book.
+  const canGroup = !homeQueryActive
+  const grouped = canGroup && groupMode && !selectMode
+
+  const flatQ = useQuery({
     queryKey: ['books', query],
     queryFn: () => api.books(query),
     placeholderData: keepPreviousData,
+    enabled: !grouped,
   })
+  const groupedQ = useQuery({
+    queryKey: ['books-grouped', query],
+    queryFn: () => api.booksGrouped(query),
+    placeholderData: keepPreviousData,
+    enabled: grouped,
+  })
+  const active = grouped ? groupedQ : flatQ
+  const { isLoading, isFetching, isError, error } = active
+  const flatData = flatQ.data
+  const groupedData = groupedQ.data
 
   // Selection is view-scoped: drop it whenever the query changes (page, filter,
   // search, sort) so a stale cross-view selection can't be acted on.
@@ -393,7 +427,7 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
     [baseTagKey, excludeTagKey],
   )
 
-  const total = data?.total ?? 0
+  const total = active.data?.total ?? 0
   const hasPageFilter = minPagesQ != null || maxPagesQ != null
   const hasFilters =
     authorId != null || seriesId != null || tagIds.length > 0 || !!debouncedSearch || hasPageFilter
@@ -587,9 +621,11 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
             <p className="mt-0.5 text-sm text-slate-500">
               {isLoading
                 ? t('common.loading')
-                : t(total === 1 ? 'common.books_one' : 'common.books_other', {
-                    count: total.toLocaleString(),
-                  })}
+                : grouped
+                  ? t('library.worksCount', { count: total.toLocaleString() })
+                  : t(total === 1 ? 'common.books_one' : 'common.books_other', {
+                      count: total.toLocaleString(),
+                    })}
             </p>
             {/* Collection base tags: a locked filter the page is scoped to. In "match
                 any" mode they OR together, so chips are joined by an "or" hint. */}
@@ -685,6 +721,26 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
           )}
 
           <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+            {canGroup && !selectMode && (
+              <div className="flex shrink-0 overflow-hidden rounded-lg border border-ink-700 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setGroup(true)}
+                  className={`px-2.5 py-2 transition-colors ${groupMode ? 'bg-accent-500/20 text-accentSoft' : 'text-slate-400 hover:bg-ink-800'}`}
+                  title={t('library.viewSeries')}
+                >
+                  {t('library.viewSeries')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroup(false)}
+                  className={`border-l border-ink-700 px-2.5 py-2 transition-colors ${!groupMode ? 'bg-accent-500/20 text-accentSoft' : 'text-slate-400 hover:bg-ink-800'}`}
+                  title={t('library.viewVolumes')}
+                >
+                  {t('library.viewVolumes')}
+                </button>
+              </div>
+            )}
             <select
               value={pageSize}
               onChange={(e) => changePageSize(Number(e.target.value))}
@@ -733,19 +789,27 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
               <BookCardSkeleton key={i} />
             ))}
           </BookGrid>
-        ) : data && (data.books?.length ?? 0) > 0 ? (
+        ) : (grouped ? (groupedData?.units?.length ?? 0) : (flatData?.books?.length ?? 0)) > 0 ? (
           <>
             <div className={isFetching ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
               <BookGrid>
-                {(data.books ?? []).map((book) => (
-                  <BookCard
-                    key={book.id}
-                    book={book}
-                    selectable={selectMode}
-                    selected={selected.has(book.id)}
-                    onToggleSelect={toggleSelect}
-                  />
-                ))}
+                {grouped
+                  ? (groupedData?.units ?? []).map((u) =>
+                      u.kind === 'series' ? (
+                        <LibrarySeriesCard key={`s${u.series.id}`} card={u.series} />
+                      ) : (
+                        <BookCard key={`b${u.book.id}`} book={u.book} />
+                      ),
+                    )
+                  : (flatData?.books ?? []).map((book) => (
+                      <BookCard
+                        key={book.id}
+                        book={book}
+                        selectable={selectMode}
+                        selected={selected.has(book.id)}
+                        onToggleSelect={toggleSelect}
+                      />
+                    ))}
               </BookGrid>
             </div>
 
@@ -821,7 +885,7 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
                     onClick={() =>
                       setSelected((prev) => {
                         const next = new Map(prev)
-                        ;(data?.books ?? []).forEach((b) => next.set(b.id, b))
+                        ;(flatData?.books ?? []).forEach((b) => next.set(b.id, b))
                         return next
                       })
                     }

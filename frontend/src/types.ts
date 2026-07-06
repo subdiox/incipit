@@ -69,6 +69,23 @@ export interface BooksResponse {
   total: number
 }
 
+// A series collapsed to one tile in the grouped library view.
+export interface SeriesCard {
+  id: number
+  name: string
+  bookCount: number
+  cover?: Book // latest volume, for the thumbnail
+}
+
+export type GroupUnit =
+  | { kind: 'book'; book: Book }
+  | { kind: 'series'; series: SeriesCard }
+
+export interface GroupedResponse {
+  units: GroupUnit[]
+  total: number
+}
+
 export interface Facet {
   id: number
   name: string

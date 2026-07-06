@@ -102,6 +102,7 @@ type SeriesSummary struct {
 	Name        string
 	BookCount   int
 	FirstBookID int64 // lowest-volume book, used for the cover thumbnail
+	LastBookID  int64 // highest-volume (latest) book
 }
 
 // SeriesSummaries returns the name, book count and first (lowest-volume) book id
@@ -155,6 +156,7 @@ func (a *Adapter) SeriesSummaries(ctx context.Context, ids []int64) (map[int64]S
 		if sm.FirstBookID == 0 {
 			sm.FirstBookID = book
 		}
+		sm.LastBookID = book // rows are ordered by volume asc, so the last wins
 		sm.BookCount++
 		out[series] = sm
 	}

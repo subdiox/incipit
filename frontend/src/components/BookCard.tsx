@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom'
-import type { Book } from '@/types'
+import type { Book, SeriesCard } from '@/types'
 import { authorNames } from '@/lib/format'
 import { useI18n } from '@/i18n'
 import { Cover } from './Cover'
-import { IconCheck } from './icons'
+import { IconCheck, IconShelf } from './icons'
 
 interface BookCardProps {
   book: Book
@@ -88,6 +88,54 @@ export function BookCard({ book, action, selectable, selected, onToggleSelect }:
         </button>
       )}
       {action && <div className="absolute right-2 top-2 z-10">{action}</div>}
+    </div>
+  )
+}
+
+// LibrarySeriesCard is one series collapsed to a tile: the latest volume's cover
+// under a stacked-card frame, the series name, and a "全N巻" count badge. Links
+// to the series listing.
+export function LibrarySeriesCard({ card }: { card: SeriesCard }) {
+  const { t } = useI18n()
+  return (
+    <div className="group relative">
+      <Link to={`/?series=${card.id}`} className="block">
+        {/* Offset layers behind the cover imply a stack of volumes. */}
+        <div className="relative">
+          <div className="absolute inset-0 translate-x-1.5 translate-y-1.5 rounded-xl bg-ink-800 ring-1 ring-ink-700" aria-hidden />
+          <div className="absolute inset-0 translate-x-[3px] translate-y-[3px] rounded-xl bg-ink-850 ring-1 ring-ink-700" aria-hidden />
+          <div className="relative overflow-hidden rounded-xl shadow-soft ring-1 ring-ink-700 transition-all duration-200 group-hover:ring-accent-500/50 group-hover:shadow-glow">
+            {card.cover ? (
+              <Cover
+                bookId={card.cover.id}
+                title={card.name}
+                hasCover={card.cover.hasCover}
+                version={card.cover.lastModified}
+                rounded="rounded-none"
+                className="transition-transform duration-300 group-hover:scale-[1.03]"
+              />
+            ) : (
+              <div className="flex aspect-[2/3] w-full items-center justify-center bg-ink-800 text-slate-600">
+                <IconShelf width={28} height={28} />
+              </div>
+            )}
+            <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+              {t('library.volumeCount', { count: card.bookCount })}
+            </span>
+          </div>
+        </div>
+        <div className="mt-2.5 px-0.5">
+          <h3
+            title={card.name}
+            className="break-words text-sm font-medium text-accentSoft transition-colors group-hover:text-accent-300"
+          >
+            {card.name}
+          </h3>
+          <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
+            {t('library.seriesLabel')}
+          </p>
+        </div>
+      </Link>
     </div>
   )
 }
