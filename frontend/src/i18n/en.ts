@@ -73,7 +73,7 @@ export const en = {
 
   // Library
   'library.title': 'Library',
-  'library.sort.recentlyAdded': 'Recently added',
+  'library.sort.recentlyAdded': 'Recently updated',
   'library.sort.title': 'Title',
   'library.sort.author': 'Author',
   'library.sort.series': 'Series',

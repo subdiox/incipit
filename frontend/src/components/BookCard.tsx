@@ -119,7 +119,9 @@ export function LibrarySeriesCard({ card }: { card: SeriesCard }) {
                 <IconShelf width={28} height={28} />
               </div>
             )}
-            <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+            {/* text-onaccent (not text-white, which is the theme fg = near-black
+                in light mode) so the badge stays white on its dark pill. */}
+            <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-medium text-onaccent backdrop-blur">
               {t('library.volumeCount', { count: card.bookCount })}
             </span>
           </div>

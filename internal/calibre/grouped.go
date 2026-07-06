@@ -6,12 +6,12 @@ import (
 )
 
 // SeriesCard is a series collapsed to a single tile: its name, how many volumes
-// the library holds, and the latest volume for the thumbnail.
+// the library holds, and the first volume for the thumbnail.
 type SeriesCard struct {
 	ID        int64  `json:"id"`
 	Name      string `json:"name"`
 	BookCount int    `json:"bookCount"`
-	Cover     *Book  `json:"cover,omitempty"` // latest volume, for the thumbnail
+	Cover     *Book  `json:"cover,omitempty"` // first volume, for the thumbnail
 }
 
 // GroupUnit is one grid cell in the grouped view: either a whole series or a
@@ -53,7 +53,7 @@ func groupedSortExprs(opts ListOptions) (seriesExpr, bookExpr, dir string) {
 }
 
 // ListGrouped returns a page of the library with each series collapsed to one
-// tile (thumbnail = latest volume, count = volumes held) and standalone books
+// tile (thumbnail = first volume, count = volumes held) and standalone books
 // shown individually. The same filter as ListBooks applies: a series appears
 // when any of its volumes match. Sorting is over the unit (e.g. a series sorts by
 // its most-recent volume for "recently added").
@@ -133,8 +133,8 @@ func (a *Adapter) ListGrouped(ctx context.Context, opts ListOptions) (*GroupedRe
 	// volume (its cover).
 	need := append([]int64{}, bookIDs...)
 	for _, sid := range seriesIDs {
-		if sm, ok := summaries[sid]; ok && sm.LastBookID != 0 {
-			need = append(need, sm.LastBookID)
+		if sm, ok := summaries[sid]; ok && sm.FirstBookID != 0 {
+			need = append(need, sm.FirstBookID)
 		}
 	}
 	byID := map[int64]*Book{}
@@ -158,8 +158,8 @@ func (a *Adapter) ListGrouped(ctx context.Context, opts ListOptions) (*GroupedRe
 		}
 		sm := summaries[u.key]
 		card := &SeriesCard{ID: u.key, Name: sm.Name, BookCount: sm.BookCount}
-		if sm.LastBookID != 0 {
-			card.Cover = byID[sm.LastBookID]
+		if sm.FirstBookID != 0 {
+			card.Cover = byID[sm.FirstBookID]
 		}
 		units = append(units, GroupUnit{Kind: "series", Series: card})
 	}

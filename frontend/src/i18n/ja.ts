@@ -75,7 +75,7 @@ export const ja: Record<TranslationKey, string> = {
 
   // Library
   'library.title': 'ライブラリ',
-  'library.sort.recentlyAdded': '追加順',
+  'library.sort.recentlyAdded': '更新順',
   'library.sort.title': 'タイトル',
   'library.sort.author': '著者',
   'library.sort.series': 'シリーズ',
