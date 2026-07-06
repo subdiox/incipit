@@ -425,6 +425,71 @@ func TestCSRFAndAuthEnforcement(t *testing.T) {
 	resp.Body.Close()
 }
 
+// TestShelfPrivacy verifies that a PRIVATE shelf is strictly owner-only: no
+// other account — not even another admin — can see it, its name, its owner, or
+// its contents, and the endpoints 404 (never 403) so the shelf's existence
+// stays hidden. PUBLIC shelves remain world-readable.
+func TestShelfPrivacy(t *testing.T) {
+	h := newHarness(t)
+	h.postJSON("/api/setup", credentials{Username: "owner", Password: "supersecret"}).Body.Close()
+
+	var priv, pub appdb.Shelf
+	decodeBody(t, h.postJSON("/api/shelves", createShelfBody{Name: "秘密の本棚", IsPublic: false}), &priv)
+	decodeBody(t, h.postJSON("/api/shelves", createShelfBody{Name: "公開本棚", IsPublic: true}), &pub)
+
+	// A second admin — the exact scenario that leaked before (every account in
+	// the deployment was an admin).
+	if resp := h.postJSON("/api/admin/users", createUserBody{Username: "other", Password: "otherpass", IsAdmin: true}); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create other admin = %d", resp.StatusCode)
+	} else {
+		resp.Body.Close()
+	}
+
+	// Also make a plain non-admin user to cover the ordinary case.
+	if resp := h.postJSON("/api/admin/users", createUserBody{Username: "plain", Password: "plainpass"}); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create plain user = %d", resp.StatusCode)
+	} else {
+		resp.Body.Close()
+	}
+
+	status := func(method, path string) int {
+		resp := h.do(method, path, nil, "")
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	// From each OTHER account, the private shelf must be invisible (404 on every
+	// read and write), while the public shelf stays readable.
+	for _, who := range []credentials{{Username: "other", Password: "otherpass"}, {Username: "plain", Password: "plainpass"}} {
+		h.do(http.MethodPost, "/api/auth/logout", nil, "").Body.Close()
+		if resp := h.postJSON("/api/auth/login", who); resp.StatusCode != http.StatusOK {
+			t.Fatalf("login %s = %d", who.Username, resp.StatusCode)
+		} else {
+			resp.Body.Close()
+		}
+
+		for _, suffix := range []string{"", "/books", "/contents"} {
+			if got := status(http.MethodGet, shelfPath(priv.ID, suffix)); got != http.StatusNotFound {
+				t.Errorf("%s GET private%s = %d, want 404 (must not leak name/owner/existence)", who.Username, suffix, got)
+			}
+		}
+		// Mutations on the private shelf are likewise masked as 404.
+		if got := status(http.MethodDelete, shelfPath(priv.ID, "")); got != http.StatusNotFound {
+			t.Errorf("%s DELETE private = %d, want 404", who.Username, got)
+		}
+		if got := status(http.MethodGet, shelfPath(pub.ID, "/contents")); got != http.StatusOK {
+			t.Errorf("%s GET public/contents = %d, want 200 (public stays shareable)", who.Username, got)
+		}
+	}
+
+	// The owner still has full access to their own private shelf.
+	h.do(http.MethodPost, "/api/auth/logout", nil, "").Body.Close()
+	h.postJSON("/api/auth/login", credentials{Username: "owner", Password: "supersecret"}).Body.Close()
+	if got := status(http.MethodGet, shelfPath(priv.ID, "/contents")); got != http.StatusOK {
+		t.Errorf("owner GET own private/contents = %d, want 200", got)
+	}
+}
+
 // path helpers
 
 func TestPageCountFilter(t *testing.T) {

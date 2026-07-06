@@ -32,8 +32,9 @@ func (s *Server) handleListShelves(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGetShelf returns one shelf's metadata, enforcing visibility: a private
-// shelf is only returned to its owner (or an admin), so a shared link to a
-// private shelf 403s. Used to resolve a /shelves/:id deep link.
+// shelf is only returned to its owner — not even admins — so a shared link to a
+// private shelf 404s (indistinguishable from a missing shelf, so its name and
+// owner never leak). Used to resolve a /shelves/:id deep link.
 func (s *Server) handleGetShelf(w http.ResponseWriter, r *http.Request) {
 	sh, ok := s.shelfFromURL(w, r, false)
 	if !ok {
@@ -65,7 +66,15 @@ func (s *Server) handleCreateShelf(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, sh)
 }
 
-// shelfFromURL loads a shelf and verifies the user may modify it.
+// shelfFromURL loads a shelf and authorizes the caller for it. requireOwner
+// distinguishes a mutation (only the owner — or, for a public shelf, an admin —
+// may write) from a read.
+//
+// Privacy rule: a PRIVATE shelf is owner-only for every operation — admins get
+// no special access to it. A non-owner is told the shelf is "not found" (404),
+// exactly as if the id didn't exist, so a private shelf never leaks its
+// existence, name, or owner via a distinguishable 403. PUBLIC shelves stay
+// world-readable, and admins may still moderate them.
 func (s *Server) shelfFromURL(w http.ResponseWriter, r *http.Request, requireOwner bool) (*appdb.Shelf, bool) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
@@ -78,13 +87,18 @@ func (s *Server) shelfFromURL(w http.ResponseWriter, r *http.Request, requireOwn
 		return nil, false
 	}
 	u := currentUser(r)
-	if requireOwner && sh.UserID != u.ID && !u.IsAdmin {
-		writeError(w, http.StatusForbidden, "not your shelf")
-		return nil, false
-	}
-	if !requireOwner && sh.UserID != u.ID && !sh.IsPublic && !u.IsAdmin {
-		writeError(w, http.StatusForbidden, "not visible")
-		return nil, false
+	if sh.UserID != u.ID {
+		// Someone else's shelf. A private one is invisible (even to admins);
+		// mask it as a 404 so its very existence stays hidden.
+		if !sh.IsPublic {
+			writeError(w, http.StatusNotFound, "shelf not found")
+			return nil, false
+		}
+		// Public shelf: readable by anyone, but only an admin may modify it.
+		if requireOwner && !u.IsAdmin {
+			writeError(w, http.StatusForbidden, "not your shelf")
+			return nil, false
+		}
 	}
 	return sh, true
 }
