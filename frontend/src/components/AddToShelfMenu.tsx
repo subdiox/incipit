@@ -8,9 +8,11 @@ import { IconCheck, IconHeart, IconShelf } from './icons'
 type Target = 'book' | 'series'
 
 // AddToShelfMenu offers a dedicated Favorite (heart) toggle plus a dropdown of
-// the user's other shelves. Both reflect current membership — each entry shows
-// whether the book/series is already on it and toggles add/remove on click, so
-// nothing gets "added again".
+// the user's other shelves. When a book belongs to a series, a segmented control
+// picks whether actions apply to this single volume or the whole series — and it
+// governs BOTH the heart and the shelf list, so the series (not just the volume)
+// can be favorited too. Every entry reflects current membership and toggles
+// add/remove on click, so nothing gets "added again".
 export function AddToShelfMenu({
   bookId,
   series,
@@ -40,10 +42,13 @@ export function AddToShelfMenu({
   const favShelf = ownShelves.find((s) => s.isDefault)
   const otherShelves = ownShelves.filter((s) => !s.isDefault)
 
+  // A volume and its series are both actionable only when both exist; otherwise
+  // the one present target is forced.
+  const canPickTarget = !!bookId && !!series
+  const effTarget: Target = canPickTarget ? target : bookId ? 'book' : 'series'
+
   const memberOf = (tgt: Target) => (tgt === 'series' ? membership?.series : membership?.book) ?? []
-  // The heart favorites the volume when there is one, else the series.
-  const favTarget: Target = bookId ? 'book' : 'series'
-  const favActive = !!favShelf && memberOf(favTarget).includes(favShelf.id)
+  const favActive = !!favShelf && memberOf(effTarget).includes(favShelf.id)
 
   const toggle = useMutation({
     mutationFn: ({ shelfId, tgt, active }: { shelfId: number; tgt: Target; active: boolean }) => {
@@ -70,80 +75,85 @@ export function AddToShelfMenu({
   }, [open])
 
   return (
-    <div className="flex w-full items-stretch gap-2">
-      {/* Favorite toggle — its own button. */}
-      {favShelf && (
-        <button
-          type="button"
-          onClick={() => toggle.mutate({ shelfId: favShelf.id, tgt: favTarget, active: favActive })}
-          disabled={pending}
-          aria-pressed={favActive}
-          title={favActive ? t('addToShelf.unfavorite') : t('addToShelf.favorite')}
-          className={`btn-secondary shrink-0 ${favActive ? 'border-accent-500/60 text-accentSoft' : ''}`}
-        >
-          <IconHeart width={16} height={16} className={favActive ? 'text-accent-400' : 'text-slate-400'} />
-          <span className="hidden sm:inline">{t('shelves.favorites')}</span>
-        </button>
+    <div className="w-full space-y-2.5">
+      {/* Target selector — applies to the heart and the shelf list alike, so the
+          whole series can be favorited/shelved, not just this volume. */}
+      {canPickTarget && (
+        <div className="flex rounded-xl border border-ink-700 bg-ink-900 p-1 text-sm font-medium">
+          {(['book', 'series'] as const).map((tgt) => (
+            <button
+              key={tgt}
+              type="button"
+              onClick={() => setTarget(tgt)}
+              aria-pressed={target === tgt}
+              className={`flex-1 truncate rounded-lg px-3 py-2 transition-colors ${
+                target === tgt ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              {tgt === 'book' ? t('addToShelf.volume') : t('addToShelf.series')}
+            </button>
+          ))}
+        </div>
       )}
 
-      {/* Other shelves. */}
-      <div className="relative min-w-0 flex-1" ref={ref}>
-        <button type="button" className="btn-secondary w-full" onClick={() => setOpen((v) => !v)}>
-          <IconShelf width={16} height={16} />
-          {t('addToShelf.button')}
-        </button>
-        {open && (
-          <div className="absolute inset-x-0 z-20 mt-2 animate-fade-in rounded-xl border border-ink-700 bg-ink-800 p-1.5 shadow-soft">
-            {/* Add just this volume or the whole series. */}
-            {bookId && series && (
-              <div className="mb-1.5 flex rounded-lg border border-ink-700 bg-ink-900 p-0.5 text-xs font-medium">
-                {(['book', 'series'] as const).map((tgt) => (
-                  <button
-                    key={tgt}
-                    type="button"
-                    onClick={() => setTarget(tgt)}
-                    className={`flex-1 truncate rounded-md px-2 py-1 transition-colors ${
-                      target === tgt ? 'bg-accent-600 text-onaccent' : 'text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    {tgt === 'book' ? t('addToShelf.volume') : t('addToShelf.series')}
-                  </button>
-                ))}
-              </div>
-            )}
-            {otherShelves.length > 0 ? (
-              <ul className="max-h-64 overflow-y-auto">
-                {otherShelves.map((s) => {
-                  const active = memberOf(target).includes(s.id)
-                  return (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        onClick={() => toggle.mutate({ shelfId: s.id, tgt: target, active })}
-                        disabled={pending}
-                        className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-ink-700 ${
-                          active ? 'text-white' : 'text-slate-200'
-                        }`}
-                      >
-                        <span className="truncate">{s.name}</span>
-                        {active ? (
-                          <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-400">
-                            <IconCheck width={14} height={14} />
-                            {t('addToShelf.added')}
-                          </span>
-                        ) : (
-                          <span className="shrink-0 text-xs text-slate-500">{t('addToShelf.add')}</span>
-                        )}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            ) : (
-              <p className="px-3 py-3 text-center text-xs text-slate-500">{t('addToShelf.empty')}</p>
-            )}
-          </div>
+      <div className="flex w-full items-stretch gap-2">
+        {/* Favorite toggle — its own button, acting on the selected target. */}
+        {favShelf && (
+          <button
+            type="button"
+            onClick={() => toggle.mutate({ shelfId: favShelf.id, tgt: effTarget, active: favActive })}
+            disabled={pending}
+            aria-pressed={favActive}
+            title={favActive ? t('addToShelf.unfavorite') : t('addToShelf.favorite')}
+            className={`btn-secondary shrink-0 px-4 py-2.5 ${favActive ? 'border-accent-500/60 text-accentSoft' : ''}`}
+          >
+            <IconHeart width={18} height={18} className={favActive ? 'text-accent-400' : 'text-slate-400'} />
+            <span className="hidden sm:inline">{t('shelves.favorites')}</span>
+          </button>
         )}
+
+        {/* Other shelves. */}
+        <div className="relative min-w-0 flex-1" ref={ref}>
+          <button type="button" className="btn-secondary w-full py-2.5" onClick={() => setOpen((v) => !v)}>
+            <IconShelf width={18} height={18} />
+            {t('addToShelf.button')}
+          </button>
+          {open && (
+            <div className="absolute inset-x-0 z-20 mt-2 animate-fade-in rounded-xl border border-ink-700 bg-ink-800 p-2 shadow-soft">
+              {otherShelves.length > 0 ? (
+                <ul className="max-h-72 space-y-0.5 overflow-y-auto">
+                  {otherShelves.map((s) => {
+                    const active = memberOf(effTarget).includes(s.id)
+                    return (
+                      <li key={s.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggle.mutate({ shelfId: s.id, tgt: effTarget, active })}
+                          disabled={pending}
+                          className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-ink-700 ${
+                            active ? 'text-white' : 'text-slate-200'
+                          }`}
+                        >
+                          <span className="truncate">{s.name}</span>
+                          {active ? (
+                            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-400">
+                              <IconCheck width={14} height={14} />
+                              {t('addToShelf.added')}
+                            </span>
+                          ) : (
+                            <span className="shrink-0 text-xs text-slate-500">{t('addToShelf.add')}</span>
+                          )}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <p className="px-3 py-3 text-center text-xs text-slate-500">{t('addToShelf.empty')}</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
