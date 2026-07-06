@@ -165,7 +165,25 @@ func (s *Store) ShelfSeriesIDs(ctx context.Context, shelfID int64) ([]int64, err
 }
 
 func (s *Store) shelfMemberIDs(ctx context.Context, query string, shelfID int64) ([]int64, error) {
-	rows, err := s.db.QueryContext(ctx, query, shelfID)
+	return s.queryIDs(ctx, query, shelfID)
+}
+
+// ShelvesWithBook returns the ids of the user's OWN shelves that contain the
+// book — used to show which shelves a book is already on.
+func (s *Store) ShelvesWithBook(ctx context.Context, userID, bookID int64) ([]int64, error) {
+	return s.queryIDs(ctx, `SELECT sb.shelf_id FROM shelf_books sb
+		JOIN shelves sh ON sh.id=sb.shelf_id WHERE sh.user_id=? AND sb.book_id=?`, userID, bookID)
+}
+
+// ShelvesWithSeries returns the ids of the user's OWN shelves that contain the
+// series.
+func (s *Store) ShelvesWithSeries(ctx context.Context, userID, seriesID int64) ([]int64, error) {
+	return s.queryIDs(ctx, `SELECT ss.shelf_id FROM shelf_series ss
+		JOIN shelves sh ON sh.id=ss.shelf_id WHERE sh.user_id=? AND ss.series_id=?`, userID, seriesID)
+}
+
+func (s *Store) queryIDs(ctx context.Context, query string, args ...any) ([]int64, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

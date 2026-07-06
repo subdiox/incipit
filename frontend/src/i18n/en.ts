@@ -318,6 +318,10 @@ export const en = {
   'addToShelf.empty': 'No shelves yet. Create one on the Shelves page.',
   'addToShelf.volume': 'This volume',
   'addToShelf.series': 'Series',
+  'addToShelf.favorite': 'Add to favorites',
+  'addToShelf.unfavorite': 'Remove from favorites',
+  'addToShelf.added': 'Added',
+  'addToShelf.add': 'Add',
 
   // Admin / users
   'admin.subtitle': 'Manage accounts and permissions.',

@@ -250,6 +250,12 @@ export const api = {
     request<void>(`/shelves/${shelfId}/series/${seriesId}`, { method: 'POST' }),
   removeSeriesFromShelf: (shelfId: number, seriesId: number) =>
     request<void>(`/shelves/${shelfId}/series/${seriesId}`, { method: 'DELETE' }),
+  shelfMembership: (bookId?: number, seriesId?: number) => {
+    const p = new URLSearchParams()
+    if (bookId) p.set('book', String(bookId))
+    if (seriesId) p.set('series', String(seriesId))
+    return request<{ book: number[]; series: number[] }>(`/me/shelf-membership?${p.toString()}`)
+  },
 
   // Collections (admin-defined saved tag filters under Library)
   collections: () => request<Collection[]>('/collections'),

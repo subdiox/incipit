@@ -246,6 +246,42 @@ func (s *Server) bookIDParam(w http.ResponseWriter, r *http.Request) (int64, boo
 }
 
 // handleAddToShelf adds a book to a shelf.
+// handleShelfMembership reports which of the user's own shelves already contain
+// the given book and/or series, so the UI can show added state and toggle.
+func (s *Server) handleShelfMembership(w http.ResponseWriter, r *http.Request) {
+	u := currentUser(r)
+	if u == nil {
+		writeError(w, http.StatusUnauthorized, "auth required")
+		return
+	}
+	q := r.URL.Query()
+	out := struct {
+		Book   []int64 `json:"book"`
+		Series []int64 `json:"series"`
+	}{Book: []int64{}, Series: []int64{}}
+	if bid := atoi64(q.Get("book")); bid > 0 {
+		ids, err := s.store.ShelvesWithBook(r.Context(), u.ID, bid)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "membership")
+			return
+		}
+		if ids != nil {
+			out.Book = ids
+		}
+	}
+	if sid := atoi64(q.Get("series")); sid > 0 {
+		ids, err := s.store.ShelvesWithSeries(r.Context(), u.ID, sid)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "membership")
+			return
+		}
+		if ids != nil {
+			out.Series = ids
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (s *Server) handleAddToShelf(w http.ResponseWriter, r *http.Request) {
 	sh, ok := s.shelfFromURL(w, r, true)
 	if !ok {

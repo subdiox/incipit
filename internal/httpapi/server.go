@@ -137,6 +137,7 @@ func (s *Server) Router() http.Handler {
 
 			// Reading history (per-user).
 			r.Get("/me/reading", s.handleMyReading)
+			r.Get("/me/shelf-membership", s.handleShelfMembership)
 
 			r.Get("/authors", s.handleAuthors)
 			r.Get("/series", s.handleSeries)
