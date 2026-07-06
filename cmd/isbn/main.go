@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -33,6 +34,29 @@ import (
 	"incipit/internal/calibre"
 	"incipit/internal/metadata"
 )
+
+// errRec collects the ids of books that errored (transient GetBook/fetch/write
+// failures), so a rerun can be inspected — the resume logic itself only knows
+// "has no ISBN", which can't distinguish a transient error from a real no-match.
+type errRec struct {
+	mu    sync.Mutex
+	items []string
+}
+
+func (e *errRec) add(id int64, title, reason string) {
+	e.mu.Lock()
+	e.items = append(e.items, fmt.Sprintf("%d\t%s\t%s", id, title, reason))
+	e.mu.Unlock()
+}
+
+func (e *errRec) writeFile(path string) (int, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.items) == 0 {
+		return 0, nil
+	}
+	return len(e.items), os.WriteFile(path, []byte(strings.Join(e.items, "\n")+"\n"), 0o644)
+}
 
 func main() {
 	lib := flag.String("library", os.Getenv("INCIPIT_LIBRARY"), "Calibre library path")
@@ -101,6 +125,9 @@ func main() {
 		}
 	}()
 
+	erec := &errRec{}
+	errPath := *lib + "/.isbn_errors.txt"
+
 	sem := make(chan struct{}, *conc)
 	var wg sync.WaitGroup
 	for _, id := range todo {
@@ -116,6 +143,12 @@ func main() {
 			b, err := a.GetBook(ctx, id)
 			if err != nil || b == nil {
 				atomic.AddInt64(&errs, 1)
+				reason := "book is nil"
+				if err != nil {
+					reason = "get: " + err.Error()
+				}
+				erec.add(id, "", reason)
+				log.Printf("error get %d: %s", id, reason)
 				return
 			}
 			meta, err := client.Fetch(ctx, b.Title, *genre, "", "")
@@ -125,6 +158,8 @@ func main() {
 				return
 			case err != nil:
 				atomic.AddInt64(&errs, 1)
+				erec.add(id, b.Title, "fetch: "+err.Error())
+				log.Printf("error fetch %d %q: %v", id, b.Title, err)
 			case meta == nil:
 				atomic.AddInt64(&nomatch, 1)
 			case !matches(b, meta):
@@ -136,6 +171,7 @@ func main() {
 					log.Printf("[dry] %-40.40s -> isbn=%s asin=%s", b.Title, meta.ISBN, metadata.ISBNToASIN(meta.ISBN))
 				} else if err := attach(ctx, a, b, meta.ISBN); err != nil {
 					atomic.AddInt64(&errs, 1)
+					erec.add(id, b.Title, "write: "+err.Error())
 					log.Printf("write %d %q: %v", id, b.Title, err)
 					return
 				}
@@ -151,6 +187,11 @@ func main() {
 
 	log.Printf("done: processed=%d attached=%d mismatch=%d nomatch=%d noisbn=%d err=%d in %s",
 		processed, attached, mismatch, nomatch, noisbn, errs, time.Since(start).Round(time.Second))
+	if n, err := erec.writeFile(errPath); err != nil {
+		log.Printf("write error list: %v", err)
+	} else if n > 0 {
+		log.Printf("recorded %d errored book(s) -> %s", n, errPath)
+	}
 	if ctx.Err() != nil {
 		log.Print("interrupted — rerun to continue (resumes: books with an ISBN are skipped)")
 	}
