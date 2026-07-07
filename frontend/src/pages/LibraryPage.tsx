@@ -33,15 +33,13 @@ import {
 } from '@/components/icons'
 
 const DEFAULT_PAGE_SIZE = 36
-const PAGE_SIZE_OPTIONS = [12, 24, 36, 48, 60, 96]
+const PAGE_SIZE_OPTIONS = [25, 50, 100]
 
 const SORT_OPTIONS: { value: SortKey; labelKey: TranslationKey }[] = [
   { value: 'timestamp', labelKey: 'library.sort.recentlyAdded' },
-  { value: 'title', labelKey: 'library.sort.title' },
-  { value: 'author', labelKey: 'library.sort.author' },
-  { value: 'series', labelKey: 'library.sort.series' },
   { value: 'pubdate', labelKey: 'library.sort.pubdate' },
   { value: 'rating', labelKey: 'library.sort.rating' },
+  { value: 'favorites', labelKey: 'library.sort.favorites' },
   { value: 'views', labelKey: 'library.sort.views' },
   { value: 'lastread', labelKey: 'library.sort.lastread' },
 ]
@@ -177,22 +175,14 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const canEdit = !!user?.canEdit
-  // Series-grouped browse: one tile per series. Persisted, default on. Only
-  // applies while browsing (no search/facet filter) and not selecting.
-  const [groupMode, setGroupMode] = useState(() => {
-    try {
-      return localStorage.getItem('libGroup') !== '0'
-    } catch {
-      return true
-    }
-  })
+  // Series-grouped browse: one tile per series. Persisted PER ACCOUNT (shared
+  // across pages), default on. Only applies while browsing (no search/facet
+  // filter) and not selecting.
+  const groupMode = user?.groupSeries ?? true
   const setGroup = (v: boolean) => {
-    setGroupMode(v)
-    try {
-      localStorage.setItem('libGroup', v ? '1' : '0')
-    } catch {
-      /* ignore */
-    }
+    if (!user || v === (user.groupSeries ?? true)) return
+    setUser({ ...user, groupSeries: v }) // optimistic
+    api.setGroupSeries(v).then(setUser).catch(() => setUser(user))
   }
   // Multi-select: a select mode toggle, the chosen books (kept as full Book
   // objects so the bulk/compare modals don't need to refetch), and the three
@@ -237,11 +227,16 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
 
   const search = params.get('search') ?? ''
   const debouncedSearch = useDebounced(search, 350)
-  // When viewing a single series, default to volume ascending (like calibre-web)
-  // instead of newest-first, unless the user picked a sort.
+  // Sort is a PER-ACCOUNT preference shared across every library page. The one
+  // exception: while viewing a single series, its volumes always show in volume
+  // order (series index ascending), like calibre-web.
   const seriesSelected = !!params.get('series')
-  const sort = (params.get('sort') as SortKey) ?? (seriesSelected ? 'series' : 'timestamp')
-  const order = (params.get('order') as SortOrder) ?? (seriesSelected ? 'asc' : 'desc')
+  // The saved per-account preference (what the sort controls display).
+  const userSort: SortKey = (user?.sort as SortKey) ?? 'timestamp'
+  const userOrder: SortOrder = (user?.sortOrder as SortOrder) ?? 'desc'
+  // Effective sort for the query: a single series always shows volume order.
+  const sort: SortKey = seriesSelected ? 'series' : userSort
+  const order: SortOrder = seriesSelected ? 'asc' : userOrder
   const authorId = params.get('author') ? Number(params.get('author')) : null
   const seriesId = params.get('series') ? Number(params.get('series')) : null
   const tagIds = params.getAll('tag').map(Number).filter((n) => Number.isFinite(n) && n > 0)
@@ -252,6 +247,7 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   // + debounced into the URL so typing doesn't refetch on every keystroke.
   const site = useQuery({ queryKey: ['site'], queryFn: api.site, staleTime: 300_000 }).data
   const pageFilterOn = !!site?.pageFilter
+  const popularityOn = !!site?.popularity
   const [minPages, setMinPages] = useState(params.get('minPages') ?? '')
   const [maxPages, setMaxPages] = useState(params.get('maxPages') ?? '')
   const debMinPages = useDebounced(minPages, 400)
@@ -439,6 +435,21 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
     setUser({ ...user, pageSize: size }) // optimistic
     update((p) => p.delete('offset')) // back to page 1
     api.setPageSize(size).then(setUser).catch(() => setUser(user))
+  }
+
+  // Sort field and direction are per-account preferences (shared across pages).
+  const changeSort = (value: SortKey) => {
+    if (!user || value === user.sort) return
+    setUser({ ...user, sort: value }) // optimistic
+    update((p) => p.delete('offset')) // back to page 1
+    api.setSort(value).then(setUser).catch(() => setUser(user))
+  }
+  const changeOrder = () => {
+    if (!user) return
+    const next: SortOrder = order === 'desc' ? 'asc' : 'desc'
+    setUser({ ...user, sortOrder: next }) // optimistic
+    update((p) => p.delete('offset'))
+    api.setSortOrder(next).then(setUser).catch(() => setUser(user))
   }
 
   const goToPage = (page: number) => {
@@ -756,11 +767,11 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
             </select>
 
             <select
-              value={sort}
-              onChange={(e) => update((p) => p.set('sort', e.target.value))}
+              value={userSort}
+              onChange={(e) => changeSort(e.target.value as SortKey)}
               className="input min-w-0 flex-1 cursor-pointer py-2 pr-8 sm:w-auto sm:flex-none"
             >
-              {SORT_OPTIONS.map((o) => (
+              {SORT_OPTIONS.filter((o) => o.value !== 'favorites' || popularityOn).map((o) => (
                 <option key={o.value} value={o.value}>
                   {t(o.labelKey)}
                 </option>
@@ -769,11 +780,11 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
 
             <button
               type="button"
-              onClick={() => update((p) => p.set('order', order === 'desc' ? 'asc' : 'desc'))}
+              onClick={changeOrder}
               className="btn-secondary shrink-0"
-              title={order === 'desc' ? t('library.descending') : t('library.ascending')}
+              title={userOrder === 'desc' ? t('library.descending') : t('library.ascending')}
             >
-              {order === 'desc' ? '↓' : '↑'}
+              {userOrder === 'desc' ? '↓' : '↑'}
             </button>
           </div>
         </div>

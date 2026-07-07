@@ -31,6 +31,19 @@ func Open(libraryPath string, readOnly bool) (*Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !readOnly {
+		// Side table for an optional per-book favorites/popularity count
+		// imported from a book's source. Kept out of the standard Calibre
+		// tables; empty for libraries that never populate it. Created on every
+		// open so existing libraries pick it up (EnsureLibrary only runs on
+		// first create).
+		if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS book_favorites (
+			book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+			favorites INTEGER NOT NULL DEFAULT 0)`); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("ensure book_favorites: %w", err)
+		}
+	}
 	return &Adapter{db: db, libraryPath: libraryPath, readOnly: readOnly}, nil
 }
 
@@ -77,6 +90,7 @@ var sortColumns = map[string]string{
 	"author":    "b.author_sort",
 	"series":    "b.series_index",
 	"rating":    "(SELECT r.rating FROM books_ratings_link brl JOIN ratings r ON r.id=brl.rating WHERE brl.book=b.id)",
+	"favorites": "(SELECT favorites FROM book_favorites WHERE book=b.id)",
 }
 
 // ListBooks returns a page of books matching opts, fully hydrated.
@@ -279,7 +293,8 @@ func (a *Adapter) loadBooks(ctx context.Context, ids []int64) ([]Book, error) {
 	idArgs := toAnySlice(ids)
 
 	q := fmt.Sprintf(`SELECT id, title, sort, timestamp, pubdate, series_index,
-		author_sort, path, uuid, has_cover, last_modified
+		author_sort, path, uuid, has_cover, last_modified,
+		COALESCE((SELECT favorites FROM book_favorites WHERE book=books.id), 0)
 		FROM books WHERE id IN (%s)`, in)
 	rows, err := a.db.QueryContext(ctx, q, idArgs...)
 	if err != nil {
@@ -293,7 +308,7 @@ func (a *Adapter) loadBooks(ctx context.Context, ids []int64) ([]Book, error) {
 		var sortS, ts, pub, lastMod sql.NullString
 		var uuid sql.NullString
 		if err := rows.Scan(&b.ID, &b.Title, &sortS, &ts, &pub, &b.SeriesIndex,
-			&b.AuthorSort, &b.Path, &uuid, &b.HasCover, &lastMod); err != nil {
+			&b.AuthorSort, &b.Path, &uuid, &b.HasCover, &lastMod, &b.Favorites); err != nil {
 			return nil, err
 		}
 		b.Sort = sortS.String

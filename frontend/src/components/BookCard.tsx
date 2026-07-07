@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { Book, SeriesCard } from '@/types'
 import { authorNames } from '@/lib/format'
 import { useI18n } from '@/i18n'
+import { usePopularityEnabled } from '@/lib/hooks'
 import { Cover } from './Cover'
 import { IconCheck, IconShelf } from './icons'
 
@@ -16,6 +17,7 @@ interface BookCardProps {
 
 export function BookCard({ book, action, selectable, selected, onToggleSelect }: BookCardProps) {
   const { t } = useI18n()
+  const popularityOn = usePopularityEnabled()
   const toggle = () => onToggleSelect?.(book)
   return (
     <div className="group relative">
@@ -30,7 +32,7 @@ export function BookCard({ book, action, selectable, selected, onToggleSelect }:
         }}
       >
         <div
-          className={`overflow-hidden rounded-xl shadow-soft ring-1 transition-all duration-200 ${
+          className={`relative overflow-hidden rounded-xl shadow-soft ring-1 transition-all duration-200 ${
             selected
               ? 'ring-2 ring-accent-500 shadow-glow'
               : 'ring-ink-700 group-hover:ring-accent-500/50 group-hover:shadow-glow'
@@ -46,6 +48,12 @@ export function BookCard({ book, action, selectable, selected, onToggleSelect }:
               selectable ? (selected ? 'opacity-95' : 'opacity-80') : 'group-hover:scale-[1.03]'
             }`}
           />
+          {popularityOn && book.favorites > 0 && (
+            <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-0.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
+              <span className="text-rose-400">♥</span>
+              {book.favorites.toLocaleString()}
+            </div>
+          )}
         </div>
         <div className="mt-2.5 px-0.5">
           {/* Wrap the full title on all viewports (titles get cut at one line

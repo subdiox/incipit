@@ -46,6 +46,7 @@ func groupedSortExprs(opts ListOptions) (seriesExpr, bookExpr, dir string) {
 		dir = "DESC"
 	}
 	const rating = "(SELECT r.rating FROM books_ratings_link brl JOIN ratings r ON r.id=brl.rating WHERE brl.book=b.id)"
+	const favorites = "(SELECT favorites FROM book_favorites WHERE book=b.id)"
 	switch opts.Sort {
 	case "timestamp":
 		return "MAX(b.timestamp)", "b.timestamp", dir
@@ -53,6 +54,9 @@ func groupedSortExprs(opts ListOptions) (seriesExpr, bookExpr, dir string) {
 		return "MAX(b.pubdate)", "b.pubdate", dir
 	case "rating":
 		return "MAX(" + rating + ")", rating, dir
+	case "favorites":
+		// A series ranks by its most-popular volume (mirrors rating's MAX).
+		return "MAX(" + favorites + ")", favorites, dir
 	case "author":
 		return "MIN(b.author_sort)", "b.author_sort", dir
 	default: // title / series / views / lastread → by name

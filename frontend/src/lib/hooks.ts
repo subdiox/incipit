@@ -26,6 +26,12 @@ export function useSiteTitle(): string {
   return data?.title || 'Incipit'
 }
 
+/** Whether the popularity ("favorites") feature is enabled for this library. */
+export function usePopularityEnabled(): boolean {
+  const { data } = useQuery({ queryKey: ['site'], queryFn: api.site, staleTime: 300_000 })
+  return !!data?.popularity
+}
+
 /** Debounce a rapidly-changing value. */
 export function useDebounced<T>(value: T, delay = 300): T {
   const [debounced, setDebounced] = useState(value)

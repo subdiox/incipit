@@ -168,6 +168,7 @@ export const api = {
   updateSite: (body: {
     title: string
     pageFilter?: boolean
+    popularity?: boolean
     homeTags?: number[]
     homeExcludeTags?: number[]
     homeMatchAny?: boolean
@@ -188,6 +189,12 @@ export const api = {
     request<User>('/auth/me', { method: 'PUT', ...jsonBody({ language }) }),
   setPageSize: (pageSize: number) =>
     request<User>('/auth/me', { method: 'PUT', ...jsonBody({ pageSize }) }),
+  setSort: (sort: string) =>
+    request<User>('/auth/me', { method: 'PUT', ...jsonBody({ sort }) }),
+  setSortOrder: (sortOrder: string) =>
+    request<User>('/auth/me', { method: 'PUT', ...jsonBody({ sortOrder }) }),
+  setGroupSeries: (groupSeries: boolean) =>
+    request<User>('/auth/me', { method: 'PUT', ...jsonBody({ groupSeries }) }),
 
   // Metadata
   metadataGenres: () => request<MetadataGenre[]>('/metadata/genres'),

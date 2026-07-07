@@ -24,6 +24,9 @@ type User struct {
 	CanEdit      bool       `json:"canEdit"`
 	Language     string     `json:"language"` // UI language preference: "en" | "ja"
 	PageSize     int        `json:"pageSize"` // library page size preference
+	Sort         string     `json:"sort"`      // library sort field (shared across pages)
+	SortOrder    string     `json:"sortOrder"` // "asc" | "desc"
+	GroupSeries  bool       `json:"groupSeries"` // group volumes into series tiles
 	CreatedAt    time.Time  `json:"createdAt"`
 }
 

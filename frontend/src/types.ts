@@ -8,6 +8,9 @@ export interface User {
   canEdit: boolean
   language: string
   pageSize: number
+  sort: string // library sort field (per-account, shared across pages)
+  sortOrder: SortOrder // "asc" | "desc"
+  groupSeries: boolean // group volumes into series tiles
   createdAt: string
   canLogin?: boolean // admin list only: false when an LDAP user is outside the login group
 }
@@ -59,6 +62,7 @@ export interface Book {
   publisher?: PublisherRef
   languages: string[]
   rating: number // 0-10, 2 per star
+  favorites: number // optional favorites/popularity count from the book's source; 0 = none
   identifiers: Record<string, string>
   comments: string
   formats: BookFormat[]
@@ -167,6 +171,7 @@ export type SortKey =
   | 'author'
   | 'series'
   | 'rating'
+  | 'favorites'
   | 'views'
   | 'lastread'
 export type SortOrder = 'asc' | 'desc'
@@ -174,6 +179,10 @@ export type SortOrder = 'asc' | 'desc'
 export interface SiteConfig {
   title: string
   pageFilter: boolean
+  // Popularity ("favorites") feature toggle for this library instance: the ♥
+  // count badge, the popularity sort, and the detail-page count. Enabled by an
+  // admin only for a library whose books carry a favorites count.
+  popularity: boolean
   // Base tag filter always applied to the home ("/") library view (display scope,
   // set by an admin in server settings): books scoped to homeTags (AND) and with
   // homeExcludeTags hidden (NOT).

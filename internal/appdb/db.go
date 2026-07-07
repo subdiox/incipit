@@ -121,6 +121,11 @@ var migrations = []string{
 		added_at  TEXT NOT NULL,
 		PRIMARY KEY(shelf_id, series_id)
 	);`,
+	// Per-user library view preferences (shared across all pages): the sort
+	// field, its direction, and whether to group volumes into series tiles.
+	`ALTER TABLE users ADD COLUMN sort TEXT NOT NULL DEFAULT 'timestamp';`,
+	`ALTER TABLE users ADD COLUMN sort_order TEXT NOT NULL DEFAULT 'desc';`,
+	`ALTER TABLE users ADD COLUMN group_series INTEGER NOT NULL DEFAULT 1;`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

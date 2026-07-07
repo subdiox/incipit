@@ -9,6 +9,7 @@ import { formatBytes, formatDate, dateInputValue, languageLabel, GENRE_TAG_PREFI
 import { Cover } from '@/components/Cover'
 import { progressPct } from '@/components/ReadingShelf'
 import { isReadable } from '@/lib/book'
+import { usePopularityEnabled } from '@/lib/hooks'
 import { rememberFacets } from '@/lib/facets'
 import { Rating } from '@/components/Rating'
 import { EnrichModal } from '@/components/EnrichModal'
@@ -268,6 +269,7 @@ export function BookDetailPage() {
   }
   const { user } = useAuth()
   const { t } = useI18n()
+  const popularityOn = usePopularityEnabled()
 
   const [editing, setEditing] = useState(false)
   const [enriching, setEnriching] = useState(false)
@@ -506,6 +508,14 @@ export function BookDetailPage() {
           {book.rating > 0 && (
             <div className="mt-3">
               <Rating value={book.rating} size={20} />
+            </div>
+          )}
+
+          {popularityOn && book.favorites > 0 && (
+            <div className="mt-2 flex items-center gap-1.5 text-sm text-slate-300">
+              <span className="text-rose-400">♥</span>
+              <span className="font-semibold">{book.favorites.toLocaleString()}</span>
+              <span className="text-slate-500">{t('book.favorites')}</span>
             </div>
           )}
 

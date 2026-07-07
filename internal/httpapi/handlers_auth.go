@@ -169,8 +169,17 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 
 // updateMeBody holds the self-service account fields a user may change.
 type updateMeBody struct {
-	Language *string `json:"language"`
-	PageSize *int    `json:"pageSize"`
+	Language    *string `json:"language"`
+	PageSize    *int    `json:"pageSize"`
+	Sort        *string `json:"sort"`
+	SortOrder   *string `json:"sortOrder"`
+	GroupSeries *bool   `json:"groupSeries"`
+}
+
+// validSorts are the library sort fields a user may persist.
+var validSorts = map[string]bool{
+	"timestamp": true, "title": true, "author": true, "series": true,
+	"pubdate": true, "rating": true, "favorites": true, "views": true, "lastread": true,
 }
 
 // handleUpdateMe lets the authenticated user change their own preferences
@@ -205,6 +214,34 @@ func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := s.store.SetUserPageSize(r.Context(), cur.ID, ps); err != nil {
 			writeError(w, http.StatusInternalServerError, "update page size")
+			return
+		}
+	}
+	if body.Sort != nil {
+		sort := strings.TrimSpace(*body.Sort)
+		if !validSorts[sort] {
+			writeError(w, http.StatusBadRequest, "unsupported sort")
+			return
+		}
+		if err := s.store.SetUserSort(r.Context(), cur.ID, sort); err != nil {
+			writeError(w, http.StatusInternalServerError, "update sort")
+			return
+		}
+	}
+	if body.SortOrder != nil {
+		ord := strings.ToLower(strings.TrimSpace(*body.SortOrder))
+		if ord != "asc" && ord != "desc" {
+			writeError(w, http.StatusBadRequest, "unsupported sort order")
+			return
+		}
+		if err := s.store.SetUserSortOrder(r.Context(), cur.ID, ord); err != nil {
+			writeError(w, http.StatusInternalServerError, "update sort order")
+			return
+		}
+	}
+	if body.GroupSeries != nil {
+		if err := s.store.SetUserGroupSeries(r.Context(), cur.ID, *body.GroupSeries); err != nil {
+			writeError(w, http.StatusInternalServerError, "update group series")
 			return
 		}
 	}

@@ -14,6 +14,17 @@ import (
 const SiteTitleKey = "site_title"
 const defaultSiteTitle = "Incipit"
 
+// PopularityKey toggles the favorites/popularity feature for this library
+// instance: the ♥ count badge on cards, the popularity sort option and the
+// detail-page count. Off by default; an admin turns it on for a library whose
+// books carry a favorites count (the book_favorites table is populated).
+const PopularityKey = "popularity"
+
+func (s *Server) popularityEnabled(ctx context.Context) bool {
+	v, _ := s.store.GetSetting(ctx, PopularityKey)
+	return v == "true"
+}
+
 // HomeFilterTagsKey / HomeFilterExcludeTagsKey hold the admin-configured base tag
 // filter always applied to the home ("/") library view: a CSV of Calibre tag IDs
 // the home library is scoped to (include, AND) and one it hides (exclude, NOT).
@@ -96,6 +107,7 @@ func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"title":           s.siteTitle(r.Context()),
 		"pageFilter":      s.pageFilterEnabled(r.Context()),
+		"popularity":      s.popularityEnabled(r.Context()),
 		"homeTags":        inc,
 		"homeExcludeTags": exc,
 		"homeMatchAny":    s.homeFilterMatchAny(r.Context()),
@@ -105,6 +117,7 @@ func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
 type siteUpdateBody struct {
 	Title           string   `json:"title"`
 	PageFilter      *bool    `json:"pageFilter"`
+	Popularity      *bool    `json:"popularity"`
 	HomeTags        *[]int64 `json:"homeTags"`
 	HomeExcludeTags *[]int64 `json:"homeExcludeTags"`
 	HomeMatchAny    *bool    `json:"homeMatchAny"`
@@ -143,6 +156,16 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 			s.startPageIndex() // begin/resume indexing when enabled
 		}
 	}
+	if body.Popularity != nil {
+		val := "false"
+		if *body.Popularity {
+			val = "true"
+		}
+		if err := s.store.SetSetting(r.Context(), PopularityKey, val); err != nil {
+			writeError(w, http.StatusInternalServerError, "save popularity")
+			return
+		}
+	}
 	if body.HomeTags != nil {
 		if err := s.store.SetSetting(r.Context(), HomeFilterTagsKey, idsToCSV(*body.HomeTags)); err != nil {
 			writeError(w, http.StatusInternalServerError, "save home filter")
@@ -169,6 +192,7 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"title":           title,
 		"pageFilter":      s.pageFilterEnabled(r.Context()),
+		"popularity":      s.popularityEnabled(r.Context()),
 		"homeTags":        inc,
 		"homeExcludeTags": exc,
 		"homeMatchAny":    s.homeFilterMatchAny(r.Context()),

@@ -24,6 +24,7 @@ type Book struct {
 	Publisher    *Publisher        `json:"publisher,omitempty"`
 	Languages    []string          `json:"languages"`
 	Rating       int               `json:"rating"` // 0..10, where 10 == 5 stars
+	Favorites    int               `json:"favorites"` // optional favorites/popularity count from the book's source; 0 = none
 	Identifiers  map[string]string `json:"identifiers"`
 	Comments     string            `json:"comments"`
 	Formats      []Format          `json:"formats"`
