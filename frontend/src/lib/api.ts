@@ -169,6 +169,7 @@ export const api = {
     title: string
     pageFilter?: boolean
     popularity?: boolean
+    readingActivity?: boolean
     homeTags?: number[]
     homeExcludeTags?: number[]
     homeMatchAny?: boolean
@@ -267,14 +268,29 @@ export const api = {
 
   // Collections (admin-defined saved tag filters under Library)
   collections: () => request<Collection[]>('/collections'),
-  createCollection: (name: string, tagIds: number[], excludeTagIds: number[], matchAny: boolean) =>
+  createCollection: (body: {
+    name: string
+    tagIds: number[]
+    excludeTagIds: number[]
+    matchAny: boolean
+    sort: string
+    sortOrder: SortOrder
+  }) =>
     request<Collection>('/admin/collections', {
       method: 'POST',
-      ...jsonBody({ name, tagIds, excludeTagIds, matchAny }),
+      ...jsonBody(body),
     }),
   updateCollection: (
     id: number,
-    body: { name: string; tagIds: number[]; excludeTagIds: number[]; matchAny: boolean; position: number },
+    body: {
+      name: string
+      tagIds: number[]
+      excludeTagIds: number[]
+      matchAny: boolean
+      sort: string
+      sortOrder: SortOrder
+      position: number
+    },
   ) => request<void>(`/admin/collections/${id}`, { method: 'PUT', ...jsonBody(body) }),
   reorderCollections: (ids: number[]) =>
     request<void>('/admin/collections/reorder', { method: 'PUT', ...jsonBody({ ids }) }),

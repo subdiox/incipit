@@ -133,11 +133,11 @@ func TestCollections(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	a, err := s.CreateCollection(ctx, "Action", []int64{1, 2}, []int64{9}, true)
+	a, err := s.CreateCollection(ctx, "Action", []int64{1, 2}, []int64{9}, true, "favorites", "desc")
 	if err != nil {
 		t.Fatalf("CreateCollection: %v", err)
 	}
-	b, _ := s.CreateCollection(ctx, "Comedy", []int64{3}, nil, false)
+	b, _ := s.CreateCollection(ctx, "Comedy", []int64{3}, nil, false, "", "")
 	if b.Position <= a.Position {
 		t.Errorf("positions not increasing: %d, %d", a.Position, b.Position)
 	}
@@ -152,13 +152,22 @@ func TestCollections(t *testing.T) {
 	if !collections[0].MatchAny || collections[1].MatchAny {
 		t.Errorf("MatchAny not persisted: %+v", collections)
 	}
+	if collections[0].Sort != "favorites" || collections[0].SortOrder != "desc" {
+		t.Errorf("pinned sort not persisted: %+v", collections[0])
+	}
+	if collections[1].Sort != "" || collections[1].SortOrder != "" {
+		t.Errorf("unpinned collection should have empty sort: %+v", collections[1])
+	}
 
-	if err := s.UpdateCollection(ctx, a.ID, "Action!", []int64{1, 2, 5}, nil, false, 0); err != nil {
+	if err := s.UpdateCollection(ctx, a.ID, "Action!", []int64{1, 2, 5}, nil, false, "lastread", "asc", 0); err != nil {
 		t.Fatalf("UpdateCollection: %v", err)
 	}
 	got, _ := s.GetCollection(ctx, a.ID)
 	if got.Name != "Action!" || len(got.TagIDs) != 3 || got.MatchAny {
 		t.Errorf("GetCollection = %+v", got)
+	}
+	if got.Sort != "lastread" || got.SortOrder != "asc" {
+		t.Errorf("pinned sort not updated: %+v", got)
 	}
 	if len(got.ExcludeTagIDs) != 0 {
 		t.Errorf("ExcludeTagIDs should be cleared on update: %+v", got)
@@ -173,7 +182,7 @@ func TestCollections(t *testing.T) {
 	}
 
 	// A tagless collection must expose TagIDs as a non-nil slice (JSON [] not null).
-	empty, _ := s.CreateCollection(ctx, "All", nil, nil, false)
+	empty, _ := s.CreateCollection(ctx, "All", nil, nil, false, "", "")
 	if got, _ := s.GetCollection(ctx, empty.ID); got.TagIDs == nil || got.ExcludeTagIDs == nil {
 		t.Error("tagless collection TagIDs/ExcludeTagIDs = nil; want non-nil (marshals as [])")
 	}

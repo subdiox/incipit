@@ -35,6 +35,20 @@ import {
 const DEFAULT_PAGE_SIZE = 36
 const PAGE_SIZE_OPTIONS = [25, 50, 100]
 
+// Label for every sort field (a collection may pin ones the user menu doesn't
+// offer, e.g. title/author/series), used by the locked-sort indicator.
+const SORT_LABELS: Record<SortKey, TranslationKey> = {
+  timestamp: 'library.sort.recentlyAdded',
+  title: 'library.sort.title',
+  author: 'library.sort.author',
+  series: 'library.sort.series',
+  pubdate: 'library.sort.pubdate',
+  rating: 'library.sort.rating',
+  favorites: 'library.sort.favorites',
+  views: 'library.sort.views',
+  lastread: 'library.sort.lastread',
+}
+
 const SORT_OPTIONS: { value: SortKey; labelKey: TranslationKey }[] = [
   { value: 'timestamp', labelKey: 'library.sort.recentlyAdded' },
   { value: 'pubdate', labelKey: 'library.sort.pubdate' },
@@ -227,16 +241,10 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
 
   const search = params.get('search') ?? ''
   const debouncedSearch = useDebounced(search, 350)
-  // Sort is a PER-ACCOUNT preference shared across every library page. The one
-  // exception: while viewing a single series, its volumes always show in volume
-  // order (series index ascending), like calibre-web.
+  // Sort is a PER-ACCOUNT preference shared across every library page, with two
+  // overrides (resolved below, once site config is loaded): a collection can pin
+  // a fixed sort, and a single series always shows in volume order.
   const seriesSelected = !!params.get('series')
-  // The saved per-account preference (what the sort controls display).
-  const userSort: SortKey = (user?.sort as SortKey) ?? 'timestamp'
-  const userOrder: SortOrder = (user?.sortOrder as SortOrder) ?? 'desc'
-  // Effective sort for the query: a single series always shows volume order.
-  const sort: SortKey = seriesSelected ? 'series' : userSort
-  const order: SortOrder = seriesSelected ? 'asc' : userOrder
   const authorId = params.get('author') ? Number(params.get('author')) : null
   const seriesId = params.get('series') ? Number(params.get('series')) : null
   const tagIds = params.getAll('tag').map(Number).filter((n) => Number.isFinite(n) && n > 0)
@@ -248,6 +256,31 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   const site = useQuery({ queryKey: ['site'], queryFn: api.site, staleTime: 300_000 }).data
   const pageFilterOn = !!site?.pageFilter
   const popularityOn = !!site?.popularity
+  // Reading-activity sorts ("most viewed" / "recently read") are admin-gated.
+  const readingActivityOn = site?.readingActivity !== false
+
+  // Which sort fields the viewer may pick right now (feature-gated ones drop out).
+  const sortAvailable = (v: SortKey) => {
+    if (v === 'favorites') return popularityOn
+    if (v === 'views' || v === 'lastread') return readingActivityOn
+    return true
+  }
+  // A collection can pin a fixed sort: opening it forces that order and hides the
+  // sort control. Empty = inherit the viewer's own preference.
+  const lockedSort: SortKey | null =
+    collection?.sort && sortAvailable(collection.sort as SortKey) ? (collection.sort as SortKey) : null
+  const lockedOrder: SortOrder = (collection?.sortOrder as SortOrder) || 'desc'
+  // The viewer's saved preference (what the sort control shows), coerced to an
+  // available field so a since-disabled feature can't leave the list stuck on a
+  // hidden sort.
+  const savedSort: SortKey = (user?.sort as SortKey) ?? 'timestamp'
+  const userSort: SortKey = sortAvailable(savedSort) ? savedSort : 'timestamp'
+  const userOrder: SortOrder = (user?.sortOrder as SortOrder) ?? 'desc'
+  // Effective sort for the query. Precedence: a single series (volume order) >
+  // a collection's pinned sort > the viewer's own preference.
+  const sortLocked = !seriesSelected && lockedSort != null
+  const sort: SortKey = seriesSelected ? 'series' : (lockedSort ?? userSort)
+  const order: SortOrder = seriesSelected ? 'asc' : lockedSort ? lockedOrder : userOrder
   const [minPages, setMinPages] = useState(params.get('minPages') ?? '')
   const [maxPages, setMaxPages] = useState(params.get('maxPages') ?? '')
   const debMinPages = useDebounced(minPages, 400)
@@ -766,26 +799,39 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
               ))}
             </select>
 
-            <select
-              value={userSort}
-              onChange={(e) => changeSort(e.target.value as SortKey)}
-              className="input min-w-0 flex-1 cursor-pointer py-2 pr-8 sm:w-auto sm:flex-none"
-            >
-              {SORT_OPTIONS.filter((o) => o.value !== 'favorites' || popularityOn).map((o) => (
-                <option key={o.value} value={o.value}>
-                  {t(o.labelKey)}
-                </option>
-              ))}
-            </select>
+            {sortLocked ? (
+              // Collection with a pinned sort: the order is fixed, so show it as a
+              // read-only badge instead of the interactive control.
+              <span
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-2 text-sm text-slate-400"
+                title={t('library.sortLocked')}
+              >
+                {t(SORT_LABELS[sort])} {order === 'desc' ? '↓' : '↑'}
+              </span>
+            ) : (
+              <>
+                <select
+                  value={userSort}
+                  onChange={(e) => changeSort(e.target.value as SortKey)}
+                  className="input min-w-0 flex-1 cursor-pointer py-2 pr-8 sm:w-auto sm:flex-none"
+                >
+                  {SORT_OPTIONS.filter((o) => sortAvailable(o.value)).map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {t(o.labelKey)}
+                    </option>
+                  ))}
+                </select>
 
-            <button
-              type="button"
-              onClick={changeOrder}
-              className="btn-secondary shrink-0"
-              title={userOrder === 'desc' ? t('library.descending') : t('library.ascending')}
-            >
-              {userOrder === 'desc' ? '↓' : '↑'}
-            </button>
+                <button
+                  type="button"
+                  onClick={changeOrder}
+                  className="btn-secondary shrink-0"
+                  title={userOrder === 'desc' ? t('library.descending') : t('library.ascending')}
+                >
+                  {userOrder === 'desc' ? '↓' : '↑'}
+                </button>
+              </>
+            )}
           </div>
         </div>
 

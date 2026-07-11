@@ -16,7 +16,30 @@ type collectionBody struct {
 	TagIDs        []int64 `json:"tagIds"`
 	ExcludeTagIDs []int64 `json:"excludeTagIds"`
 	MatchAny      bool    `json:"matchAny"`
+	Sort          string  `json:"sort"`      // "" = no pin; else a validSorts key
+	SortOrder     string  `json:"sortOrder"` // "" (with empty Sort) | "asc" | "desc"
 	Position      int     `json:"position"`
+}
+
+// normalizeCollectionSort validates and normalizes a collection's pinned sort.
+// An empty sort means "no pin" (inherit the viewer's own sort); a set sort must
+// be a known field and defaults its direction to descending.
+func normalizeCollectionSort(sort, order string) (string, string, bool) {
+	sort = strings.TrimSpace(sort)
+	if sort == "" {
+		return "", "", true // no pin; order is ignored
+	}
+	if !validSorts[sort] {
+		return "", "", false
+	}
+	order = strings.TrimSpace(order)
+	if order == "" {
+		order = "desc"
+	}
+	if order != "asc" && order != "desc" {
+		return "", "", false
+	}
+	return sort, order, true
 }
 
 // handleListCollections returns all admin-defined collections (visible to every user, for
@@ -41,7 +64,12 @@ func (s *Server) handleCreateCollection(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	collection, err := s.store.CreateCollection(r.Context(), name, body.TagIDs, body.ExcludeTagIDs, body.MatchAny)
+	sort, order, ok := normalizeCollectionSort(body.Sort, body.SortOrder)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid sort")
+		return
+	}
+	collection, err := s.store.CreateCollection(r.Context(), name, body.TagIDs, body.ExcludeTagIDs, body.MatchAny, sort, order)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "create collection")
 		return
@@ -61,7 +89,12 @@ func (s *Server) handleUpdateCollection(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	if err := s.store.UpdateCollection(r.Context(), id, name, body.TagIDs, body.ExcludeTagIDs, body.MatchAny, body.Position); err != nil {
+	sort, order, ok := normalizeCollectionSort(body.Sort, body.SortOrder)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid sort")
+		return
+	}
+	if err := s.store.UpdateCollection(r.Context(), id, name, body.TagIDs, body.ExcludeTagIDs, body.MatchAny, sort, order, body.Position); err != nil {
 		if errors.Is(err, appdb.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "collection not found")
 			return

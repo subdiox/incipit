@@ -3,11 +3,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
 import { useFacetNames } from '@/lib/facets'
 import { useI18n } from '@/i18n'
-import type { Collection } from '@/types'
+import type { Collection, SortKey, SortOrder } from '@/types'
+import type { TranslationKey } from '@/i18n/en'
 import { Modal } from './Modal'
 import { Spinner, FullPageSpinner } from './Spinner'
 import { TagFilterFields } from './TagFilterFields'
 import { IconEdit, IconGrip, IconPlus, IconTrash } from './icons'
+
+// Sort fields a collection can be pinned to. Mirrors the library's sort menu;
+// the empty option means "don't pin" (each viewer keeps their own sort).
+const PIN_SORT_OPTIONS: { value: SortKey; labelKey: TranslationKey }[] = [
+  { value: 'timestamp', labelKey: 'library.sort.recentlyAdded' },
+  { value: 'title', labelKey: 'library.sort.title' },
+  { value: 'author', labelKey: 'library.sort.author' },
+  { value: 'pubdate', labelKey: 'library.sort.pubdate' },
+  { value: 'rating', labelKey: 'library.sort.rating' },
+  { value: 'favorites', labelKey: 'library.sort.favorites' },
+  { value: 'views', labelKey: 'library.sort.views' },
+  { value: 'lastread', labelKey: 'library.sort.lastread' },
+]
 
 function CollectionModal({ collection, open, onClose }: { collection: Collection | null; open: boolean; onClose: () => void }) {
   const qc = useQueryClient()
@@ -16,19 +30,26 @@ function CollectionModal({ collection, open, onClose }: { collection: Collection
   const [tagIds, setTagIds] = useState<number[]>(collection?.tagIds ?? [])
   const [excludeTagIds, setExcludeTagIds] = useState<number[]>(collection?.excludeTagIds ?? [])
   const [matchAny, setMatchAny] = useState<boolean>(collection?.matchAny ?? false)
+  const [sort, setSort] = useState<string>(collection?.sort ?? '')
+  const [sortOrder, setSortOrder] = useState<SortOrder>(collection?.sortOrder ?? 'desc')
   const [error, setError] = useState<string | null>(null)
 
   const save = useMutation({
     mutationFn: async () => {
+      // A pinned sort defaults its direction; an unpinned collection sends empty
+      // values so it inherits each viewer's own sort.
+      const order: SortOrder = sort ? sortOrder : 'desc'
       if (collection)
         await api.updateCollection(collection.id, {
           name: name.trim(),
           tagIds,
           excludeTagIds,
           matchAny,
+          sort,
+          sortOrder: order,
           position: collection.position,
         })
-      else await api.createCollection(name.trim(), tagIds, excludeTagIds, matchAny)
+      else await api.createCollection({ name: name.trim(), tagIds, excludeTagIds, matchAny, sort, sortOrder: order })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['collections'] })
@@ -64,6 +85,35 @@ function CollectionModal({ collection, open, onClose }: { collection: Collection
           matchAny={matchAny}
           onMatchAny={setMatchAny}
         />
+
+        <div className="border-t border-ink-700 pt-4">
+          <label className="label">{t('collections.pinSort')}</label>
+          <div className="flex items-center gap-2">
+            <select
+              className="input flex-1 cursor-pointer"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+            >
+              <option value="">{t('collections.pinSortNone')}</option>
+              {PIN_SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {t(o.labelKey)}
+                </option>
+              ))}
+            </select>
+            {sort && (
+              <button
+                type="button"
+                className="btn-secondary shrink-0"
+                onClick={() => setSortOrder((o) => (o === 'desc' ? 'asc' : 'desc'))}
+                title={sortOrder === 'desc' ? t('library.descending') : t('library.ascending')}
+              >
+                {sortOrder === 'desc' ? '↓' : '↑'}
+              </button>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">{t('collections.pinSortHelp')}</p>
+        </div>
         {error && (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
             {error}

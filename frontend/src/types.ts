@@ -155,6 +155,10 @@ export interface Collection {
   tagIds: number[]
   excludeTagIds: number[]
   matchAny: boolean
+  // A pinned sort: when `sort` is non-empty the collection always shows in this
+  // order and the sort control is hidden. Empty = inherit the viewer's own sort.
+  sort: string // '' | SortKey
+  sortOrder: SortOrder // ignored when sort is ''
   position: number
   createdAt: string
 }
@@ -183,6 +187,9 @@ export interface SiteConfig {
   // count badge, the popularity sort, and the detail-page count. Enabled by an
   // admin only for a library whose books carry a favorites count.
   popularity: boolean
+  // Reading-activity features toggle: the "recently read" / "most viewed" sort
+  // options and the detail-page view count. On by default.
+  readingActivity: boolean
   // Base tag filter always applied to the home ("/") library view (display scope,
   // set by an admin in server settings): books scoped to homeTags (AND) and with
   // homeExcludeTags hidden (NOT).

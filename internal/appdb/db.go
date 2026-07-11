@@ -126,6 +126,12 @@ var migrations = []string{
 	`ALTER TABLE users ADD COLUMN sort TEXT NOT NULL DEFAULT 'timestamp';`,
 	`ALTER TABLE users ADD COLUMN sort_order TEXT NOT NULL DEFAULT 'desc';`,
 	`ALTER TABLE users ADD COLUMN group_series INTEGER NOT NULL DEFAULT 1;`,
+	// A collection can pin a fixed sort (and direction): when set, opening it
+	// forces this order and the sort control is hidden, so e.g. a "weekly
+	// popular" collection always shows in popularity order. Empty = inherit the
+	// viewer's own global sort preference (the previous behaviour).
+	`ALTER TABLE collections ADD COLUMN sort TEXT NOT NULL DEFAULT '';`,
+	`ALTER TABLE collections ADD COLUMN sort_order TEXT NOT NULL DEFAULT '';`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

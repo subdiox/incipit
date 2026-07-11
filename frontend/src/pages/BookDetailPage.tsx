@@ -9,7 +9,7 @@ import { formatBytes, formatDate, dateInputValue, languageLabel, GENRE_TAG_PREFI
 import { Cover } from '@/components/Cover'
 import { progressPct } from '@/components/ReadingShelf'
 import { isReadable } from '@/lib/book'
-import { usePopularityEnabled } from '@/lib/hooks'
+import { usePopularityEnabled, useReadingActivityEnabled } from '@/lib/hooks'
 import { rememberFacets } from '@/lib/facets'
 import { Rating } from '@/components/Rating'
 import { EnrichModal } from '@/components/EnrichModal'
@@ -270,6 +270,7 @@ export function BookDetailPage() {
   const { user } = useAuth()
   const { t } = useI18n()
   const popularityOn = usePopularityEnabled()
+  const readingActivityOn = useReadingActivityEnabled()
 
   const [editing, setEditing] = useState(false)
   const [enriching, setEnriching] = useState(false)
@@ -293,7 +294,7 @@ export function BookDetailPage() {
   const { data: views } = useQuery({
     queryKey: ['views', bookId],
     queryFn: () => api.bookViews(bookId),
-    enabled: Number.isFinite(bookId),
+    enabled: Number.isFinite(bookId) && readingActivityOn,
   })
 
   const { data: pages } = useQuery({
@@ -549,7 +550,9 @@ export function BookDetailPage() {
             )}
             {formatDate(book.timestamp) && <Meta label={t('book.added')}>{formatDate(book.timestamp)}</Meta>}
             {pages != null && <Meta label={t('book.pages')}>{pages.count.toLocaleString()}</Meta>}
-            <Meta label={t('book.views')}>{(views?.views ?? 0).toLocaleString()}</Meta>
+            {readingActivityOn && (
+              <Meta label={t('book.views')}>{(views?.views ?? 0).toLocaleString()}</Meta>
+            )}
             {book.formats.length > 0 && (
               <Meta label={t('book.formats')}>
                 {book.formats.map((f) => `${f.format} (${formatBytes(f.size)})`).join(', ')}

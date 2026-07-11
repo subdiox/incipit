@@ -107,6 +107,7 @@ export const en = {
   'library.facetMore': '+{{count}} more — refine your search',
   'library.descending': 'Descending',
   'library.ascending': 'Ascending',
+  'library.sortLocked': 'This collection has a fixed sort order',
   'library.upload': 'Upload',
   'library.failedToLoad': 'Failed to load library.',
   'library.pageOf': 'Page {{current}} of {{total}}',
@@ -390,6 +391,10 @@ export const en = {
   'collections.matchAny': 'Any tag',
   'collections.matchAllHelp': 'Books must have every selected tag (AND).',
   'collections.matchAnyHelp': 'Books need at least one of the selected tags (OR).',
+  'collections.pinSort': 'Fixed sort',
+  'collections.pinSortNone': "Don't pin (viewer's own sort)",
+  'collections.pinSortHelp':
+    'Lock this collection to one sort order. Viewers see it in this order and cannot change it — useful for a curated list such as a "weekly popular" tag.',
   'collections.anyBadge': 'any:',
   'collections.or': 'or',
   'collections.deleteTitle': 'Delete collection',
@@ -417,6 +422,9 @@ export const en = {
   'server.pageFilterHelp': 'Lets the library be filtered by page count. Enabling it indexes every comic\u2019s page count in the background (one-time scan; heavy for large libraries).',
   'server.popularity': 'Enable popularity (favorites)',
   'server.popularityHelp': 'Shows a favorites count (\u2665) on covers and detail pages and adds a "Popularity" sort. Enable only for a library whose books carry a favorites count.',
+  'server.readingActivity': 'Show reading activity',
+  'server.readingActivityHelp':
+    'Offers the "Recently read" and "Most viewed" sort options and shows the view count on the detail page. Turn off for a library where these orderings don\u2019t make sense.',
   'server.homeFilter': 'Home library filter',
   'server.homeFilterHelp': 'A base tag filter always applied to the home library for everyone. It only scopes what the home view shows \u2014 books stay reachable via collections, direct links and OPDS.',
   'server.homeFilterInclude': 'Show only these tags',

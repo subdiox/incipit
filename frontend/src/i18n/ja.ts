@@ -109,6 +109,7 @@ export const ja: Record<TranslationKey, string> = {
   'library.facetMore': '他{{count}}件 — 検索で絞り込み',
   'library.descending': '降順',
   'library.ascending': '昇順',
+  'library.sortLocked': 'このコレクションは並び順が固定されています',
   'library.upload': 'アップロード',
   'library.failedToLoad': 'ライブラリの読み込みに失敗しました。',
   'library.pageOf': '{{current}} / {{total}} ページ',
@@ -391,6 +392,10 @@ export const ja: Record<TranslationKey, string> = {
   'collections.matchAny': 'いずれかのタグ',
   'collections.matchAllHelp': '選択したすべてのタグを持つ本のみ表示(AND)。',
   'collections.matchAnyHelp': '選択したタグのいずれかを持つ本を表示(OR)。',
+  'collections.pinSort': '並び順を固定',
+  'collections.pinSortNone': '固定しない（各ユーザーの設定）',
+  'collections.pinSortHelp':
+    'このコレクションを1つの並び順に固定します。ユーザーは常にこの順で表示され、変更できません。「週間人気」タグのようなランキング用途に便利です。',
   'collections.anyBadge': 'いずれか:',
   'collections.or': 'または',
   'collections.deleteTitle': 'コレクションを削除',
@@ -418,6 +423,9 @@ export const ja: Record<TranslationKey, string> = {
   'server.pageFilterHelp': 'ライブラリをページ数で絞り込めるようにします。有効化すると全コミックのページ数をバックグラウンドで索引します(初回のみの一括スキャン。大規模ライブラリでは重い)。',
   'server.popularity': '人気度（お気に入り数）を有効化',
   'server.popularityHelp': 'カバーや詳細ページにお気に入り数(♥)を表示し、「人気順」の並び替えを追加します。お気に入り数を持つライブラリでのみ有効化してください。',
+  'server.readingActivity': '閲覧・読書アクティビティを表示',
+  'server.readingActivityHelp':
+    '「最近読まれた順」「閲覧数順」の並び替えと、詳細ページの閲覧数を表示します。これらの並び順が不要なライブラリではオフにしてください。',
   'server.homeFilter': 'ホームライブラリのフィルタ',
   'server.homeFilterHelp': '全ユーザーのホームライブラリに常時かかる基準タグフィルタです。ホーム画面の表示範囲を絞るだけで、本自体はコレクション・直接リンク・OPDSから引き続きアクセスできます。',
   'server.homeFilterInclude': 'これらのタグのみ表示',

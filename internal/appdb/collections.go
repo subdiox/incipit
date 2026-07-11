@@ -18,8 +18,13 @@ type Collection struct {
 	TagIDs        []int64   `json:"tagIds"`
 	ExcludeTagIDs []int64   `json:"excludeTagIds"` // books with any of these are excluded (NOT)
 	MatchAny      bool      `json:"matchAny"`
-	Position      int       `json:"position"`
-	CreatedAt     time.Time `json:"createdAt"`
+	// Sort, when non-empty, pins this collection to a fixed sort field and
+	// direction (SortOrder "asc"|"desc"): opening it forces that order and the
+	// UI hides the sort control. Empty = inherit the viewer's global sort.
+	Sort      string    `json:"sort"`
+	SortOrder string    `json:"sortOrder"`
+	Position  int       `json:"position"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 func encodeTagIDs(ids []int64) string {
@@ -50,7 +55,7 @@ func decodeTagIDs(s string) []int64 {
 // ListCollections returns all collections in display order (position, then id).
 func (s *Store) ListCollections(ctx context.Context) ([]Collection, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, name, tag_ids, exclude_tag_ids, match_any, position, created_at FROM collections ORDER BY position, id")
+		"SELECT id, name, tag_ids, exclude_tag_ids, match_any, sort, sort_order, position, created_at FROM collections ORDER BY position, id")
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +64,7 @@ func (s *Store) ListCollections(ctx context.Context) ([]Collection, error) {
 	for rows.Next() {
 		var p Collection
 		var tagIDs, excludeTagIDs, created string
-		if err := rows.Scan(&p.ID, &p.Name, &tagIDs, &excludeTagIDs, &p.MatchAny, &p.Position, &created); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &tagIDs, &excludeTagIDs, &p.MatchAny, &p.Sort, &p.SortOrder, &p.Position, &created); err != nil {
 			return nil, err
 		}
 		p.TagIDs = decodeTagIDs(tagIDs)
@@ -71,7 +76,7 @@ func (s *Store) ListCollections(ctx context.Context) ([]Collection, error) {
 }
 
 // CreateCollection adds a collection, appending it after the existing ones.
-func (s *Store) CreateCollection(ctx context.Context, name string, tagIDs, excludeTagIDs []int64, matchAny bool) (*Collection, error) {
+func (s *Store) CreateCollection(ctx context.Context, name string, tagIDs, excludeTagIDs []int64, matchAny bool, sort, sortOrder string) (*Collection, error) {
 	var nextPos int
 	if err := s.db.QueryRowContext(ctx,
 		"SELECT COALESCE(MAX(position)+1, 0) FROM collections").Scan(&nextPos); err != nil {
@@ -79,20 +84,20 @@ func (s *Store) CreateCollection(ctx context.Context, name string, tagIDs, exclu
 	}
 	now := time.Now().UTC().Format(timeLayout)
 	res, err := s.db.ExecContext(ctx,
-		"INSERT INTO collections (name, tag_ids, exclude_tag_ids, match_any, position, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		name, encodeTagIDs(tagIDs), encodeTagIDs(excludeTagIDs), matchAny, nextPos, now)
+		"INSERT INTO collections (name, tag_ids, exclude_tag_ids, match_any, sort, sort_order, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		name, encodeTagIDs(tagIDs), encodeTagIDs(excludeTagIDs), matchAny, sort, sortOrder, nextPos, now)
 	if err != nil {
 		return nil, err
 	}
 	id, _ := res.LastInsertId()
-	return &Collection{ID: id, Name: name, TagIDs: tagIDs, ExcludeTagIDs: excludeTagIDs, MatchAny: matchAny, Position: nextPos}, nil
+	return &Collection{ID: id, Name: name, TagIDs: tagIDs, ExcludeTagIDs: excludeTagIDs, MatchAny: matchAny, Sort: sort, SortOrder: sortOrder, Position: nextPos}, nil
 }
 
-// UpdateCollection updates a collection's name, tags, match mode and position.
-func (s *Store) UpdateCollection(ctx context.Context, id int64, name string, tagIDs, excludeTagIDs []int64, matchAny bool, position int) error {
+// UpdateCollection updates a collection's name, tags, match mode, pinned sort and position.
+func (s *Store) UpdateCollection(ctx context.Context, id int64, name string, tagIDs, excludeTagIDs []int64, matchAny bool, sort, sortOrder string, position int) error {
 	res, err := s.db.ExecContext(ctx,
-		"UPDATE collections SET name=?, tag_ids=?, exclude_tag_ids=?, match_any=?, position=? WHERE id=?",
-		name, encodeTagIDs(tagIDs), encodeTagIDs(excludeTagIDs), matchAny, position, id)
+		"UPDATE collections SET name=?, tag_ids=?, exclude_tag_ids=?, match_any=?, sort=?, sort_order=?, position=? WHERE id=?",
+		name, encodeTagIDs(tagIDs), encodeTagIDs(excludeTagIDs), matchAny, sort, sortOrder, position, id)
 	if err != nil {
 		return err
 	}
@@ -135,8 +140,8 @@ func (s *Store) GetCollection(ctx context.Context, id int64) (*Collection, error
 	var p Collection
 	var tagIDs, excludeTagIDs, created string
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, name, tag_ids, exclude_tag_ids, match_any, position, created_at FROM collections WHERE id=?", id).
-		Scan(&p.ID, &p.Name, &tagIDs, &excludeTagIDs, &p.MatchAny, &p.Position, &created)
+		"SELECT id, name, tag_ids, exclude_tag_ids, match_any, sort, sort_order, position, created_at FROM collections WHERE id=?", id).
+		Scan(&p.ID, &p.Name, &tagIDs, &excludeTagIDs, &p.MatchAny, &p.Sort, &p.SortOrder, &p.Position, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

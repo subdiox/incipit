@@ -32,6 +32,16 @@ export function usePopularityEnabled(): boolean {
   return !!data?.popularity
 }
 
+/**
+ * Whether reading-activity features (the "recently read" / "most viewed" sorts
+ * and the detail-page view count) are enabled. Defaults to on while loading /
+ * for older servers that don't send the flag.
+ */
+export function useReadingActivityEnabled(): boolean {
+  const { data } = useQuery({ queryKey: ['site'], queryFn: api.site, staleTime: 300_000 })
+  return data?.readingActivity !== false
+}
+
 /** Debounce a rapidly-changing value. */
 export function useDebounced<T>(value: T, delay = 300): T {
   const [debounced, setDebounced] = useState(value)

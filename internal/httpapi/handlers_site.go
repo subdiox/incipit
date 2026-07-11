@@ -25,6 +25,20 @@ func (s *Server) popularityEnabled(ctx context.Context) bool {
 	return v == "true"
 }
 
+// ReadingActivityKey toggles the reading-activity features that expose per-book
+// reading behaviour: the "recently read" and "most viewed" sort options and the
+// view-count on the detail page. On by default (current behaviour); an admin can
+// turn it off for a library where these orderings don't make sense (e.g. one
+// whose ranking is curated via a "weekly popular" tag instead).
+const ReadingActivityKey = "reading_activity"
+
+// readingActivityEnabled reports whether the reading-activity features are on.
+// Unset defaults to true so existing libraries keep the sorts they had.
+func (s *Server) readingActivityEnabled(ctx context.Context) bool {
+	v, _ := s.store.GetSetting(ctx, ReadingActivityKey)
+	return v != "false"
+}
+
 // HomeFilterTagsKey / HomeFilterExcludeTagsKey hold the admin-configured base tag
 // filter always applied to the home ("/") library view: a CSV of Calibre tag IDs
 // the home library is scoped to (include, AND) and one it hides (exclude, NOT).
@@ -108,6 +122,7 @@ func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
 		"title":           s.siteTitle(r.Context()),
 		"pageFilter":      s.pageFilterEnabled(r.Context()),
 		"popularity":      s.popularityEnabled(r.Context()),
+		"readingActivity": s.readingActivityEnabled(r.Context()),
 		"homeTags":        inc,
 		"homeExcludeTags": exc,
 		"homeMatchAny":    s.homeFilterMatchAny(r.Context()),
@@ -118,6 +133,7 @@ type siteUpdateBody struct {
 	Title           string   `json:"title"`
 	PageFilter      *bool    `json:"pageFilter"`
 	Popularity      *bool    `json:"popularity"`
+	ReadingActivity *bool    `json:"readingActivity"`
 	HomeTags        *[]int64 `json:"homeTags"`
 	HomeExcludeTags *[]int64 `json:"homeExcludeTags"`
 	HomeMatchAny    *bool    `json:"homeMatchAny"`
@@ -163,6 +179,16 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := s.store.SetSetting(r.Context(), PopularityKey, val); err != nil {
 			writeError(w, http.StatusInternalServerError, "save popularity")
+			return
+		}
+	}
+	if body.ReadingActivity != nil {
+		val := "false"
+		if *body.ReadingActivity {
+			val = "true"
+		}
+		if err := s.store.SetSetting(r.Context(), ReadingActivityKey, val); err != nil {
+			writeError(w, http.StatusInternalServerError, "save reading activity")
 			return
 		}
 	}
