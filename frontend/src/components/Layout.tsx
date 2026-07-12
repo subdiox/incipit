@@ -323,6 +323,7 @@ export function Layout() {
   const expClearBg = exp.has('clearbg')
   const expVisibleOflow = exp.has('visibleoflow')
   const expSticky = exp.has('sticky')
+  const expUnmount = exp.has('unmount')
 
   useEffect(() => {
     if (!expNoCover) return
@@ -353,16 +354,15 @@ export function Layout() {
   const [headerH, setHeaderH] = useState(0)
   useEffect(() => {
     const el = document.querySelector('header')
-    if (!el) {
-      setHeaderH(0)
-      return
-    }
+    // When the header is unmounted (hidden), keep the last measured height so the
+    // content's top offset stays stable and nothing jumps.
+    if (!el) return
     const measure = () => setHeaderH(el.offsetHeight)
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [location.pathname])
+  }, [location.pathname, headerHidden])
 
   return (
     <div className="min-h-full">
@@ -395,7 +395,7 @@ export function Layout() {
       )}
 
       <div className="min-w-0 lg:pl-64">
-        {!expNoHeader && (
+        {!expNoHeader && !(expUnmount && headerHidden) && (
           <TopBar onMenu={() => setMobileOpen(true)} hidden={headerHidden} sticky={expSticky} />
         )}
         <main className={expVisibleOflow ? '' : 'overflow-x-clip'}>
