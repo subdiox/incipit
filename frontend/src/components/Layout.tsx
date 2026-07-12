@@ -190,38 +190,50 @@ function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
   }
 
   return (
+    // The <header> itself is kept TRANSPARENT with no backdrop-filter. Safari 26
+    // ("Liquid Glass") samples background-color/backdrop-filter from fixed/sticky
+    // elements near the top edge to tint the status-bar chrome — a fixed bar with
+    // a background paints an opaque band there and stops page content from
+    // bleeding under the translucent status bar. So the glass (bg + blur + border)
+    // lives on an absolute child instead, leaving the fixed element itself
+    // transparent so content scrolls edge-to-edge into the top safe area.
     <header
-      className={`fixed inset-x-0 top-0 z-30 flex items-center gap-3 border-b border-ink-800 bg-ink-950/80 px-4 py-3 backdrop-blur-md transition-transform duration-200 sm:px-6 lg:left-64 ${
+      className={`fixed inset-x-0 top-0 z-30 transition-transform duration-200 lg:left-64 ${
         hidden ? '-translate-y-full' : 'translate-y-0'
       } ${searchable ? '' : 'lg:hidden'}`}
-      style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
     >
-      <button
-        type="button"
-        onClick={onMenu}
-        className="rounded-lg p-2 text-slate-300 hover:bg-ink-800 hover:text-white lg:hidden"
-        aria-label={t('nav.openMenu')}
+      <div className="pointer-events-none absolute inset-0 border-b border-ink-800 bg-ink-950/80 backdrop-blur-md" />
+      <div
+        className="relative flex items-center gap-3 px-4 py-3 sm:px-6"
+        style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
       >
-        <IconMenu />
-      </button>
-      {searchable && (
-        <form onSubmit={(e) => e.preventDefault()} className="relative max-w-xl flex-1">
-          <IconSearch
-            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
-            width={18}
-            height={18}
-          />
-          <input
-            type="search"
-            value={value}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={placeholder}
-            className="input pl-10"
-          />
-        </form>
-      )}
-      {/* The library mounts its Filters control here, to the right of search. */}
-      <div id="library-filter-slot" className="shrink-0" />
+        <button
+          type="button"
+          onClick={onMenu}
+          className="rounded-lg p-2 text-slate-300 hover:bg-ink-800 hover:text-white lg:hidden"
+          aria-label={t('nav.openMenu')}
+        >
+          <IconMenu />
+        </button>
+        {searchable && (
+          <form onSubmit={(e) => e.preventDefault()} className="relative max-w-xl flex-1">
+            <IconSearch
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
+              width={18}
+              height={18}
+            />
+            <input
+              type="search"
+              value={value}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={placeholder}
+              className="input pl-10"
+            />
+          </form>
+        )}
+        {/* The library mounts its Filters control here, to the right of search. */}
+        <div id="library-filter-slot" className="shrink-0" />
+      </div>
     </header>
   )
 }
