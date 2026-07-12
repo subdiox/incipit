@@ -238,6 +238,69 @@ function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
   )
 }
 
+// SafeAreaDebug renders a tiny on-screen readout of the actual env(safe-area-*)
+// values, viewport heights and scroll state — but ONLY when the URL carries a
+// `?debug` param, so it stays invisible to normal users. Temporary diagnostic to
+// see real iPhone numbers (headless Chromium always reports insets as 0).
+function SafeAreaDebug() {
+  const [info, setInfo] = useState<string | null>(null)
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('debug')) return
+    const probe = document.createElement('div')
+    probe.style.cssText =
+      'position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-top);visibility:hidden;pointer-events:none;'
+    document.body.appendChild(probe)
+    const bottomProbe = document.createElement('div')
+    bottomProbe.style.cssText =
+      'position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none;'
+    document.body.appendChild(bottomProbe)
+    const read = () => {
+      const top = getComputedStyle(probe).height
+      const bottom = getComputedStyle(bottomProbe).height
+      const vv = window.visualViewport
+      setInfo(
+        `top=${top} bottom=${bottom} scrollY=${Math.round(window.scrollY)} ` +
+          `innerH=${window.innerHeight} vvH=${vv ? Math.round(vv.height) : '-'} ` +
+          `docH=${document.documentElement.scrollHeight}`,
+      )
+    }
+    read()
+    window.addEventListener('scroll', read, { passive: true })
+    window.addEventListener('resize', read)
+    window.visualViewport?.addEventListener('resize', read)
+    window.visualViewport?.addEventListener('scroll', read)
+    return () => {
+      window.removeEventListener('scroll', read)
+      window.removeEventListener('resize', read)
+      window.visualViewport?.removeEventListener('resize', read)
+      window.visualViewport?.removeEventListener('scroll', read)
+      probe.remove()
+      bottomProbe.remove()
+    }
+  }, [])
+  if (info == null) return null
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 'calc(4px + env(safe-area-inset-bottom))',
+        left: 4,
+        right: 4,
+        zIndex: 9999,
+        background: 'rgba(220,0,0,0.9)',
+        color: '#fff',
+        font: '11px/1.35 ui-monospace,monospace',
+        padding: '5px 7px',
+        borderRadius: 6,
+        pointerEvents: 'none',
+        wordBreak: 'break-all',
+      }}
+    >
+      {info}
+    </div>
+  )
+}
+
 export function Layout() {
   const { t } = useI18n()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -264,6 +327,7 @@ export function Layout() {
 
   return (
     <div className="min-h-full">
+      <SafeAreaDebug />
       {/* Desktop sidebar: fixed so the page scrolls natively behind it. */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-ink-800 bg-ink-900 lg:block">
         <Sidebar />
