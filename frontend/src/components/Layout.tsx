@@ -258,10 +258,12 @@ function SafeAreaDebug() {
       const top = getComputedStyle(probe).height
       const bottom = getComputedStyle(bottomProbe).height
       const vv = window.visualViewport
+      const flags =
+        window.location.search.replace(/^\?/, '').replace(/&/g, ' ') || '(none)'
       setInfo(
         `top=${top} bottom=${bottom} scrollY=${Math.round(window.scrollY)} ` +
           `innerH=${window.innerHeight} vvH=${vv ? Math.round(vv.height) : '-'} ` +
-          `docH=${document.documentElement.scrollHeight}`,
+          `docH=${document.documentElement.scrollHeight} | exp: ${flags}`,
       )
     }
     read()
@@ -306,6 +308,40 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const headerHidden = useHideOnScroll()
   const location = useLocation()
+
+  // TEMPORARY experiment toggles (URL params) for the iOS status-bar band
+  // investigation — each isolates one hypothesis so it can be flipped on-device:
+  //   ?noheader    — don't render the fixed header, zero the top padding
+  //   ?nocover     — strip viewport-fit=cover from the viewport meta at runtime
+  //   ?clearbg     — make html/body background transparent
+  //   ?visibleoflow— main uses overflow:visible instead of overflow-x-clip
+  const exp = new URLSearchParams(location.search)
+  const expNoHeader = exp.has('noheader')
+  const expNoCover = exp.has('nocover')
+  const expClearBg = exp.has('clearbg')
+  const expVisibleOflow = exp.has('visibleoflow')
+
+  useEffect(() => {
+    if (!expNoCover) return
+    const m = document.querySelector('meta[name="viewport"]')
+    const prev = m?.getAttribute('content') ?? ''
+    m?.setAttribute('content', 'width=device-width, initial-scale=1.0')
+    return () => {
+      if (m) m.setAttribute('content', prev)
+    }
+  }, [expNoCover])
+
+  useEffect(() => {
+    if (!expClearBg) return
+    const h = document.documentElement.style.background
+    const b = document.body.style.background
+    document.documentElement.style.background = 'transparent'
+    document.body.style.background = 'transparent'
+    return () => {
+      document.documentElement.style.background = h
+      document.body.style.background = b
+    }
+  }, [expClearBg])
 
   // The header floats (fixed) so content scrolls edge-to-edge into the top safe
   // area instead of leaving a background band under the notch when it hides.
@@ -356,12 +392,14 @@ export function Layout() {
       )}
 
       <div className="min-w-0 lg:pl-64">
-        <TopBar onMenu={() => setMobileOpen(true)} hidden={headerHidden} />
-        <main className="overflow-x-clip">
+        {!expNoHeader && <TopBar onMenu={() => setMobileOpen(true)} hidden={headerHidden} />}
+        <main className={expVisibleOflow ? '' : 'overflow-x-clip'}>
           <div
             className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8"
             style={{
-              paddingTop: `calc(${headerH}px + 1.5rem)`,
+              paddingTop: expNoHeader
+                ? 'env(safe-area-inset-top)'
+                : `calc(${headerH}px + 1.5rem)`,
               paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
             }}
           >
