@@ -78,7 +78,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <span className="truncate text-lg font-semibold tracking-tight text-white">{siteTitle}</span>
       </Link>
 
-      <nav className="flex-1 space-y-1 px-2">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2">
         <NavItem to="/" icon={<IconLibrary width={18} height={18} />} label={t('nav.library')} onClick={onNavigate} />
         {/* Admin-defined collections (saved filters) sit just under the library.
             The URL uses the 1-based display position so it tracks reordering. */}
@@ -231,8 +231,6 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
             />
           </form>
         )}
-        {/* The library mounts its Filters control here, to the right of search. */}
-        <div id="library-filter-slot" className="shrink-0" />
       </div>
     </header>
   )

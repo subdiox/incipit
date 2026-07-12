@@ -221,12 +221,6 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
     setSelectMode(false)
     clearSelection()
   }
-  // The Filters control is rendered into the header (right of search) via a
-  // portal, so it lives here (with all its state) but shows up next to search.
-  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
-  useEffect(() => {
-    setHeaderSlot(document.getElementById('library-filter-slot'))
-  }, [])
   // On phones the filter dropdown is cramped, so switch its facets to a
   // search-first UI (list hidden until you type).
   const [isMobile, setIsMobile] = useState(
@@ -579,9 +573,10 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
     </div>
   )
 
-  // Filters button + dropdown, portaled into the header slot (right of search).
+  // Filters button + dropdown, shown in the controls row (it can't live in the
+  // header: the header unmounts while hidden on scroll, which would detach it).
   const filtersNode = (
-    <div className="relative" ref={filtersRef}>
+    <div className="relative shrink-0" ref={filtersRef}>
       <button
         type="button"
         onClick={() => setFiltersOpen((v) => !v)}
@@ -654,7 +649,6 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
 
   return (
       <div className="min-w-0 flex-1">
-        {headerSlot && createPortal(filtersNode, headerSlot)}
         {mobileSheet}
         {/* Header */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -765,6 +759,7 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
           )}
 
           <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+            {filtersNode}
             {canGroup && !selectMode && (
               <div className="flex shrink-0 overflow-hidden rounded-lg border border-ink-700 text-xs">
                 <button
