@@ -156,7 +156,7 @@ function useHideOnScroll() {
   return hidden
 }
 
-function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
+function TopBar({ onMenu, hidden, sticky }: { onMenu: () => void; hidden: boolean; sticky?: boolean }) {
   const [params, setParams] = useSearchParams()
   const location = useLocation()
   const { t } = useI18n()
@@ -198,7 +198,9 @@ function TopBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
     // lives on an absolute child instead, leaving the fixed element itself
     // transparent so content scrolls edge-to-edge into the top safe area.
     <header
-      className={`fixed inset-x-0 top-0 z-30 transition-transform duration-200 lg:left-64 ${
+      className={`${
+        sticky ? 'sticky' : 'fixed inset-x-0 lg:left-64'
+      } top-0 z-30 transition-transform duration-200 ${
         hidden ? '-translate-y-full' : 'translate-y-0'
       } ${searchable ? '' : 'lg:hidden'}`}
     >
@@ -320,6 +322,7 @@ export function Layout() {
   const expNoCover = exp.has('nocover')
   const expClearBg = exp.has('clearbg')
   const expVisibleOflow = exp.has('visibleoflow')
+  const expSticky = exp.has('sticky')
 
   useEffect(() => {
     if (!expNoCover) return
@@ -392,14 +395,18 @@ export function Layout() {
       )}
 
       <div className="min-w-0 lg:pl-64">
-        {!expNoHeader && <TopBar onMenu={() => setMobileOpen(true)} hidden={headerHidden} />}
+        {!expNoHeader && (
+          <TopBar onMenu={() => setMobileOpen(true)} hidden={headerHidden} sticky={expSticky} />
+        )}
         <main className={expVisibleOflow ? '' : 'overflow-x-clip'}>
           <div
             className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8"
             style={{
               paddingTop: expNoHeader
                 ? 'env(safe-area-inset-top)'
-                : `calc(${headerH}px + 1.5rem)`,
+                : expSticky
+                  ? '1.5rem'
+                  : `calc(${headerH}px + 1.5rem)`,
               paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
             }}
           >
