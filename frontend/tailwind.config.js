@@ -74,10 +74,15 @@ export default {
           from: { opacity: '0', transform: 'translateY(4px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
+        'slide-down': {
+          from: { transform: 'translateY(-100%)' },
+          to: { transform: 'translateY(0)' },
+        },
       },
       animation: {
         shimmer: 'shimmer 1.6s infinite',
         'fade-in': 'fade-in 0.2s ease-out',
+        'slide-down': 'slide-down 0.2s ease-out',
       },
     },
   },

@@ -156,7 +156,7 @@ function useHideOnScroll() {
   return hidden
 }
 
-function TopBar({ onMenu, hidden, sticky }: { onMenu: () => void; hidden: boolean; sticky?: boolean }) {
+function TopBar({ onMenu }: { onMenu: () => void }) {
   const [params, setParams] = useSearchParams()
   const location = useLocation()
   const { t } = useI18n()
@@ -190,19 +190,17 @@ function TopBar({ onMenu, hidden, sticky }: { onMenu: () => void; hidden: boolea
   }
 
   return (
-    // The <header> itself is kept TRANSPARENT with no backdrop-filter. Safari 26
-    // ("Liquid Glass") samples background-color/backdrop-filter from fixed/sticky
-    // elements near the top edge to tint the status-bar chrome — a fixed bar with
-    // a background paints an opaque band there and stops page content from
-    // bleeding under the translucent status bar. So the glass (bg + blur + border)
-    // lives on an absolute child instead, leaving the fixed element itself
-    // transparent so content scrolls edge-to-edge into the top safe area.
+    // On iOS, any element pinned to the top edge (position:fixed OR sticky, even
+    // translated off-screen) stops page content from scrolling up under the
+    // status bar. So this header is fully UNMOUNTED while hidden (see Layout) —
+    // it only exists when shown — and slides in via animate-slide-down instead of
+    // a translate transition. The glass (bg + blur + border) sits on an absolute
+    // child so Safari 26's "Liquid Glass" chrome doesn't sample a fixed element's
+    // own background and tint the status bar with an opaque band.
     <header
-      className={`${
-        sticky ? 'sticky' : 'fixed inset-x-0 lg:left-64'
-      } top-0 z-30 transition-transform duration-200 ${
-        hidden ? '-translate-y-full' : 'translate-y-0'
-      } ${searchable ? '' : 'lg:hidden'}`}
+      className={`fixed inset-x-0 top-0 z-30 animate-slide-down lg:left-64 ${
+        searchable ? '' : 'lg:hidden'
+      }`}
     >
       <div className="pointer-events-none absolute inset-0 border-b border-ink-800 bg-ink-950/80 backdrop-blur-md" />
       <div
@@ -240,117 +238,16 @@ function TopBar({ onMenu, hidden, sticky }: { onMenu: () => void; hidden: boolea
   )
 }
 
-// SafeAreaDebug renders a tiny on-screen readout of the actual env(safe-area-*)
-// values, viewport heights and scroll state — but ONLY when the URL carries a
-// `?debug` param, so it stays invisible to normal users. Temporary diagnostic to
-// see real iPhone numbers (headless Chromium always reports insets as 0).
-function SafeAreaDebug() {
-  const [info, setInfo] = useState<string | null>(null)
-  useEffect(() => {
-    if (!new URLSearchParams(window.location.search).has('debug')) return
-    const probe = document.createElement('div')
-    probe.style.cssText =
-      'position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-top);visibility:hidden;pointer-events:none;'
-    document.body.appendChild(probe)
-    const bottomProbe = document.createElement('div')
-    bottomProbe.style.cssText =
-      'position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none;'
-    document.body.appendChild(bottomProbe)
-    const read = () => {
-      const top = getComputedStyle(probe).height
-      const bottom = getComputedStyle(bottomProbe).height
-      const vv = window.visualViewport
-      const flags =
-        window.location.search.replace(/^\?/, '').replace(/&/g, ' ') || '(none)'
-      setInfo(
-        `top=${top} bottom=${bottom} scrollY=${Math.round(window.scrollY)} ` +
-          `innerH=${window.innerHeight} vvH=${vv ? Math.round(vv.height) : '-'} ` +
-          `docH=${document.documentElement.scrollHeight} | exp: ${flags}`,
-      )
-    }
-    read()
-    window.addEventListener('scroll', read, { passive: true })
-    window.addEventListener('resize', read)
-    window.visualViewport?.addEventListener('resize', read)
-    window.visualViewport?.addEventListener('scroll', read)
-    return () => {
-      window.removeEventListener('scroll', read)
-      window.removeEventListener('resize', read)
-      window.visualViewport?.removeEventListener('resize', read)
-      window.visualViewport?.removeEventListener('scroll', read)
-      probe.remove()
-      bottomProbe.remove()
-    }
-  }, [])
-  if (info == null) return null
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 'calc(4px + env(safe-area-inset-bottom))',
-        left: 4,
-        right: 4,
-        zIndex: 9999,
-        background: 'rgba(220,0,0,0.9)',
-        color: '#fff',
-        font: '11px/1.35 ui-monospace,monospace',
-        padding: '5px 7px',
-        borderRadius: 6,
-        pointerEvents: 'none',
-        wordBreak: 'break-all',
-      }}
-    >
-      {info}
-    </div>
-  )
-}
-
 export function Layout() {
   const { t } = useI18n()
   const [mobileOpen, setMobileOpen] = useState(false)
   const headerHidden = useHideOnScroll()
   const location = useLocation()
 
-  // TEMPORARY experiment toggles (URL params) for the iOS status-bar band
-  // investigation — each isolates one hypothesis so it can be flipped on-device:
-  //   ?noheader    — don't render the fixed header, zero the top padding
-  //   ?nocover     — strip viewport-fit=cover from the viewport meta at runtime
-  //   ?clearbg     — make html/body background transparent
-  //   ?visibleoflow— main uses overflow:visible instead of overflow-x-clip
-  const exp = new URLSearchParams(location.search)
-  const expNoHeader = exp.has('noheader')
-  const expNoCover = exp.has('nocover')
-  const expClearBg = exp.has('clearbg')
-  const expVisibleOflow = exp.has('visibleoflow')
-  const expSticky = exp.has('sticky')
-  const expUnmount = exp.has('unmount')
-
-  useEffect(() => {
-    if (!expNoCover) return
-    const m = document.querySelector('meta[name="viewport"]')
-    const prev = m?.getAttribute('content') ?? ''
-    m?.setAttribute('content', 'width=device-width, initial-scale=1.0')
-    return () => {
-      if (m) m.setAttribute('content', prev)
-    }
-  }, [expNoCover])
-
-  useEffect(() => {
-    if (!expClearBg) return
-    const h = document.documentElement.style.background
-    const b = document.body.style.background
-    document.documentElement.style.background = 'transparent'
-    document.body.style.background = 'transparent'
-    return () => {
-      document.documentElement.style.background = h
-      document.body.style.background = b
-    }
-  }, [expClearBg])
-
-  // The header floats (fixed) so content scrolls edge-to-edge into the top safe
-  // area instead of leaving a background band under the notch when it hides.
-  // Measure its height to pad the content beneath it (varies with the search
-  // box and the safe-area inset).
+  // The header is fixed and fully unmounted while hidden (so iOS lets content
+  // bleed under the status bar). Measure its height while it exists to pad the
+  // content beneath it (varies with the search box and the safe-area inset), and
+  // KEEP the last value when it unmounts so the content offset stays stable.
   const [headerH, setHeaderH] = useState(0)
   useEffect(() => {
     const el = document.querySelector('header')
@@ -366,7 +263,6 @@ export function Layout() {
 
   return (
     <div className="min-h-full">
-      <SafeAreaDebug />
       {/* Desktop sidebar: fixed so the page scrolls natively behind it. */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-ink-800 bg-ink-900 lg:block">
         <Sidebar />
@@ -395,18 +291,12 @@ export function Layout() {
       )}
 
       <div className="min-w-0 lg:pl-64">
-        {!expNoHeader && !(expUnmount && headerHidden) && (
-          <TopBar onMenu={() => setMobileOpen(true)} hidden={headerHidden} sticky={expSticky} />
-        )}
-        <main className={expVisibleOflow ? '' : 'overflow-x-clip'}>
+        {!headerHidden && <TopBar onMenu={() => setMobileOpen(true)} />}
+        <main className="overflow-x-clip">
           <div
             className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8"
             style={{
-              paddingTop: expNoHeader
-                ? 'env(safe-area-inset-top)'
-                : expSticky
-                  ? '1.5rem'
-                  : `calc(${headerH}px + 1.5rem)`,
+              paddingTop: `calc(${headerH}px + 1.5rem)`,
               paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
             }}
           >
