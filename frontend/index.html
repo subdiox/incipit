@@ -3,6 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Standalone (Add to Home Screen) web app. black-translucent makes the iOS
+         status bar transparent so page content renders *under* it — combined with
+         viewport-fit=cover and the header's env(safe-area-inset-top) padding, the
+         library scrolls edge-to-edge into the top safe area. (In a plain Safari
+         tab iOS reserves the status bar, so this only takes effect once the site
+         is launched from the Home Screen.) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Incipit" />
     <title>Incipit</title>
     <script>
       // Apply the saved/system theme before paint to avoid a flash.
