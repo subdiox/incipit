@@ -34,7 +34,6 @@ import {
 } from '@/components/icons'
 
 const DEFAULT_PAGE_SIZE = 36
-const PAGE_SIZE_OPTIONS = [25, 50, 100]
 
 // Label for every sort field (a collection may pin ones the user menu doesn't
 // offer, e.g. title/author/series), used by the locked-sort indicator.
@@ -184,21 +183,16 @@ function FacetFilter({
 }
 
 export function LibraryPage({ collection }: { collection?: Collection } = {}) {
-  const { user, setUser } = useAuth()
+  const { user } = useAuth()
   const { t } = useI18n()
   const [params, setParams] = useSearchParams()
   const [uploadOpen, setUploadOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const canEdit = !!user?.canEdit
-  // Series-grouped browse: one tile per series. Persisted PER ACCOUNT (shared
-  // across pages), default on. Only applies while browsing (no search/facet
-  // filter) and not selecting.
+  // Series-grouped browse: one tile per series. A PER-ACCOUNT preference
+  // (default on), set in Account settings. Only applies while browsing (no
+  // search/facet filter) and not selecting.
   const groupMode = user?.groupSeries ?? true
-  const setGroup = (v: boolean) => {
-    if (!user || v === (user.groupSeries ?? true)) return
-    setUser({ ...user, groupSeries: v }) // optimistic
-    api.setGroupSeries(v).then(setUser).catch(() => setUser(user))
-  }
   // Multi-select: a select mode toggle, the chosen books (kept as full Book
   // objects so the bulk/compare modals don't need to refetch), and the three
   // bulk actions. Selection is scoped to the current view and cleared when the
@@ -270,12 +264,18 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   const lockedSort: SortKey | null =
     collection?.sort && sortAvailable(collection.sort as SortKey) ? (collection.sort as SortKey) : null
   const lockedOrder: SortOrder = (collection?.sortOrder as SortOrder) || 'desc'
-  // The viewer's saved preference (what the sort control shows), coerced to an
-  // available field so a since-disabled feature can't leave the list stuck on a
-  // hidden sort.
-  const savedSort: SortKey = (user?.sort as SortKey) ?? 'timestamp'
-  const userSort: SortKey = sortAvailable(savedSort) ? savedSort : 'timestamp'
-  const userOrder: SortOrder = (user?.sortOrder as SortOrder) ?? 'desc'
+  // The DEFAULT sort/order comes from the account setting; a per-screen override
+  // lives in the URL (?sort/?order). So opening a page fresh uses the account
+  // default, and changing the sort here only affects the current view — it is
+  // NOT persisted. Coerced to an available field so a since-disabled feature
+  // can't leave the list stuck on a hidden sort.
+  const defaultSort: SortKey = (user?.sort as SortKey) ?? 'timestamp'
+  const defaultOrder: SortOrder = (user?.sortOrder as SortOrder) ?? 'desc'
+  const urlSort = params.get('sort') as SortKey | null
+  const urlOrder = params.get('order')
+  const rawSort: SortKey = urlSort ?? defaultSort
+  const userSort: SortKey = sortAvailable(rawSort) ? rawSort : 'timestamp'
+  const userOrder: SortOrder = urlOrder === 'asc' || urlOrder === 'desc' ? urlOrder : defaultOrder
   // Effective sort for the query. Precedence: a single series (volume order) >
   // a collection's pinned sort > the viewer's own preference.
   const sortLocked = !seriesSelected && lockedSort != null
@@ -463,26 +463,12 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const currentPage = Math.floor(offset / pageSize) + 1
 
-  const changePageSize = (size: number) => {
-    if (!user || size === user.pageSize) return
-    setUser({ ...user, pageSize: size }) // optimistic
-    update((p) => p.delete('offset')) // back to page 1
-    api.setPageSize(size).then(setUser).catch(() => setUser(user))
-  }
-
-  // Sort field and direction are per-account preferences (shared across pages).
-  const changeSort = (value: SortKey) => {
-    if (!user || value === user.sort) return
-    setUser({ ...user, sort: value }) // optimistic
-    update((p) => p.delete('offset')) // back to page 1
-    api.setSort(value).then(setUser).catch(() => setUser(user))
-  }
+  // Sort is a per-screen override written to the URL (the account setting is the
+  // default). update() resets the page offset for us.
+  const changeSort = (value: SortKey) => update((p) => p.set('sort', value))
   const changeOrder = () => {
-    if (!user) return
-    const next: SortOrder = order === 'desc' ? 'asc' : 'desc'
-    setUser({ ...user, sortOrder: next }) // optimistic
-    update((p) => p.delete('offset'))
-    api.setSortOrder(next).then(setUser).catch(() => setUser(user))
+    const next: SortOrder = userOrder === 'desc' ? 'asc' : 'desc'
+    update((p) => p.set('order', next))
   }
 
   const goToPage = (page: number) => {
@@ -765,40 +751,6 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
           )}
 
           <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
-            {canGroup && !selectMode && (
-              <div className="flex shrink-0 overflow-hidden rounded-lg border border-ink-700 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setGroup(true)}
-                  className={`px-2.5 py-2 transition-colors ${groupMode ? 'bg-accent-500/20 text-accentSoft' : 'text-slate-400 hover:bg-ink-800'}`}
-                  title={t('library.viewSeries')}
-                >
-                  {t('library.viewSeries')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGroup(false)}
-                  className={`border-l border-ink-700 px-2.5 py-2 transition-colors ${!groupMode ? 'bg-accent-500/20 text-accentSoft' : 'text-slate-400 hover:bg-ink-800'}`}
-                  title={t('library.viewVolumes')}
-                >
-                  {t('library.viewVolumes')}
-                </button>
-              </div>
-            )}
-            <select
-              value={pageSize}
-              onChange={(e) => changePageSize(Number(e.target.value))}
-              className="input min-w-0 flex-1 cursor-pointer py-2 pr-8 sm:w-auto sm:flex-none"
-              title={t('library.perPage')}
-              aria-label={t('library.perPage')}
-            >
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {t('library.perPageOption', { count: n })}
-                </option>
-              ))}
-            </select>
-
             {sortLocked ? (
               // Collection with a pinned sort: the order is fixed, so show it as a
               // read-only badge instead of the interactive control.
