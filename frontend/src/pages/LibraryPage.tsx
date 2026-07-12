@@ -12,6 +12,7 @@ import { BookCard, BookCardSkeleton, BookGrid, LibrarySeriesCard } from '@/compo
 import { AsyncFacet } from '@/components/AsyncFacet'
 import { useFacetNames } from '@/lib/facets'
 import { ContinueReadingShelf } from '@/components/ReadingShelf'
+import { useFilterSlot } from '@/components/Layout'
 import { UploadModal } from '@/components/UploadModal'
 import { BulkEditModal } from '@/components/BulkEditModal'
 import { MetaCompareModal } from '@/components/MetaCompareModal'
@@ -221,6 +222,11 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
     setSelectMode(false)
     clearSelection()
   }
+  // The Filters control is rendered into the header (right of search) via a
+  // portal. The header unmounts while hidden on scroll, so the slot element is
+  // published through context and re-read here — the portal re-targets when the
+  // header remounts (and simply isn't shown while the header is hidden).
+  const filterSlot = useFilterSlot()
   // On phones the filter dropdown is cramped, so switch its facets to a
   // search-first UI (list hidden until you type).
   const [isMobile, setIsMobile] = useState(
@@ -573,10 +579,9 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
     </div>
   )
 
-  // Filters button + dropdown, shown in the controls row (it can't live in the
-  // header: the header unmounts while hidden on scroll, which would detach it).
+  // Filters button + dropdown, portaled into the header slot (right of search).
   const filtersNode = (
-    <div className="relative shrink-0" ref={filtersRef}>
+    <div className="relative" ref={filtersRef}>
       <button
         type="button"
         onClick={() => setFiltersOpen((v) => !v)}
@@ -649,6 +654,7 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
 
   return (
       <div className="min-w-0 flex-1">
+        {filterSlot && createPortal(filtersNode, filterSlot)}
         {mobileSheet}
         {/* Header */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -759,7 +765,6 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
           )}
 
           <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
-            {filtersNode}
             {canGroup && !selectMode && (
               <div className="flex shrink-0 overflow-hidden rounded-lg border border-ink-700 text-xs">
                 <button

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -17,6 +17,16 @@ import {
   IconShelf,
   IconClose,
 } from './icons'
+
+// The header hosts a portal target for the library's Filters control (so it sits
+// next to the search bar). Because the header UNMOUNTS while hidden on scroll,
+// that DOM node comes and goes — so its element is published through context and
+// re-read by the library, which re-targets its portal whenever the header remounts.
+const FilterSlotContext = createContext<HTMLElement | null>(null)
+// eslint-disable-next-line react-refresh/only-export-components
+export function useFilterSlot() {
+  return useContext(FilterSlotContext)
+}
 
 function NavItem({
   to,
@@ -156,7 +166,13 @@ function useHideOnScroll() {
   return hidden
 }
 
-function TopBar({ onMenu }: { onMenu: () => void }) {
+function TopBar({
+  onMenu,
+  slotRef,
+}: {
+  onMenu: () => void
+  slotRef: (el: HTMLElement | null) => void
+}) {
   const [params, setParams] = useSearchParams()
   const location = useLocation()
   const { t } = useI18n()
@@ -231,6 +247,8 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
             />
           </form>
         )}
+        {/* The library mounts its Filters control here, to the right of search. */}
+        <div id="library-filter-slot" ref={slotRef} className="shrink-0" />
       </div>
     </header>
   )
@@ -241,6 +259,10 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const headerHidden = useHideOnScroll()
   const location = useLocation()
+  // Current DOM node of the header's Filters-portal target. A callback ref keeps
+  // it in sync as the header mounts/unmounts, so the library re-targets its
+  // portal instead of writing into a detached node.
+  const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null)
 
   // The header is fixed and fully unmounted while hidden (so iOS lets content
   // bleed under the status bar). Measure its height while it exists to pad the
@@ -260,6 +282,7 @@ export function Layout() {
   }, [location.pathname, headerHidden])
 
   return (
+    <FilterSlotContext.Provider value={filterSlot}>
     <div className="min-h-full">
       {/* Desktop sidebar: fixed so the page scrolls natively behind it. */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-ink-800 bg-ink-900 lg:block">
@@ -289,7 +312,7 @@ export function Layout() {
       )}
 
       <div className="min-w-0 lg:pl-64">
-        {!headerHidden && <TopBar onMenu={() => setMobileOpen(true)} />}
+        {!headerHidden && <TopBar onMenu={() => setMobileOpen(true)} slotRef={setFilterSlot} />}
         <main className="overflow-x-clip">
           <div
             className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8"
@@ -303,5 +326,6 @@ export function Layout() {
         </main>
       </div>
     </div>
+    </FilterSlotContext.Provider>
   )
 }
