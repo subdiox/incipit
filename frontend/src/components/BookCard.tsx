@@ -69,16 +69,13 @@ export function BookCard({ book, action, selectable, selected, onToggleSelect, r
               {rank}
             </div>
           )}
-          {/* text-onaccent (not text-white = theme fg, near-black in light mode)
-              keeps the favorites count white on its dark pill. When a rank badge
-              is present the favorites pill moves to the bottom-left so they don't
-              collide. */}
+          {/* Favorites pill sits bottom-left everywhere (matching the Rankings
+              view, where the top-left is taken by the rank badge) so its position
+              is consistent across the library and rankings. text-onaccent (not
+              text-white = theme fg, near-black in light mode) keeps it white on
+              its dark pill. */}
           {popularityOn && book.favorites > 0 && (
-            <div
-              className={`absolute left-1.5 z-10 flex items-center gap-0.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-onaccent backdrop-blur-sm ${
-                rank != null ? 'bottom-1.5' : 'top-1.5'
-              }`}
-            >
+            <div className="absolute bottom-1.5 left-1.5 z-10 flex items-center gap-0.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-onaccent backdrop-blur-sm">
               <span className="text-rose-400">♥</span>
               {book.favorites.toLocaleString()}
             </div>
