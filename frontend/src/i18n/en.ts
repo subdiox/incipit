@@ -21,6 +21,8 @@ export const en = {
   'nav.library': 'Library',
   'nav.shelves': 'Shelves',
   'nav.history': 'History',
+  'nav.rankings': 'Rankings',
+  'rankings.empty': 'This ranking has no books yet.',
   'nav.admin': 'Server settings',
   'nav.administrator': 'Administrator',
   'nav.member': 'Member',
@@ -431,6 +433,9 @@ export const en = {
   'server.readingActivity': 'Show reading activity',
   'server.readingActivityHelp':
     'Offers the "Recently read" and "Most viewed" sort options and shows the view count on the detail page. Turn off for a library where these orderings don\u2019t make sense.',
+  'server.rankings': 'Show rankings',
+  'server.rankingsHelp':
+    'Adds a "Rankings" section to the sidebar that surfaces externally-curated ordered lists in their exact rank order. Enable only for a library whose importer populates rankings (nothing shows when there are none).',
   'server.homeFilter': 'Home library filter',
   'server.homeFilterHelp': 'A base tag filter always applied to the home library for everyone. It only scopes what the home view shows \u2014 books stay reachable via collections, direct links and OPDS.',
   'server.homeFilterInclude': 'Show only these tags',

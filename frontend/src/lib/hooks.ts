@@ -42,6 +42,12 @@ export function useReadingActivityEnabled(): boolean {
   return data?.readingActivity !== false
 }
 
+/** Whether the ranking-lists feature is enabled for this library instance. */
+export function useRankingsEnabled(): boolean {
+  const { data } = useQuery({ queryKey: ['site'], queryFn: api.site, staleTime: 300_000 })
+  return !!data?.rankings
+}
+
 /** Debounce a rapidly-changing value. */
 export function useDebounced<T>(value: T, delay = 300): T {
   const [debounced, setDebounced] = useState(value)

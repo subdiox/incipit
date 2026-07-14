@@ -31,6 +31,7 @@ export function ServerSettings() {
   const [pageFilter, setPageFilter] = useState(false)
   const [popularity, setPopularity] = useState(false)
   const [readingActivity, setReadingActivity] = useState(true)
+  const [rankings, setRankings] = useState(false)
   const [homeTags, setHomeTags] = useState<number[]>([])
   const [homeExcludeTags, setHomeExcludeTags] = useState<number[]>([])
   const [homeMatchAny, setHomeMatchAny] = useState(false)
@@ -41,6 +42,7 @@ export function ServerSettings() {
       setPageFilter(data.pageFilter)
       setPopularity(data.popularity)
       setReadingActivity(data.readingActivity ?? true)
+      setRankings(data.rankings ?? false)
       setHomeTags(data.homeTags ?? [])
       setHomeExcludeTags(data.homeExcludeTags ?? [])
       setHomeMatchAny(data.homeMatchAny ?? false)
@@ -62,6 +64,7 @@ export function ServerSettings() {
       pageFilter === data.pageFilter &&
       popularity === data.popularity &&
       readingActivity === (data.readingActivity ?? true) &&
+      rankings === (data.rankings ?? false) &&
       homeUnchanged
     )
       return { ok: true, label }
@@ -71,6 +74,7 @@ export function ServerSettings() {
         pageFilter,
         popularity,
         readingActivity,
+        rankings,
         homeTags,
         homeExcludeTags,
         homeMatchAny,
@@ -144,6 +148,19 @@ export function ServerSettings() {
             <span>
               <span className="text-sm font-medium text-slate-200">{t('server.readingActivity')}</span>
               <span className="mt-0.5 block text-xs text-slate-500">{t('server.readingActivityHelp')}</span>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-3 border-t border-ink-700 pt-5">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-accent-500"
+              checked={rankings}
+              onChange={(e) => setRankings(e.target.checked)}
+            />
+            <span>
+              <span className="text-sm font-medium text-slate-200">{t('server.rankings')}</span>
+              <span className="mt-0.5 block text-xs text-slate-500">{t('server.rankingsHelp')}</span>
             </span>
           </label>
 

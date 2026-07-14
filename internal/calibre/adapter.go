@@ -43,6 +43,34 @@ func Open(libraryPath string, readOnly bool) (*Adapter, error) {
 			db.Close()
 			return nil, fmt.Errorf("ensure book_favorites: %w", err)
 		}
+		// Side tables for optional externally-curated ranking lists (e.g. a
+		// source's per-window popularity charts). Purely generic: `ranking_lists`
+		// is self-describing (an opaque key + a human label + tab order) and
+		// `book_rankings` holds each list's books in explicit rank order. An
+		// importer populates them; libraries that never do (leaving no rows) get
+		// no ranking UI. Kept out of the standard Calibre tables, created on every
+		// writable open so existing libraries pick them up.
+		if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS ranking_lists (
+			key        TEXT PRIMARY KEY,
+			label      TEXT NOT NULL,
+			position   INTEGER NOT NULL DEFAULT 0,
+			updated_at TEXT)`); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("ensure ranking_lists: %w", err)
+		}
+		if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS book_rankings (
+			list TEXT NOT NULL,
+			rank INTEGER NOT NULL,
+			book INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+			PRIMARY KEY (list, book))`); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("ensure book_rankings: %w", err)
+		}
+		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS book_rankings_list_rank
+			ON book_rankings(list, rank)`); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("ensure book_rankings index: %w", err)
+		}
 	}
 	return &Adapter{db: db, libraryPath: libraryPath, readOnly: readOnly}, nil
 }
@@ -274,6 +302,84 @@ func (a *Adapter) FilteredIDs(ctx context.Context, opts ListOptions) ([]int64, e
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
+}
+
+// RankingList describes one externally-curated ranking (a self-describing entry
+// from the ranking_lists side table). Count is the number of books currently in
+// the list.
+type RankingList struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
+// RankingLists returns the configured ranking lists in tab order, each with its
+// current book count. Empty (not an error) when the library has no rankings —
+// including when the side tables don't exist yet (a library no importer has ever
+// written), so ordinary read-only libraries are unaffected.
+func (a *Adapter) RankingLists(ctx context.Context) ([]RankingList, error) {
+	if !a.tableExists(ctx, "ranking_lists") {
+		return nil, nil
+	}
+	// Only surface lists that actually have books; join against book_rankings so
+	// an empty or stale list header never shows an empty tab.
+	q := `SELECT rl.key, rl.label, COUNT(br.book)
+		FROM ranking_lists rl
+		JOIN book_rankings br ON br.list = rl.key
+		GROUP BY rl.key, rl.label, rl.position
+		ORDER BY rl.position, rl.key`
+	rows, err := a.db.QueryContext(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("ranking lists: %w", err)
+	}
+	defer rows.Close()
+	var out []RankingList
+	for rows.Next() {
+		var rl RankingList
+		if err := rows.Scan(&rl.Key, &rl.Label, &rl.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, rl)
+	}
+	return out, rows.Err()
+}
+
+// RankedBookIDs returns the book IDs of one ranking list in explicit rank order.
+// Books that were deleted since the list was written are skipped by the join, so
+// the sequence compacts but stays in rank order. Empty when the list is unknown
+// or the side tables don't exist.
+func (a *Adapter) RankedBookIDs(ctx context.Context, key string) ([]int64, error) {
+	if key == "" || !a.tableExists(ctx, "book_rankings") {
+		return nil, nil
+	}
+	q := `SELECT br.book FROM book_rankings br
+		JOIN books b ON b.id = br.book
+		WHERE br.list = ?
+		ORDER BY br.rank`
+	rows, err := a.db.QueryContext(ctx, q, key)
+	if err != nil {
+		return nil, fmt.Errorf("ranked book ids: %w", err)
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// tableExists reports whether a table is present, so ranking reads degrade to
+// "no rankings" on libraries whose side tables were never created (e.g. a
+// read-only library no importer has written).
+func (a *Adapter) tableExists(ctx context.Context, name string) bool {
+	var n int
+	err := a.db.QueryRowContext(ctx,
+		"SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", name).Scan(&n)
+	return err == nil
 }
 
 // BooksByIDs hydrates the given book IDs, preserving their order and silently

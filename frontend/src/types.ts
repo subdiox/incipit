@@ -163,6 +163,15 @@ export interface Collection {
   createdAt: string
 }
 
+// One externally-curated ranking list (a self-describing entry the server reads
+// from its ranking side tables). Incipit ships no knowledge of what a list means
+// — the label comes from the data. Books show in explicit rank order.
+export interface RankingList {
+  key: string
+  label: string
+  count: number
+}
+
 export interface SetupStatus {
   needsSetup: boolean
   needsLibrary: boolean
@@ -190,6 +199,10 @@ export interface SiteConfig {
   // Reading-activity features toggle: the "recently read" / "most viewed" sort
   // options and the detail-page view count. On by default.
   readingActivity: boolean
+  // Ranking-lists feature toggle: a dedicated "Rankings" nav section surfacing
+  // externally-curated ordered lists. Off by default; shown only when enabled and
+  // the library actually has ranking lists.
+  rankings: boolean
   // Base tag filter always applied to the home ("/") library view (display scope,
   // set by an admin in server settings): books scoped to homeTags (AND) and with
   // homeExcludeTags hidden (NOT).

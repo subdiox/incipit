@@ -13,9 +13,21 @@ interface BookCardProps {
   selectable?: boolean
   selected?: boolean
   onToggleSelect?: (book: Book) => void
+  // Ranking position (1-based) shown as a badge, for the Rankings section. The
+  // top three get a medal treatment; the rest a plain numbered pill.
+  rank?: number
 }
 
-export function BookCard({ book, action, selectable, selected, onToggleSelect }: BookCardProps) {
+// medalClass styles the rank badge: gold/silver/bronze for the podium, a dark
+// pill otherwise.
+function medalClass(rank: number): string {
+  if (rank === 1) return 'bg-gradient-to-br from-amber-300 to-yellow-500 text-black ring-1 ring-amber-200/60'
+  if (rank === 2) return 'bg-gradient-to-br from-slate-200 to-slate-400 text-black ring-1 ring-white/50'
+  if (rank === 3) return 'bg-gradient-to-br from-amber-600 to-orange-800 text-white ring-1 ring-amber-400/40'
+  return 'bg-black/75 text-onaccent backdrop-blur-sm'
+}
+
+export function BookCard({ book, action, selectable, selected, onToggleSelect, rank }: BookCardProps) {
   const { t } = useI18n()
   const popularityOn = usePopularityEnabled()
   const toggle = () => onToggleSelect?.(book)
@@ -48,10 +60,25 @@ export function BookCard({ book, action, selectable, selected, onToggleSelect }:
               selectable ? (selected ? 'opacity-95' : 'opacity-80') : 'group-hover:scale-[1.03]'
             }`}
           />
+          {/* Rank badge (Rankings section). Podium places get a medal; others a
+              numbered pill. Sits top-left so it reads as the primary marker. */}
+          {rank != null && (
+            <div
+              className={`absolute left-1.5 top-1.5 z-10 flex min-w-[1.5rem] items-center justify-center rounded-md px-1.5 py-0.5 text-[13px] font-bold tabular-nums shadow-soft ${medalClass(rank)}`}
+            >
+              {rank}
+            </div>
+          )}
           {/* text-onaccent (not text-white = theme fg, near-black in light mode)
-              keeps the favorites count white on its dark pill. */}
+              keeps the favorites count white on its dark pill. When a rank badge
+              is present the favorites pill moves to the bottom-left so they don't
+              collide. */}
           {popularityOn && book.favorites > 0 && (
-            <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-0.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-onaccent backdrop-blur-sm">
+            <div
+              className={`absolute left-1.5 z-10 flex items-center gap-0.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-onaccent backdrop-blur-sm ${
+                rank != null ? 'bottom-1.5' : 'top-1.5'
+              }`}
+            >
               <span className="text-rose-400">♥</span>
               {book.favorites.toLocaleString()}
             </div>

@@ -15,6 +15,7 @@ import type {
   MetaPreview,
   PagesResponse,
   Collection,
+  RankingList,
   Progress,
   ReadingItem,
   SetupStatus,
@@ -101,6 +102,7 @@ export interface BookQuery {
   limit?: number
   offset?: number
   group?: 'series' // collapse series into one tile
+  ranking?: string // a ranking list key: books in explicit rank order (overrides sort)
 }
 
 function bookQueryString(q: BookQuery): string {
@@ -120,6 +122,7 @@ function bookQueryString(q: BookQuery): string {
   if (q.limit != null) params.set('limit', String(q.limit))
   if (q.offset != null) params.set('offset', String(q.offset))
   if (q.group) params.set('group', q.group)
+  if (q.ranking) params.set('ranking', q.ranking)
   const s = params.toString()
   return s ? `?${s}` : ''
 }
@@ -170,6 +173,7 @@ export const api = {
     pageFilter?: boolean
     popularity?: boolean
     readingActivity?: boolean
+    rankings?: boolean
     homeTags?: number[]
     homeExcludeTags?: number[]
     homeMatchAny?: boolean
@@ -265,6 +269,9 @@ export const api = {
     if (seriesId) p.set('series', String(seriesId))
     return request<{ book: number[]; series: number[] }>(`/me/shelf-membership?${p.toString()}`)
   },
+
+  // Rankings (externally-curated ordered lists; read-only)
+  rankings: () => request<RankingList[]>('/rankings'),
 
   // Collections (admin-defined saved tag filters under Library)
   collections: () => request<Collection[]>('/collections'),

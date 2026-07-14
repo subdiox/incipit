@@ -23,6 +23,8 @@ export const ja: Record<TranslationKey, string> = {
   'nav.library': 'ライブラリ',
   'nav.shelves': '本棚',
   'nav.history': '履歴',
+  'nav.rankings': 'ランキング',
+  'rankings.empty': 'このランキングにはまだ本がありません。',
   'nav.admin': 'サーバー設定',
   'nav.administrator': '管理者',
   'nav.member': 'メンバー',
@@ -432,6 +434,9 @@ export const ja: Record<TranslationKey, string> = {
   'server.readingActivity': '閲覧・読書アクティビティを表示',
   'server.readingActivityHelp':
     '「最近読まれた順」「閲覧数順」の並び替えと、詳細ページの閲覧数を表示します。これらの並び順が不要なライブラリではオフにしてください。',
+  'server.rankings': 'ランキングを表示',
+  'server.rankingsHelp':
+    'サイドバーに「ランキング」セクションを追加し、外部で集計された順位付きリストをその順序のまま表示します。取り込みツールがランキングを登録しているライブラリでのみ有効化してください（ランキングが無ければ表示されません）。',
   'server.homeFilter': 'ホームライブラリのフィルタ',
   'server.homeFilterHelp': '全ユーザーのホームライブラリに常時かかる基準タグフィルタです。ホーム画面の表示範囲を絞るだけで、本自体はコレクション・直接リンク・OPDSから引き続きアクセスできます。',
   'server.homeFilterInclude': 'これらのタグのみ表示',

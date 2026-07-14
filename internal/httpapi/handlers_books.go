@@ -54,6 +54,20 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 	// app.db data (view count, last-read) and the page-count filter (page counts
 	// live in app.db). The ID path pulls the matching IDs (already SQL-sorted for
 	// ordinary sorts), re-sorts / filters in Go, then hydrates one page.
+	// A ranking view (?ranking=<key>) is an externally-curated ordered list: its
+	// books show in explicit rank order, so it bypasses the normal sort entirely
+	// and hydrates the rank-ordered IDs directly. Gated so it can't be probed when
+	// the feature is off.
+	if key := q.Get("ranking"); key != "" && s.rankingsEnabled(r.Context()) {
+		ids, err := s.lib().RankedBookIDs(r.Context(), key)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "ranking")
+			return
+		}
+		s.writeBookPage(w, r, opts, ids)
+		return
+	}
+
 	minPages := atoi(q.Get("minPages"))
 	maxPages := atoi(q.Get("maxPages"))
 	pageFiltered := (minPages > 0 || maxPages > 0) && s.pageFilterEnabled(r.Context())

@@ -150,6 +150,10 @@ func (s *Server) Router() http.Handler {
 			// visible to everyone, mutations are admin-only (below).
 			r.Get("/collections", s.handleListCollections)
 
+			// Externally-curated ranking lists (read-only; populated by an
+			// importer). Empty unless the feature is enabled and lists exist.
+			r.Get("/rankings", s.handleListRankings)
+
 			r.Get("/shelves", s.handleListShelves)
 			r.Post("/shelves", s.handleCreateShelf)
 			r.Get("/shelves/{id}", s.handleGetShelf)

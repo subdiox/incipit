@@ -39,6 +39,18 @@ func (s *Server) readingActivityEnabled(ctx context.Context) bool {
 	return v != "false"
 }
 
+// RankingsKey toggles the ranking-lists feature for this instance: a dedicated
+// "Rankings" nav section that surfaces externally-curated ordered lists (the
+// ranking_lists / book_rankings side tables) in explicit rank order. Off by
+// default; an admin turns it on for a library whose importer populates those
+// tables. Generic — Incipit ships no knowledge of what the lists mean.
+const RankingsKey = "rankings"
+
+func (s *Server) rankingsEnabled(ctx context.Context) bool {
+	v, _ := s.store.GetSetting(ctx, RankingsKey)
+	return v == "true"
+}
+
 // HomeFilterTagsKey / HomeFilterExcludeTagsKey hold the admin-configured base tag
 // filter always applied to the home ("/") library view: a CSV of Calibre tag IDs
 // the home library is scoped to (include, AND) and one it hides (exclude, NOT).
@@ -123,6 +135,7 @@ func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
 		"pageFilter":      s.pageFilterEnabled(r.Context()),
 		"popularity":      s.popularityEnabled(r.Context()),
 		"readingActivity": s.readingActivityEnabled(r.Context()),
+		"rankings":        s.rankingsEnabled(r.Context()),
 		"homeTags":        inc,
 		"homeExcludeTags": exc,
 		"homeMatchAny":    s.homeFilterMatchAny(r.Context()),
@@ -134,6 +147,7 @@ type siteUpdateBody struct {
 	PageFilter      *bool    `json:"pageFilter"`
 	Popularity      *bool    `json:"popularity"`
 	ReadingActivity *bool    `json:"readingActivity"`
+	Rankings        *bool    `json:"rankings"`
 	HomeTags        *[]int64 `json:"homeTags"`
 	HomeExcludeTags *[]int64 `json:"homeExcludeTags"`
 	HomeMatchAny    *bool    `json:"homeMatchAny"`
@@ -192,6 +206,16 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if body.Rankings != nil {
+		val := "false"
+		if *body.Rankings {
+			val = "true"
+		}
+		if err := s.store.SetSetting(r.Context(), RankingsKey, val); err != nil {
+			writeError(w, http.StatusInternalServerError, "save rankings")
+			return
+		}
+	}
 	if body.HomeTags != nil {
 		if err := s.store.SetSetting(r.Context(), HomeFilterTagsKey, idsToCSV(*body.HomeTags)); err != nil {
 			writeError(w, http.StatusInternalServerError, "save home filter")
@@ -219,6 +243,8 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 		"title":           title,
 		"pageFilter":      s.pageFilterEnabled(r.Context()),
 		"popularity":      s.popularityEnabled(r.Context()),
+		"readingActivity": s.readingActivityEnabled(r.Context()),
+		"rankings":        s.rankingsEnabled(r.Context()),
 		"homeTags":        inc,
 		"homeExcludeTags": exc,
 		"homeMatchAny":    s.homeFilterMatchAny(r.Context()),

@@ -24,6 +24,12 @@ export const IconLibrary = (p: IconProps) => (
   </svg>
 )
 
+export const IconFlame = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M12 3c1 3 4 4.5 4 8a4 4 0 1 1-8 0c0-1.4.5-2.3 1-3 .2 1 .8 1.7 1.6 2 .1-2.3-.3-5.2 1.4-7z" />
+  </svg>
+)
+
 export const IconPlay = (p: IconProps) => (
   <svg {...base(p)} fill="currentColor" stroke="none">
     <path d="M7 4.6v14.8a1 1 0 0 0 1.53.85l11.7-7.4a1 1 0 0 0 0-1.7L8.53 3.75A1 1 0 0 0 7 4.6z" />

@@ -4,11 +4,12 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
-import { useSiteTitle } from '@/lib/hooks'
+import { useRankingsEnabled, useSiteTitle } from '@/lib/hooks'
 import {
   IconAdmin,
   IconBook,
   IconFilter,
+  IconFlame,
   IconHistory,
   IconLibrary,
   IconLogout,
@@ -69,6 +70,12 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const siteTitle = useSiteTitle()
   const navigate = useNavigate()
   const collections = useQuery({ queryKey: ['collections'], queryFn: api.collections }).data ?? []
+  // Rankings: a self-contained section (its own /rankings page with period tabs),
+  // shown only when the admin enabled the feature AND the library actually has
+  // ranking lists — so a comic instance never sees it.
+  const rankingsOn = useRankingsEnabled()
+  const rankings = useQuery({ queryKey: ['rankings'], queryFn: api.rankings, enabled: rankingsOn }).data ?? []
+  const showRankings = rankingsOn && rankings.length > 0
 
   const handleLogout = async () => {
     await logout()
@@ -102,6 +109,11 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             indent
           />
         ))}
+        {/* Rankings: its own top-level section, separate from the indented
+            collections above. Periods are tabs within the page. */}
+        {showRankings && (
+          <NavItem to="/rankings" icon={<IconFlame width={18} height={18} />} label={t('nav.rankings')} onClick={onNavigate} />
+        )}
         <NavItem to="/shelves" icon={<IconShelf width={18} height={18} />} label={t('nav.shelves')} onClick={onNavigate} />
         <NavItem to="/history" icon={<IconHistory width={18} height={18} />} label={t('nav.history')} onClick={onNavigate} />
         {user?.isAdmin && (
