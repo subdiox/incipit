@@ -44,6 +44,18 @@ func (s *Store) EnsureFavoritesShelf(ctx context.Context, userID int64) error {
 	return err
 }
 
+// FavoritesShelfID returns the id of the user's built-in Favorites shelf, or
+// ErrNotFound if it hasn't been created yet (call EnsureFavoritesShelf first).
+func (s *Store) FavoritesShelfID(ctx context.Context, userID int64) (int64, error) {
+	var id int64
+	err := s.db.QueryRowContext(ctx,
+		"SELECT id FROM shelves WHERE user_id=? AND is_default=1", userID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return id, err
+}
+
 // ListShelves returns shelves visible to a user: their own plus public ones.
 func (s *Store) ListShelves(ctx context.Context, userID int64) ([]Shelf, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT sh.id, sh.user_id, u.username, sh.name, sh.is_public, sh.is_default, sh.created_at,

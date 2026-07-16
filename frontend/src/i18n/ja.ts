@@ -11,6 +11,8 @@ export const ja: Record<TranslationKey, string> = {
   'common.delete': '削除',
   'common.create': '作成',
   'common.edit': '編集',
+  'common.on': 'オン',
+  'common.off': 'オフ',
   'common.close': '閉じる',
   'common.loading': '読み込み中…',
   'common.genericError': 'エラーが発生しました。もう一度お試しください。',
@@ -20,7 +22,7 @@ export const ja: Record<TranslationKey, string> = {
   'common.books_other': '{{count}}冊',
 
   // Navigation / app shell
-  'nav.library': 'ライブラリ',
+  'nav.library': 'ホーム',
   'nav.shelves': '本棚',
   'nav.history': '履歴',
   'nav.rankings': 'ランキング',
@@ -40,6 +42,11 @@ export const ja: Record<TranslationKey, string> = {
   // Reading history
   'history.title': '履歴',
   'history.continue': '続きを読む',
+  'home.recommended': 'あなたへのおすすめ',
+  'recommend.reason.author': '{{name}}の作品',
+  'recommend.reason.series': '「{{name}}」が好きなあなたに',
+  'recommend.reason.tag': '「{{name}}」が好きなあなたに',
+  'recommend.reason.generic': 'あなたへのおすすめ',
   'history.all': '読み終わった本',
   'history.reset': '読んだ位置をリセット',
   'history.empty': 'まだ履歴はありません。',
@@ -54,6 +61,10 @@ export const ja: Record<TranslationKey, string> = {
   'account.languageHelp': 'インターフェース全体で使用する言語を選択します。',
   'account.grouping': 'シリーズでまとめる',
   'account.groupingHelp': '閲覧時にシリーズを1つのタイルでまとめて表示するか、巻ごとに個別表示するか。',
+  'account.showRecommended': 'ホームにおすすめを表示',
+  'account.showRecommendedHelp': 'ホーム画面に「あなたへのおすすめ」を表示します。',
+  'account.showHistory': 'ホームに続きを読むを表示',
+  'account.showHistoryHelp': 'ホーム画面に「続きを読む」を表示します。',
   'account.defaultSort': 'デフォルトの表示順',
   'account.defaultSortHelp': 'ページを開いたときの初期の並び順です。各ページで並び替えは変更できますが、その画面だけに反映されます。',
   'account.pageSize': '1ページの表示件数',
@@ -84,7 +95,7 @@ export const ja: Record<TranslationKey, string> = {
   'login.libraryPathRequired': 'ライブラリのパスを入力してください。',
 
   // Library
-  'library.title': 'ライブラリ',
+  'library.title': 'ホーム',
   'library.sort.recentlyAdded': '更新順',
   'library.sort.title': 'タイトル',
   'library.sort.author': '著者',
@@ -437,6 +448,9 @@ export const ja: Record<TranslationKey, string> = {
   'server.rankings': 'ランキングを表示',
   'server.rankingsHelp':
     'サイドバーに「ランキング」セクションを追加し、外部で集計された順位付きリストをその順序のまま表示します。取り込みツールがランキングを登録しているライブラリでのみ有効化してください（ランキングが無ければ表示されません）。',
+  'server.recommendations': 'おすすめを表示',
+  'server.recommendationsHelp':
+    'ホーム画面に、各ユーザー自身のお気に入りと読書履歴から生成する「あなたへのおすすめ」を追加します（1時間ごとに更新）。ユーザーはアカウント設定で非表示にできます。',
   'server.homeFilter': 'ホームライブラリのフィルタ',
   'server.homeFilterHelp': '全ユーザーのホームライブラリに常時かかる基準タグフィルタです。ホーム画面の表示範囲を絞るだけで、本自体はコレクション・直接リンク・OPDSから引き続きアクセスできます。',
   'server.homeFilterInclude': 'これらのタグのみ表示',

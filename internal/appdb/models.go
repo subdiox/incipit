@@ -27,6 +27,8 @@ type User struct {
 	Sort         string     `json:"sort"`      // library sort field (shared across pages)
 	SortOrder    string     `json:"sortOrder"` // "asc" | "desc"
 	GroupSeries  bool       `json:"groupSeries"` // group volumes into series tiles
+	ShowRecommended bool    `json:"showRecommended"` // show the home "Recommended for you" shelf
+	ShowHistory     bool    `json:"showHistory"`     // show the home "Continue reading" shelf
 	CreatedAt    time.Time  `json:"createdAt"`
 }
 

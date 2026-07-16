@@ -32,6 +32,7 @@ export function ServerSettings() {
   const [popularity, setPopularity] = useState(false)
   const [readingActivity, setReadingActivity] = useState(true)
   const [rankings, setRankings] = useState(false)
+  const [recommendations, setRecommendations] = useState(false)
   const [homeTags, setHomeTags] = useState<number[]>([])
   const [homeExcludeTags, setHomeExcludeTags] = useState<number[]>([])
   const [homeMatchAny, setHomeMatchAny] = useState(false)
@@ -43,6 +44,7 @@ export function ServerSettings() {
       setPopularity(data.popularity)
       setReadingActivity(data.readingActivity ?? true)
       setRankings(data.rankings ?? false)
+      setRecommendations(data.recommendations ?? false)
       setHomeTags(data.homeTags ?? [])
       setHomeExcludeTags(data.homeExcludeTags ?? [])
       setHomeMatchAny(data.homeMatchAny ?? false)
@@ -65,6 +67,7 @@ export function ServerSettings() {
       popularity === data.popularity &&
       readingActivity === (data.readingActivity ?? true) &&
       rankings === (data.rankings ?? false) &&
+      recommendations === (data.recommendations ?? false) &&
       homeUnchanged
     )
       return { ok: true, label }
@@ -75,6 +78,7 @@ export function ServerSettings() {
         popularity,
         readingActivity,
         rankings,
+        recommendations,
         homeTags,
         homeExcludeTags,
         homeMatchAny,
@@ -161,6 +165,19 @@ export function ServerSettings() {
             <span>
               <span className="text-sm font-medium text-slate-200">{t('server.rankings')}</span>
               <span className="mt-0.5 block text-xs text-slate-500">{t('server.rankingsHelp')}</span>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-3 border-t border-ink-700 pt-5">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-accent-500"
+              checked={recommendations}
+              onChange={(e) => setRecommendations(e.target.checked)}
+            />
+            <span>
+              <span className="text-sm font-medium text-slate-200">{t('server.recommendations')}</span>
+              <span className="mt-0.5 block text-xs text-slate-500">{t('server.recommendationsHelp')}</span>
             </span>
           </label>
 

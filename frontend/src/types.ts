@@ -11,6 +11,8 @@ export interface User {
   sort: string // library sort field (per-account, shared across pages)
   sortOrder: SortOrder // "asc" | "desc"
   groupSeries: boolean // group volumes into series tiles
+  showRecommended: boolean // show the home "Recommended for you" shelf
+  showHistory: boolean // show the home "Continue reading" shelf
   createdAt: string
   canLogin?: boolean // admin list only: false when an LDAP user is outside the login group
 }
@@ -149,6 +151,15 @@ export interface ReadingItem {
   updatedAt: string
 }
 
+// One personalized suggestion: a book plus the strongest shared trait that
+// earned it (for the "because you like …" caption). reasonKind is
+// 'author' | 'series' | 'tag'; reasonName is that feature's name (may be empty).
+export interface RecommendItem {
+  book: Book
+  reasonKind: 'author' | 'series' | 'tag' | ''
+  reasonName: string
+}
+
 export interface Collection {
   id: number
   name: string
@@ -203,6 +214,9 @@ export interface SiteConfig {
   // externally-curated ordered lists. Off by default; shown only when enabled and
   // the library actually has ranking lists.
   rankings: boolean
+  // Personalized recommendations toggle: the home "Recommended for you" shelf,
+  // backed by an hourly precomputed cache. Off by default; enabled by an admin.
+  recommendations: boolean
   // Base tag filter always applied to the home ("/") library view (display scope,
   // set by an admin in server settings): books scoped to homeTags (AND) and with
   // homeExcludeTags hidden (NOT).

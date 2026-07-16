@@ -9,6 +9,8 @@ export const en = {
   'common.delete': 'Delete',
   'common.create': 'Create',
   'common.edit': 'Edit',
+  'common.on': 'On',
+  'common.off': 'Off',
   'common.close': 'Close',
   'common.loading': 'Loading…',
   'common.genericError': 'Something went wrong. Please try again.',
@@ -18,7 +20,7 @@ export const en = {
   'common.books_other': '{{count}} books',
 
   // Navigation / app shell
-  'nav.library': 'Library',
+  'nav.library': 'Home',
   'nav.shelves': 'Shelves',
   'nav.history': 'History',
   'nav.rankings': 'Rankings',
@@ -38,6 +40,11 @@ export const en = {
   // Reading history
   'history.title': 'History',
   'history.continue': 'Continue reading',
+  'home.recommended': 'Recommended for you',
+  'recommend.reason.author': 'More from {{name}}',
+  'recommend.reason.series': 'Because you like {{name}}',
+  'recommend.reason.tag': 'Based on your taste in {{name}}',
+  'recommend.reason.generic': 'Picked for you',
   'history.all': 'Finished books',
   'history.reset': 'Reset position',
   'history.empty': 'Nothing here yet.',
@@ -52,6 +59,10 @@ export const en = {
   'account.languageHelp': 'Choose the language used across the interface.',
   'account.grouping': 'Group by series',
   'account.groupingHelp': 'Show one tile per series while browsing, or every volume individually.',
+  'account.showRecommended': 'Recommended on home',
+  'account.showRecommendedHelp': 'Show the "Recommended for you" shelf on the home page.',
+  'account.showHistory': 'Continue reading on home',
+  'account.showHistoryHelp': 'Show the "Continue reading" shelf on the home page.',
   'account.defaultSort': 'Default sort',
   'account.defaultSortHelp': 'The order pages open with. You can still change the sort on any page — it only affects that view.',
   'account.pageSize': 'Items per page',
@@ -82,7 +93,7 @@ export const en = {
   'login.libraryPathRequired': 'Library path is required.',
 
   // Library
-  'library.title': 'Library',
+  'library.title': 'Home',
   'library.sort.recentlyAdded': 'Recently updated',
   'library.sort.title': 'Title',
   'library.sort.author': 'Author',
@@ -436,6 +447,9 @@ export const en = {
   'server.rankings': 'Show rankings',
   'server.rankingsHelp':
     'Adds a "Rankings" section to the sidebar that surfaces externally-curated ordered lists in their exact rank order. Enable only for a library whose importer populates rankings (nothing shows when there are none).',
+  'server.recommendations': 'Show recommendations',
+  'server.recommendationsHelp':
+    'Adds a personalized "Recommended for you" shelf to the home page, built from each user’s own favorites and reading history and refreshed hourly. Users can hide it in their account settings.',
   'server.homeFilter': 'Home library filter',
   'server.homeFilterHelp': 'A base tag filter always applied to the home library for everyone. It only scopes what the home view shows \u2014 books stay reachable via collections, direct links and OPDS.',
   'server.homeFilterInclude': 'Show only these tags',

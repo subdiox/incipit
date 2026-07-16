@@ -169,11 +169,13 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 
 // updateMeBody holds the self-service account fields a user may change.
 type updateMeBody struct {
-	Language    *string `json:"language"`
-	PageSize    *int    `json:"pageSize"`
-	Sort        *string `json:"sort"`
-	SortOrder   *string `json:"sortOrder"`
-	GroupSeries *bool   `json:"groupSeries"`
+	Language        *string `json:"language"`
+	PageSize        *int    `json:"pageSize"`
+	Sort            *string `json:"sort"`
+	SortOrder       *string `json:"sortOrder"`
+	GroupSeries     *bool   `json:"groupSeries"`
+	ShowRecommended *bool   `json:"showRecommended"`
+	ShowHistory     *bool   `json:"showHistory"`
 }
 
 // validSorts are the library sort fields a user may persist.
@@ -242,6 +244,18 @@ func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 	if body.GroupSeries != nil {
 		if err := s.store.SetUserGroupSeries(r.Context(), cur.ID, *body.GroupSeries); err != nil {
 			writeError(w, http.StatusInternalServerError, "update group series")
+			return
+		}
+	}
+	if body.ShowRecommended != nil {
+		if err := s.store.SetUserShowRecommended(r.Context(), cur.ID, *body.ShowRecommended); err != nil {
+			writeError(w, http.StatusInternalServerError, "update show recommended")
+			return
+		}
+	}
+	if body.ShowHistory != nil {
+		if err := s.store.SetUserShowHistory(r.Context(), cur.ID, *body.ShowHistory); err != nil {
+			writeError(w, http.StatusInternalServerError, "update show history")
 			return
 		}
 	}

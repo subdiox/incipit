@@ -51,6 +51,16 @@ func (s *Server) rankingsEnabled(ctx context.Context) bool {
 	return v == "true"
 }
 
+// RecommendationsKey toggles the personalized recommendations feature: the home
+// "Recommended for you" shelf and the /api/me/recommendations endpoint, backed by
+// an hourly precomputed cache. Off by default; an admin enables it.
+const RecommendationsKey = "recommendations"
+
+func (s *Server) recommendationsEnabled(ctx context.Context) bool {
+	v, _ := s.store.GetSetting(ctx, RecommendationsKey)
+	return v == "true"
+}
+
 // HomeFilterTagsKey / HomeFilterExcludeTagsKey hold the admin-configured base tag
 // filter always applied to the home ("/") library view: a CSV of Calibre tag IDs
 // the home library is scoped to (include, AND) and one it hides (exclude, NOT).
@@ -136,6 +146,7 @@ func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
 		"popularity":      s.popularityEnabled(r.Context()),
 		"readingActivity": s.readingActivityEnabled(r.Context()),
 		"rankings":        s.rankingsEnabled(r.Context()),
+		"recommendations": s.recommendationsEnabled(r.Context()),
 		"homeTags":        inc,
 		"homeExcludeTags": exc,
 		"homeMatchAny":    s.homeFilterMatchAny(r.Context()),
@@ -148,6 +159,7 @@ type siteUpdateBody struct {
 	Popularity      *bool    `json:"popularity"`
 	ReadingActivity *bool    `json:"readingActivity"`
 	Rankings        *bool    `json:"rankings"`
+	Recommendations *bool    `json:"recommendations"`
 	HomeTags        *[]int64 `json:"homeTags"`
 	HomeExcludeTags *[]int64 `json:"homeExcludeTags"`
 	HomeMatchAny    *bool    `json:"homeMatchAny"`
@@ -216,6 +228,19 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if body.Recommendations != nil {
+		val := "false"
+		if *body.Recommendations {
+			val = "true"
+		}
+		if err := s.store.SetSetting(r.Context(), RecommendationsKey, val); err != nil {
+			writeError(w, http.StatusInternalServerError, "save recommendations")
+			return
+		}
+		if *body.Recommendations {
+			go s.refreshAllRecommendations(context.Background()) // warm the cache now
+		}
+	}
 	if body.HomeTags != nil {
 		if err := s.store.SetSetting(r.Context(), HomeFilterTagsKey, idsToCSV(*body.HomeTags)); err != nil {
 			writeError(w, http.StatusInternalServerError, "save home filter")
@@ -245,6 +270,7 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 		"popularity":      s.popularityEnabled(r.Context()),
 		"readingActivity": s.readingActivityEnabled(r.Context()),
 		"rankings":        s.rankingsEnabled(r.Context()),
+		"recommendations": s.recommendationsEnabled(r.Context()),
 		"homeTags":        inc,
 		"homeExcludeTags": exc,
 		"homeMatchAny":    s.homeFilterMatchAny(r.Context()),

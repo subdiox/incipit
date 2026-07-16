@@ -11,7 +11,7 @@ import type { Collection, Facet, SortKey, SortOrder } from '@/types'
 import { BookCard, BookCardSkeleton, BookGrid, LibrarySeriesCard } from '@/components/BookCard'
 import { AsyncFacet } from '@/components/AsyncFacet'
 import { useFacetNames } from '@/lib/facets'
-import { ContinueReadingShelf } from '@/components/ReadingShelf'
+import { ContinueReadingShelf, RecommendedShelf } from '@/components/ReadingShelf'
 import { useFilterSlot } from '@/components/Layout'
 import { UploadModal } from '@/components/UploadModal'
 import { BulkEditModal } from '@/components/BulkEditModal'
@@ -715,8 +715,14 @@ export function LibraryPage({ collection }: { collection?: Collection } = {}) {
           </div>
         </div>
 
-        {/* Continue reading: only on the library home, fresh & unfiltered. */}
-        {!collection && !hasFilters && offset === 0 && <ContinueReadingShelf />}
+        {/* Continue reading + personalized picks: only on the library home,
+            fresh & unfiltered. Each hides itself when the user has no activity. */}
+        {!collection && !hasFilters && offset === 0 && (
+          <>
+            <ContinueReadingShelf />
+            <RecommendedShelf />
+          </>
+        )}
 
         {/* Controls: active filter chips + sort (Filters button is in the header). */}
         <div className="mb-5 flex flex-wrap items-center gap-2">

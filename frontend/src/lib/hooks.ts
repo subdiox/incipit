@@ -48,6 +48,12 @@ export function useRankingsEnabled(): boolean {
   return !!data?.rankings
 }
 
+/** Whether the personalized recommendations feature is enabled for this instance. */
+export function useRecommendationsEnabled(): boolean {
+  const { data } = useQuery({ queryKey: ['site'], queryFn: api.site, staleTime: 300_000 })
+  return !!data?.recommendations
+}
+
 /** Debounce a rapidly-changing value. */
 export function useDebounced<T>(value: T, delay = 300): T {
   const [debounced, setDebounced] = useState(value)

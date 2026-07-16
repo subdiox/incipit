@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -34,9 +35,11 @@ type Server struct {
 	meta       *metadata.Client
 	previews   *previewStore
 	facets     *facetCache
-	indexing   atomic.Bool  // guards the background page-count indexer
-	indexDone  atomic.Int64 // books processed in the current/last index run
-	indexTotal atomic.Int64 // books to process in the current/last index run
+	indexing    atomic.Bool  // guards the background page-count indexer
+	indexDone   atomic.Int64 // books processed in the current/last index run
+	indexTotal  atomic.Int64 // books to process in the current/last index run
+	recomputing atomic.Bool  // guards the hourly recommendation-cache sweep
+	recInFlight sync.Map     // userID → struct{}: single-user rec computes in flight
 }
 
 // New constructs a Server. lib may be nil when the library has not been
@@ -62,8 +65,9 @@ func New(cfg *config.Config, lib *calibre.Adapter, store *appdb.Store, authSvc *
 	if lib != nil {
 		s.libPtr.Store(lib)
 	}
-	s.startPageIndex() // resume page-count indexing if the filter is enabled
-	s.warmFacets()     // precompute the default author/tag lists in the background
+	s.startPageIndex()            // resume page-count indexing if the filter is enabled
+	s.warmFacets()                // precompute the default author/tag lists in the background
+	s.startRecommendationCron()   // warm + hourly-refresh the recommendation cache
 	return s
 }
 
@@ -137,6 +141,7 @@ func (s *Server) Router() http.Handler {
 
 			// Reading history (per-user).
 			r.Get("/me/reading", s.handleMyReading)
+			r.Get("/me/recommendations", s.handleRecommended)
 			r.Get("/me/shelf-membership", s.handleShelfMembership)
 
 			r.Get("/authors", s.handleAuthors)

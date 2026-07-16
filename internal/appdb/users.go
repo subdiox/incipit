@@ -36,13 +36,13 @@ func (s *Store) CreateUser(ctx context.Context, u User) (*User, error) {
 	return &u, nil
 }
 
-const userCols = `id, username, password_hash, is_admin, source, can_download, can_upload, can_edit, language, page_size, sort, sort_order, group_series, created_at`
+const userCols = `id, username, password_hash, is_admin, source, can_download, can_upload, can_edit, language, page_size, sort, sort_order, group_series, show_recommended, show_history, created_at`
 
 func scanUser(sc interface{ Scan(...any) error }) (*User, error) {
 	var u User
 	var src, lang, sortField, sortOrder, created string
-	var admin, dl, up, ed, groupSeries int
-	if err := sc.Scan(&u.ID, &u.Username, &u.PasswordHash, &admin, &src, &dl, &up, &ed, &lang, &u.PageSize, &sortField, &sortOrder, &groupSeries, &created); err != nil {
+	var admin, dl, up, ed, groupSeries, showRec, showHist int
+	if err := sc.Scan(&u.ID, &u.Username, &u.PasswordHash, &admin, &src, &dl, &up, &ed, &lang, &u.PageSize, &sortField, &sortOrder, &groupSeries, &showRec, &showHist, &created); err != nil {
 		return nil, err
 	}
 	u.IsAdmin = admin != 0
@@ -54,6 +54,8 @@ func scanUser(sc interface{ Scan(...any) error }) (*User, error) {
 	u.Sort = sortField
 	u.SortOrder = sortOrder
 	u.GroupSeries = groupSeries != 0
+	u.ShowRecommended = showRec != 0
+	u.ShowHistory = showHist != 0
 	u.CreatedAt, _ = time.Parse(timeLayout, created)
 	return &u, nil
 }
@@ -96,6 +98,26 @@ func (s *Store) SetUserGroupSeries(ctx context.Context, id int64, on bool) error
 		v = 1
 	}
 	_, err := s.db.ExecContext(ctx, "UPDATE users SET group_series=? WHERE id=?", v, id)
+	return err
+}
+
+// SetUserShowRecommended toggles the home "Recommended for you" shelf for a user.
+func (s *Store) SetUserShowRecommended(ctx context.Context, id int64, on bool) error {
+	v := 0
+	if on {
+		v = 1
+	}
+	_, err := s.db.ExecContext(ctx, "UPDATE users SET show_recommended=? WHERE id=?", v, id)
+	return err
+}
+
+// SetUserShowHistory toggles the home "Continue reading" shelf for a user.
+func (s *Store) SetUserShowHistory(ctx context.Context, id int64, on bool) error {
+	v := 0
+	if on {
+		v = 1
+	}
+	_, err := s.db.ExecContext(ctx, "UPDATE users SET show_history=? WHERE id=?", v, id)
 	return err
 }
 

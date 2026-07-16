@@ -18,6 +18,7 @@ import type {
   RankingList,
   Progress,
   ReadingItem,
+  RecommendItem,
   SetupStatus,
   Shelf,
   ShelfContents,
@@ -174,6 +175,7 @@ export const api = {
     popularity?: boolean
     readingActivity?: boolean
     rankings?: boolean
+    recommendations?: boolean
     homeTags?: number[]
     homeExcludeTags?: number[]
     homeMatchAny?: boolean
@@ -200,6 +202,10 @@ export const api = {
     request<User>('/auth/me', { method: 'PUT', ...jsonBody({ sortOrder }) }),
   setGroupSeries: (groupSeries: boolean) =>
     request<User>('/auth/me', { method: 'PUT', ...jsonBody({ groupSeries }) }),
+  setShowRecommended: (showRecommended: boolean) =>
+    request<User>('/auth/me', { method: 'PUT', ...jsonBody({ showRecommended }) }),
+  setShowHistory: (showHistory: boolean) =>
+    request<User>('/auth/me', { method: 'PUT', ...jsonBody({ showHistory }) }),
 
   // Metadata
   metadataGenres: () => request<MetadataGenre[]>('/metadata/genres'),
@@ -230,6 +236,10 @@ export const api = {
     const s = status === 'continue' ? 'in-progress' : status
     return request<ReadingItem[]>(`/me/reading?status=${s}${limit ? `&limit=${limit}` : ''}`)
   },
+  // Personalized suggestions from the user's own favorites + reading history.
+  // Empty when the user has no activity yet (the UI then hides the section).
+  recommendations: (limit?: number) =>
+    request<RecommendItem[]>(`/me/recommendations${limit ? `?limit=${limit}` : ''}`),
   bookViews: (id: number) => request<{ views: number }>(`/books/${id}/views`),
   recordView: (id: number) => request<{ views: number }>(`/books/${id}/views`, { method: 'POST' }),
 

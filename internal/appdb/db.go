@@ -132,6 +132,23 @@ var migrations = []string{
 	// viewer's own global sort preference (the previous behaviour).
 	`ALTER TABLE collections ADD COLUMN sort TEXT NOT NULL DEFAULT '';`,
 	`ALTER TABLE collections ADD COLUMN sort_order TEXT NOT NULL DEFAULT '';`,
+	// Per-account home-page toggles: whether to show the "Recommended for you" and
+	// "Continue reading" shelves on the home landing. Both on by default.
+	`ALTER TABLE users ADD COLUMN show_recommended INTEGER NOT NULL DEFAULT 1;`,
+	`ALTER TABLE users ADD COLUMN show_history INTEGER NOT NULL DEFAULT 1;`,
+	// Precomputed per-user recommendations, refreshed hourly by a background job
+	// so the endpoint serves instantly instead of scoring the whole library on
+	// each request. rank is the 0-based display order; reason_* is the resolved
+	// "because you like …" trait.
+	`CREATE TABLE rec_cache (
+		user_id     INTEGER NOT NULL,
+		rank        INTEGER NOT NULL,
+		book_id     INTEGER NOT NULL,
+		score       REAL NOT NULL DEFAULT 0,
+		reason_kind TEXT NOT NULL DEFAULT '',
+		reason_name TEXT NOT NULL DEFAULT '',
+		PRIMARY KEY (user_id, rank)
+	);`,
 }
 
 // Open opens (creating if needed) the app database at path and runs migrations.

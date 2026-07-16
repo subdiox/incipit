@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { useI18n } from '@/i18n'
 import type { TranslationKey } from '@/i18n/en'
 import { useTheme, THEME_OPTIONS } from '@/lib/theme'
-import { usePopularityEnabled, useReadingActivityEnabled } from '@/lib/hooks'
+import { usePopularityEnabled, useReadingActivityEnabled, useRecommendationsEnabled } from '@/lib/hooks'
 import type { SortKey, SortOrder } from '@/types'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { IconChevronLeft } from '@/components/icons'
@@ -94,6 +94,68 @@ function GroupingSwitcher() {
   )
 }
 
+// On/off switch for a home-page shelf (Recommended / Continue reading).
+function OnOffSwitch({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: boolean
+  onChange: (v: boolean) => void
+  ariaLabel: string
+}) {
+  const { t } = useI18n()
+  return (
+    <div
+      className="inline-flex rounded-lg border border-ink-700 bg-ink-800 p-0.5"
+      role="group"
+      aria-label={ariaLabel}
+    >
+      {[
+        { v: true, label: t('common.on') },
+        { v: false, label: t('common.off') },
+      ].map((o) => (
+        <button
+          key={String(o.v)}
+          type="button"
+          onClick={() => onChange(o.v)}
+          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+            value === o.v ? 'bg-accent-600 text-onaccent' : 'text-slate-400 hover:text-fg'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// Home "Recommended for you" shelf visibility (per-account).
+function ShowRecommendedSwitcher() {
+  const { t } = useI18n()
+  const { user, setUser } = useAuth()
+  const on = user?.showRecommended !== false
+  const set = (v: boolean) => {
+    if (!user || v === (user.showRecommended !== false)) return
+    setUser({ ...user, showRecommended: v }) // optimistic
+    api.setShowRecommended(v).then(setUser).catch(() => setUser(user))
+  }
+  return <OnOffSwitch value={on} onChange={set} ariaLabel={t('account.showRecommended')} />
+}
+
+// Home "Continue reading" shelf visibility (per-account).
+function ShowHistorySwitcher() {
+  const { t } = useI18n()
+  const { user, setUser } = useAuth()
+  const on = user?.showHistory !== false
+  const set = (v: boolean) => {
+    if (!user || v === (user.showHistory !== false)) return
+    setUser({ ...user, showHistory: v }) // optimistic
+    api.setShowHistory(v).then(setUser).catch(() => setUser(user))
+  }
+  return <OnOffSwitch value={on} onChange={set} ariaLabel={t('account.showHistory')} />
+}
+
 // Per-page count (was an inline library control; a per-account preference).
 function PageSizeSelect() {
   const { t } = useI18n()
@@ -174,6 +236,7 @@ function DefaultSortControl() {
 export function AccountPage() {
   const { user } = useAuth()
   const { t } = useI18n()
+  const recommendationsOn = useRecommendationsEnabled()
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -227,6 +290,22 @@ export function AccountPage() {
             <p className="mt-0.5 text-xs text-slate-500">{t('account.pageSizeHelp')}</p>
           </div>
           <PageSizeSelect />
+        </div>
+        {recommendationsOn && (
+          <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+            <div>
+              <p className="text-sm font-medium text-slate-300">{t('account.showRecommended')}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{t('account.showRecommendedHelp')}</p>
+            </div>
+            <ShowRecommendedSwitcher />
+          </div>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+          <div>
+            <p className="text-sm font-medium text-slate-300">{t('account.showHistory')}</p>
+            <p className="mt-0.5 text-xs text-slate-500">{t('account.showHistoryHelp')}</p>
+          </div>
+          <ShowHistorySwitcher />
         </div>
       </div>
     </div>
