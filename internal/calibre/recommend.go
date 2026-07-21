@@ -474,6 +474,33 @@ func sortByScoreDesc(ids []int64, score map[int64]float64) {
 	})
 }
 
+// SeriesVolumesOrdered returns, for each given series, its book ids ordered by
+// series_index (then id) — so a caller can pick the earliest volume the user
+// hasn't read. Empty when no series are given.
+func (a *Adapter) SeriesVolumesOrdered(ctx context.Context, seriesIDs []int64) (map[int64][]int64, error) {
+	out := map[int64][]int64{}
+	if len(seriesIDs) == 0 {
+		return out, nil
+	}
+	in := placeholders(len(seriesIDs))
+	q := fmt.Sprintf(`SELECT l.series, l.book FROM books_series_link l
+		JOIN books b ON b.id = l.book
+		WHERE l.series IN (%s)
+		ORDER BY b.series_index, l.book`, in)
+	err := a.eachRow(ctx, q, toAnySlice(seriesIDs), func(s scanner) error {
+		var series, book int64
+		if err := s.Scan(&series, &book); err != nil {
+			return err
+		}
+		out[series] = append(out[series], book)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("series volumes ordered: %w", err)
+	}
+	return out, nil
+}
+
 // BookIDsInSeries returns the ids of every book belonging to any of the given
 // series, in one scan — used to expand a favorited series into per-volume taste
 // seeds. Empty when no series are given.

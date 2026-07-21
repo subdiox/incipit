@@ -112,7 +112,82 @@ func (s *Server) recommendForUser(ctx context.Context, userID int64, limit int) 
 	if len(seeds) == 0 {
 		return nil, nil
 	}
-	return s.lib().Recommend(ctx, seeds, exclude, limit)
+	recs, err := s.lib().Recommend(ctx, seeds, exclude, limit)
+	if err != nil {
+		return nil, err
+	}
+	return s.resolveSeriesNextVolume(ctx, userID, recs)
+}
+
+// resolveSeriesNextVolume rewrites every recommendation that belongs to a series
+// to the earliest volume the user hasn't read: volume 1 for a series they've
+// never opened, the next volume for one they're partway through. Standalone books
+// pass through unchanged. A series whose volumes are all read is dropped (it
+// shouldn't reach here — read books are excluded upstream — but we guard anyway).
+func (s *Server) resolveSeriesNextVolume(ctx context.Context, userID int64, recs []calibre.Recommendation) ([]calibre.Recommendation, error) {
+	if len(recs) == 0 {
+		return recs, nil
+	}
+	readIDs, err := s.store.ReadBookIDs(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	read := make(map[int64]bool, len(readIDs))
+	for _, id := range readIDs {
+		read[id] = true
+	}
+
+	ids := make([]int64, len(recs))
+	for i, r := range recs {
+		ids[i] = r.BookID
+	}
+	books, err := s.lib().BooksByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	seriesOf := make(map[int64]int64, len(books)) // rec book id → its series id
+	var seriesIDs []int64
+	seenSeries := map[int64]bool{}
+	for _, b := range books {
+		if b.Series != nil && b.Series.ID > 0 {
+			seriesOf[b.ID] = b.Series.ID
+			if !seenSeries[b.Series.ID] {
+				seenSeries[b.Series.ID] = true
+				seriesIDs = append(seriesIDs, b.Series.ID)
+			}
+		}
+	}
+	vols, err := s.lib().SeriesVolumesOrdered(ctx, seriesIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]calibre.Recommendation, 0, len(recs))
+	used := map[int64]bool{}
+	for _, r := range recs {
+		sid := seriesOf[r.BookID]
+		if sid == 0 { // standalone
+			if !used[r.BookID] {
+				used[r.BookID] = true
+				out = append(out, r)
+			}
+			continue
+		}
+		var pick int64
+		for _, v := range vols[sid] {
+			if !read[v] {
+				pick = v
+				break
+			}
+		}
+		if pick == 0 || used[pick] {
+			continue // whole series read, or the volume is already in the list
+		}
+		used[pick] = true
+		r.BookID = pick
+		out = append(out, r)
+	}
+	return out, nil
 }
 
 // recommendSeeds gathers a user's taste seeds (book id → weight) and the set of
