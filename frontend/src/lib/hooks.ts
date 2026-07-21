@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import type { ReadingPosition } from '@/types'
 
 /**
  * Close the reader by stepping *back* in history, so the entry that opened it
@@ -18,6 +19,38 @@ export function useCloseReader(bookId: number): () => void {
     if (location.key !== 'default') navigate(-1)
     else navigate(`/books/${bookId}`, { replace: true })
   }, [navigate, location.key, bookId])
+}
+
+/**
+ * The current user's unfinished reading positions as a bookId → position map,
+ * from one shared fetch (so every thumbnail can show a progress bar cheaply).
+ */
+export function useReadingProgressMap(): Map<number, ReadingPosition> {
+  const { data } = useQuery({ queryKey: ['me', 'progress'], queryFn: api.myProgress, staleTime: 30_000 })
+  return useMemo(() => {
+    const m = new Map<number, ReadingPosition>()
+    for (const p of data ?? []) m.set(p.bookId, p)
+    return m
+  }, [data])
+}
+
+/**
+ * URL-backed pagination: reads the `offset` query param and returns the derived
+ * 1-based page plus a setter that scrolls to the top. Shared by the library-style
+ * paged pages (rankings, recommendations).
+ */
+export function usePagedOffset(pageSize: number): { offset: number; currentPage: number; goToPage: (page: number) => void } {
+  const [params, setParams] = useSearchParams()
+  const offset = params.get('offset') ? Math.max(0, Number(params.get('offset'))) : 0
+  const goToPage = (page: number) => {
+    const next = new URLSearchParams(params)
+    const off = (page - 1) * pageSize
+    if (off > 0) next.set('offset', String(off))
+    else next.delete('offset')
+    setParams(next)
+    window.scrollTo({ top: 0 })
+  }
+  return { offset, currentPage: Math.floor(offset / pageSize) + 1, goToPage }
 }
 
 /** The admin-configurable site title, defaulting to "Incipit" while loading. */

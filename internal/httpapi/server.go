@@ -38,8 +38,15 @@ type Server struct {
 	indexing    atomic.Bool  // guards the background page-count indexer
 	indexDone   atomic.Int64 // books processed in the current/last index run
 	indexTotal  atomic.Int64 // books to process in the current/last index run
-	recomputing atomic.Bool  // guards the hourly recommendation-cache sweep
+	recomputing atomic.Bool  // guards the boot/enable recommendation-cache warm sweep
 	recInFlight sync.Map     // userID → struct{}: single-user rec computes in flight
+	// Event-driven recommendation freshness: a favorites or reading-history change
+	// schedules a per-user recompute, debounced so a burst (e.g. page turns while
+	// reading) coalesces into one run once activity settles. The recompute runs in
+	// the background — never in the request path — because scoring a large library
+	// takes seconds; the endpoint always serves the cache. See markRecommendationsStale.
+	recDebounce   map[int64]*time.Timer // userID → pending debounced recompute
+	recDebounceMu sync.Mutex            // guards recDebounce
 }
 
 // New constructs a Server. lib may be nil when the library has not been
@@ -59,15 +66,16 @@ func New(cfg *config.Config, lib *calibre.Adapter, store *appdb.Store, authSvc *
 		},
 		limiter:  newRateLimiter(10, time.Minute),
 		meta:     metadata.NewClient(),
-		previews: newPreviewStore(),
-		facets:   newFacetCache(),
+		previews:    newPreviewStore(),
+		facets:      newFacetCache(),
+		recDebounce: map[int64]*time.Timer{},
 	}
 	if lib != nil {
 		s.libPtr.Store(lib)
 	}
 	s.startPageIndex()            // resume page-count indexing if the filter is enabled
 	s.warmFacets()                // precompute the default author/tag lists in the background
-	s.startRecommendationCron()   // warm + hourly-refresh the recommendation cache
+	s.startRecommendationWarm()   // warm the recommendation cache once after boot
 	return s
 }
 
@@ -141,6 +149,7 @@ func (s *Server) Router() http.Handler {
 
 			// Reading history (per-user).
 			r.Get("/me/reading", s.handleMyReading)
+			r.Get("/me/progress", s.handleMyProgress)
 			r.Get("/me/recommendations", s.handleRecommended)
 			r.Get("/me/shelf-membership", s.handleShelfMembership)
 

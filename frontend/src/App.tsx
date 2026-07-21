@@ -11,6 +11,7 @@ import { ShelvesPage } from '@/pages/ShelvesPage'
 import { HistoryPage } from '@/pages/HistoryPage'
 import { CollectionPage } from '@/pages/CollectionPage'
 import { RankingsPage } from '@/pages/RankingsPage'
+import { RecommendedPage } from '@/pages/RecommendedPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { AccountPage } from '@/pages/AccountPage'
 
@@ -45,6 +46,7 @@ export function App() {
         <Route path="/collections/:id" element={<CollectionPage />} />
         <Route path="/rankings" element={<RankingsPage />} />
         <Route path="/rankings/:key" element={<RankingsPage />} />
+        <Route path="/recommendations" element={<RecommendedPage />} />
         <Route path="/books/:id" element={<BookDetailPage />} />
         <Route path="/shelves" element={<ShelvesPage />} />
         <Route path="/shelves/:id" element={<ShelvesPage />} />

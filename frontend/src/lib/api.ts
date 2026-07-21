@@ -18,6 +18,7 @@ import type {
   RankingList,
   Progress,
   ReadingItem,
+  ReadingPosition,
   RecommendItem,
   SetupStatus,
   Shelf,
@@ -236,6 +237,8 @@ export const api = {
     const s = status === 'continue' ? 'in-progress' : status
     return request<ReadingItem[]>(`/me/reading?status=${s}${limit ? `&limit=${limit}` : ''}`)
   },
+  // Lightweight unfinished positions for progress bars on any thumbnail.
+  myProgress: () => request<ReadingPosition[]>('/me/progress'),
   // Personalized suggestions from the user's own favorites + reading history.
   // Empty when the user has no activity yet (the UI then hides the section).
   recommendations: (limit?: number) =>

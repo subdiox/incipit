@@ -324,6 +324,9 @@ func (s *Server) handleAddToShelf(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "add to shelf")
 		return
 	}
+	if sh.IsDefault { // favorites seed recommendations
+		s.markRecommendationsStale(sh.UserID)
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "added"})
 }
 
@@ -340,6 +343,9 @@ func (s *Server) handleRemoveFromShelf(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.RemoveBookFromShelf(r.Context(), sh.ID, bookID); err != nil {
 		writeError(w, http.StatusInternalServerError, "remove from shelf")
 		return
+	}
+	if sh.IsDefault { // favorites seed recommendations
+		s.markRecommendationsStale(sh.UserID)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
 }
@@ -367,6 +373,9 @@ func (s *Server) handleAddSeriesToShelf(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "add series to shelf")
 		return
 	}
+	if sh.IsDefault { // favorites seed recommendations
+		s.markRecommendationsStale(sh.UserID)
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "added"})
 }
 
@@ -383,6 +392,9 @@ func (s *Server) handleRemoveSeriesFromShelf(w http.ResponseWriter, r *http.Requ
 	if err := s.store.RemoveSeriesFromShelf(r.Context(), sh.ID, seriesID); err != nil {
 		writeError(w, http.StatusInternalServerError, "remove series from shelf")
 		return
+	}
+	if sh.IsDefault { // favorites seed recommendations
+		s.markRecommendationsStale(sh.UserID)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
 }

@@ -23,6 +23,13 @@ func (s *Store) UsersWithActivity(ctx context.Context) ([]int64, error) {
 		SELECT sh.user_id FROM shelves sh JOIN shelf_series ss ON ss.shelf_id = sh.id`)
 }
 
+// ReadBookIDs returns every book id the user has any reading progress for
+// (uncapped, unlike ListReading which is limited for display). Used to exclude
+// all already-read books from recommendations, not just the most recent ones.
+func (s *Store) ReadBookIDs(ctx context.Context, userID int64) ([]int64, error) {
+	return s.queryIDs(ctx, `SELECT book_id FROM read_progress WHERE user_id=?`, userID)
+}
+
 // ReplaceRecommendations atomically swaps a user's cached recommendations for a
 // fresh ranked list (rank = slice index). An empty slice clears the cache.
 func (s *Store) ReplaceRecommendations(ctx context.Context, userID int64, recs []CachedRec) error {

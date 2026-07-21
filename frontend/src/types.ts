@@ -151,6 +151,14 @@ export interface ReadingItem {
   updatedAt: string
 }
 
+// A lightweight reading position (no book metadata) for drawing a progress bar
+// on any book thumbnail from a single shared fetch.
+export interface ReadingPosition {
+  bookId: number
+  page: number
+  totalPages: number
+}
+
 // One personalized suggestion: a book plus the strongest shared trait that
 // earned it (for the "because you like …" caption). reasonKind is
 // 'author' | 'series' | 'tag'; reasonName is that feature's name (may be empty).

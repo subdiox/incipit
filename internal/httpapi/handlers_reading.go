@@ -58,6 +58,29 @@ func (s *Server) handleMyReading(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, items)
 }
 
+// handleMyProgress returns the current user's reading positions
+// (bookId/page/totalPages, no book metadata) so any book thumbnail can show a
+// progress bar from a single shared fetch — including finished books, not just
+// "continue reading".
+func (s *Server) handleMyProgress(w http.ResponseWriter, r *http.Request) {
+	u := currentUser(r)
+	pos, err := s.store.ReadingPositions(r.Context(), u.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "progress")
+		return
+	}
+	type item struct {
+		BookID     int64 `json:"bookId"`
+		Page       int   `json:"page"`
+		TotalPages int   `json:"totalPages"`
+	}
+	out := make([]item, 0, len(pos))
+	for _, p := range pos {
+		out = append(out, item{BookID: p.BookID, Page: p.Page, TotalPages: p.TotalPages})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 // handleBookViews returns a book's aggregate (anonymized) view count.
 func (s *Server) handleBookViews(w http.ResponseWriter, r *http.Request) {
 	b, ok := s.bookFromURL(w, r)
@@ -97,5 +120,6 @@ func (s *Server) handleResetProgress(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "reset progress")
 		return
 	}
+	s.markRecommendationsStale(u.ID) // reading history changed
 	w.WriteHeader(http.StatusNoContent)
 }

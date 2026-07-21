@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
-import { useRankingsEnabled, useSiteTitle } from '@/lib/hooks'
+import { useRankingsEnabled, useRecommendationsEnabled, useSiteTitle } from '@/lib/hooks'
 import {
   IconAdmin,
   IconBook,
@@ -16,6 +16,7 @@ import {
   IconMenu,
   IconSearch,
   IconShelf,
+  IconStar,
   IconClose,
 } from './icons'
 
@@ -76,6 +77,14 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const rankingsOn = useRankingsEnabled()
   const rankings = useQuery({ queryKey: ['rankings'], queryFn: api.rankings, enabled: rankingsOn }).data ?? []
   const showRankings = rankingsOn && rankings.length > 0
+  // Recommendations ("For You"): its own top-level page, shown only when the admin
+  // enabled the feature, the user hasn't hidden it, and there's actually something
+  // to suggest (so users with too little activity don't get an empty section).
+  const recommendOn = useRecommendationsEnabled()
+  const showRecommend = recommendOn && user?.showRecommended !== false
+  const recommended =
+    useQuery({ queryKey: ['recommendations'], queryFn: () => api.recommendations(24), enabled: showRecommend }).data ?? []
+  const showRecommended = showRecommend && recommended.length > 0
 
   const handleLogout = async () => {
     await logout()
@@ -113,6 +122,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             collections above. Periods are tabs within the page. */}
         {showRankings && (
           <NavItem to="/rankings" icon={<IconFlame width={18} height={18} />} label={t('nav.rankings')} onClick={onNavigate} />
+        )}
+        {/* Recommendations: a top-level section separate from Rankings. */}
+        {showRecommended && (
+          <NavItem to="/recommendations" icon={<IconStar width={18} height={18} />} label={t('nav.recommended')} onClick={onNavigate} />
         )}
         <NavItem to="/shelves" icon={<IconShelf width={18} height={18} />} label={t('nav.shelves')} onClick={onNavigate} />
         <NavItem to="/history" icon={<IconHistory width={18} height={18} />} label={t('nav.history')} onClick={onNavigate} />

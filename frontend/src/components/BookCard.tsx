@@ -3,6 +3,7 @@ import type { Book, SeriesCard } from '@/types'
 import { authorNames } from '@/lib/format'
 import { useI18n } from '@/i18n'
 import { usePopularityEnabled } from '@/lib/hooks'
+import { BookCover } from './BookCover'
 import { Cover } from './Cover'
 import { IconCheck, IconShelf } from './icons'
 
@@ -16,18 +17,11 @@ interface BookCardProps {
   // Ranking position (1-based) shown as a badge, for the Rankings section. The
   // top three get a medal treatment; the rest a plain numbered pill.
   rank?: number
+  // Replaces the author line beneath the title (e.g. a recommendation's reason).
+  subtitle?: React.ReactNode
 }
 
-// medalClass styles the rank badge: gold/silver/bronze for the podium, a dark
-// pill otherwise.
-function medalClass(rank: number): string {
-  if (rank === 1) return 'bg-gradient-to-br from-amber-300 to-yellow-500 text-black ring-1 ring-amber-200/60'
-  if (rank === 2) return 'bg-gradient-to-br from-slate-200 to-slate-400 text-black ring-1 ring-white/50'
-  if (rank === 3) return 'bg-gradient-to-br from-amber-600 to-orange-800 text-white ring-1 ring-amber-400/40'
-  return 'bg-black/75 text-onaccent backdrop-blur-sm'
-}
-
-export function BookCard({ book, action, selectable, selected, onToggleSelect, rank }: BookCardProps) {
+export function BookCard({ book, action, selectable, selected, onToggleSelect, rank, subtitle }: BookCardProps) {
   const { t } = useI18n()
   const popularityOn = usePopularityEnabled()
   const toggle = () => onToggleSelect?.(book)
@@ -43,44 +37,14 @@ export function BookCard({ book, action, selectable, selected, onToggleSelect, r
           }
         }}
       >
-        <div
-          className={`relative overflow-hidden rounded-xl shadow-soft ring-1 transition-all duration-200 ${
-            selected
-              ? 'ring-2 ring-accent-500 shadow-glow'
-              : 'ring-ink-700 group-hover:ring-accent-500/50 group-hover:shadow-glow'
-          }`}
-        >
-          <Cover
-            bookId={book.id}
-            title={book.title}
-            hasCover={book.hasCover}
-            version={book.lastModified}
-            rounded="rounded-none"
-            className={`transition-transform duration-300 ${
-              selectable ? (selected ? 'opacity-95' : 'opacity-80') : 'group-hover:scale-[1.03]'
-            }`}
-          />
-          {/* Rank badge (Rankings section). Podium places get a medal; others a
-              numbered pill. Sits top-left so it reads as the primary marker. */}
-          {rank != null && (
-            <div
-              className={`absolute left-1.5 top-1.5 z-10 flex min-w-[1.5rem] items-center justify-center rounded-md px-1.5 py-0.5 text-[13px] font-bold tabular-nums shadow-soft ${medalClass(rank)}`}
-            >
-              {rank}
-            </div>
-          )}
-          {/* Favorites pill sits bottom-left everywhere (matching the Rankings
-              view, where the top-left is taken by the rank badge) so its position
-              is consistent across the library and rankings. text-onaccent (not
-              text-white = theme fg, near-black in light mode) keeps it white on
-              its dark pill. */}
-          {popularityOn && book.favorites > 0 && (
-            <div className="absolute bottom-1.5 left-1.5 z-10 flex items-center gap-0.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-onaccent backdrop-blur-sm">
-              <span className="text-rose-400">♥</span>
-              {book.favorites.toLocaleString()}
-            </div>
-          )}
-        </div>
+        <BookCover
+          book={book}
+          rank={rank}
+          showFavorites={popularityOn}
+          interactive={!selectable}
+          selected={!!selectable && !!selected}
+          dimmed={!!selectable && !selected}
+        />
         <div className="mt-2.5 px-0.5">
           {/* Wrap the full title on all viewports (titles get cut at one line
               otherwise). */}
@@ -91,7 +55,7 @@ export function BookCard({ book, action, selectable, selected, onToggleSelect, r
             {book.title}
           </h3>
           <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
-            {authorNames(book.authors) || t('common.unknownAuthor')}
+            {subtitle ?? (authorNames(book.authors) || t('common.unknownAuthor'))}
           </p>
         </div>
       </Link>

@@ -285,6 +285,30 @@ func (s *Store) ListReading(ctx context.Context, userID int64, status string, li
 	return out, rows.Err()
 }
 
+// ReadingPositions returns every reading position the user has (book id, page,
+// total) with no book hydration, so the UI can draw a progress bar on any book
+// thumbnail cheaply — including finished books (which read as a full bar), not
+// just "continue reading". Capped to keep the payload small.
+func (s *Store) ReadingPositions(ctx context.Context, userID int64) ([]Progress, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT book_id, page, total_pages FROM read_progress
+		WHERE user_id=? AND page > 0
+		ORDER BY updated_at DESC LIMIT 5000`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Progress
+	for rows.Next() {
+		var p Progress
+		if err := rows.Scan(&p.BookID, &p.Page, &p.TotalPages); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // IncrementBookViews bumps a book's aggregate view counter (library-wide,
 // anonymized — no per-user record) and returns the new total. Called when a book
 // is opened in the reader.

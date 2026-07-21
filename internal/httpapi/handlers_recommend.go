@@ -24,15 +24,22 @@ const (
 	seedInProgressMax  = 0.7
 	recencyTauDays     = 90.0
 
-	defaultRecommendLimit = 24
-	maxRecommendLimit     = 60
-	excludeReadScan       = 500 // cap on reads scanned for seeds/exclusion
+	defaultRecommendLimit = 24  // home shelf: a single scrollable row
+	maxRecommendLimit     = 500 // dedicated "For You" page: the full ranked set
+	excludeReadScan       = 500 // cap on recent reads scanned for taste seeds (exclusion is uncapped, see ReadBookIDs)
 
-	// Precompute settings: how many recs to cache per user, when to first warm the
-	// cache after boot, and how often to refresh it.
+	// Precompute settings: how many recs to cache per user, and when to warm the
+	// whole cache once after boot. There is no periodic refresh — the cache is
+	// updated per-user, event-driven, when a favorites/history change schedules a
+	// background recompute (see markRecommendationsStale).
 	recommendPrecomputeLimit = maxRecommendLimit
 	recommendWarmDelay       = 30 * time.Second
-	recommendRefreshInterval = time.Hour
+
+	// recommendDebounceDelay coalesces a burst of activity changes for one user
+	// (turning pages upserts progress on every page) into a single recompute once
+	// the activity settles — long enough that engaged reading doesn't re-score the
+	// library between page turns, short enough to feel prompt after finishing.
+	recommendDebounceDelay = 8 * time.Second
 )
 
 // recommendItem is a suggested book plus why it was suggested (for the
@@ -44,9 +51,11 @@ type recommendItem struct {
 }
 
 // handleRecommended serves the current user's precomputed recommendations from
-// the cache (refreshed hourly), so the response is instant. Empty (200 with [])
-// when the feature is off or the user has no cached recs yet, so the UI hides the
-// section.
+// the cache, so the response is instant even on a large library. The cache is
+// refreshed in the background a few seconds after their favorites or reading
+// history change (markRecommendationsStale), so a just-read book drops off on the
+// next load. Empty (200 with []) when the feature is off or the user has no cached
+// recs yet, so the UI hides the section.
 func (s *Server) handleRecommended(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !s.recommendationsEnabled(ctx) {
@@ -120,8 +129,20 @@ func (s *Server) recommendSeeds(ctx context.Context, userID int64) (map[int64]fl
 		}
 	}
 
-	// Reading history: finished/in-progress reads, recency-decayed. Every read
-	// book is also excluded so we never recommend something already opened.
+	// Exclude every book the user has ever opened (uncapped), so a read book is
+	// never suggested — even for heavy readers with more than excludeReadScan
+	// reads, whose older reads wouldn't appear in the seed scan below.
+	readIDs, err := s.store.ReadBookIDs(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, id := range readIDs {
+		exclude[id] = true
+	}
+
+	// Reading history seeds: the most recent finished/in-progress reads,
+	// recency-decayed (bounded to excludeReadScan for the taste profile; full
+	// exclusion is handled above).
 	reads, err := s.store.ListReading(ctx, userID, appdb.ReadingAll, excludeReadScan)
 	if err != nil {
 		return nil, nil, err
@@ -169,23 +190,44 @@ func (s *Server) recommendSeeds(ctx context.Context, userID int64) (map[int64]fl
 	return seeds, exclude, nil
 }
 
-// --- Hourly precompute ---
+// --- Precompute ---
 
-// startRecommendationCron warms the recommendation cache shortly after boot and
-// then refreshes it every hour, so the endpoint always serves from cache.
-func (s *Server) startRecommendationCron() {
+// startRecommendationWarm warms the recommendation cache once shortly after boot
+// so the endpoint serves from cache immediately (the cache also survives restarts
+// in app.db). After this, refreshes are event-driven per user — see
+// markRecommendationsStale — rather than on a periodic sweep.
+func (s *Server) startRecommendationWarm() {
 	go func() {
 		timer := time.NewTimer(recommendWarmDelay)
 		defer timer.Stop()
 		<-timer.C
 		s.refreshAllRecommendations(context.Background())
-
-		ticker := time.NewTicker(recommendRefreshInterval)
-		defer ticker.Stop()
-		for range ticker.C {
-			s.refreshAllRecommendations(context.Background())
-		}
 	}()
+}
+
+// markRecommendationsStale schedules a background recompute of one user's
+// recommendations after their favorites or reading history changed. It is
+// debounced per user: repeated calls within recommendDebounceDelay collapse into
+// a single run once the activity settles (page turns upsert progress on every
+// page), and the recompute never runs in the request path — scoring a large
+// library takes seconds. A no-op when the library isn't ready or recommendations
+// are disabled.
+func (s *Server) markRecommendationsStale(userID int64) {
+	if userID <= 0 || !s.libraryConfigured() || !s.recommendationsEnabled(context.Background()) {
+		return
+	}
+	s.recDebounceMu.Lock()
+	defer s.recDebounceMu.Unlock()
+	if t, ok := s.recDebounce[userID]; ok {
+		t.Reset(recommendDebounceDelay) // coalesce: push the pending run later
+		return
+	}
+	s.recDebounce[userID] = time.AfterFunc(recommendDebounceDelay, func() {
+		s.recDebounceMu.Lock()
+		delete(s.recDebounce, userID)
+		s.recDebounceMu.Unlock()
+		s.computeUserRecommendations(context.Background(), userID)
+	})
 }
 
 // refreshAllRecommendations recomputes and caches recommendations for every user
@@ -212,7 +254,8 @@ func (s *Server) refreshAllRecommendations(ctx context.Context) {
 }
 
 // computeUserRecommendations scores and caches one user's recommendations,
-// guarded so a manual and the scheduled run can't compute the same user at once.
+// guarded so the warm sweep and an event-driven refresh can't compute the same
+// user at once.
 func (s *Server) computeUserRecommendations(ctx context.Context, userID int64) {
 	if _, busy := s.recInFlight.LoadOrStore(userID, struct{}{}); busy {
 		return

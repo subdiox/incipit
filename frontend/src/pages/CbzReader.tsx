@@ -201,12 +201,14 @@ export function CbzReader({ bookId }: { bookId: number }) {
     }
   }, [])
 
-  // Restore reading position once, after both pages + progress have loaded.
+  // Restore reading position once, after both pages + progress have loaded. A
+  // finished book (saved on the last page) restarts from the beginning instead —
+  // reopening it means re-reading, matching the "read from start" affordance.
   useEffect(() => {
     if (restoredRef.current || !pagesData) return
     if (progress === undefined) return // progress query still pending
     restoredRef.current = true
-    if (progress && progress.page > 0 && progress.page < total) {
+    if (progress && progress.page > 0 && progress.page < total - 1) {
       setPage(progress.page)
     }
   }, [pagesData, progress, total])
@@ -221,7 +223,10 @@ export function CbzReader({ bookId }: { bookId: number }) {
   savePageRef.current = savePage
   totalRef.current = total
   useEffect(() => {
-    if (!total || !restoredRef.current) return
+    // Don't persist page 0 (the start): it isn't a meaningful resume position,
+    // and it would wipe a finished book's state the instant it's reopened to
+    // "read from start" before the reader actually advances.
+    if (!total || !restoredRef.current || savePage <= 0) return
     const p: Progress = {
       bookId,
       format: 'CBZ',
@@ -244,7 +249,7 @@ export function CbzReader({ bookId }: { bookId: number }) {
   useEffect(() => {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
-      if (totalRef.current && restoredRef.current) {
+      if (totalRef.current && restoredRef.current && savePageRef.current > 0) {
         api.saveProgress(bookId, savePageRef.current, totalRef.current).catch(() => {})
       }
     }

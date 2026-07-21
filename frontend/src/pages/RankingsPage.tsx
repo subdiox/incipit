@@ -1,13 +1,14 @@
 import { useMemo } from 'react'
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/auth/AuthContext'
 import { useI18n } from '@/i18n'
-import { useRankingsEnabled } from '@/lib/hooks'
+import { usePagedOffset, useRankingsEnabled } from '@/lib/hooks'
 import { BookCard, BookCardSkeleton, BookGrid } from '@/components/BookCard'
+import { Pagination } from '@/components/Pagination'
 import { FullPageSpinner } from '@/components/Spinner'
-import { IconChevronLeft, IconChevronRight, IconFlame } from '@/components/icons'
+import { IconFlame } from '@/components/icons'
 
 const DEFAULT_PAGE_SIZE = 36
 
@@ -19,7 +20,6 @@ export function RankingsPage() {
   const { key } = useParams()
   const { t } = useI18n()
   const { user } = useAuth()
-  const [params, setParams] = useSearchParams()
   const rankingsOn = useRankingsEnabled()
 
   const { data: lists, isLoading } = useQuery({
@@ -29,7 +29,7 @@ export function RankingsPage() {
   })
 
   const pageSize = user?.pageSize ?? DEFAULT_PAGE_SIZE
-  const offset = params.get('offset') ? Math.max(0, Number(params.get('offset'))) : 0
+  const { offset, currentPage, goToPage } = usePagedOffset(pageSize)
 
   const active = useMemo(
     () => (lists ?? []).find((l) => l.key === key) ?? (lists ?? [])[0],
@@ -55,16 +55,6 @@ export function RankingsPage() {
   const total = booksQ.data?.total ?? 0
   const books = booksQ.data?.books ?? []
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const currentPage = Math.floor(offset / pageSize) + 1
-
-  const goToPage = (page: number) => {
-    const next = new URLSearchParams(params)
-    const off = (page - 1) * pageSize
-    if (off > 0) next.set('offset', String(off))
-    else next.delete('offset')
-    setParams(next)
-    window.scrollTo({ top: 0 })
-  }
 
   return (
     <div className="min-w-0 flex-1">
@@ -118,31 +108,7 @@ export function RankingsPage() {
             ))}
           </BookGrid>
 
-          {totalPages > 1 && (
-            <div className="mt-8 flex items-center justify-center gap-2">
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={currentPage <= 1}
-                onClick={() => goToPage(currentPage - 1)}
-              >
-                <IconChevronLeft width={16} height={16} />
-                {t('library.prev')}
-              </button>
-              <span className="px-3 text-sm text-slate-400">
-                {t('library.pageOf', { current: currentPage, total: totalPages })}
-              </span>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={currentPage >= totalPages}
-                onClick={() => goToPage(currentPage + 1)}
-              >
-                {t('library.next')}
-                <IconChevronRight width={16} height={16} />
-              </button>
-            </div>
-          )}
+          <Pagination currentPage={currentPage} totalPages={totalPages} onGoTo={goToPage} />
         </>
       ) : (
         <div className="card flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">

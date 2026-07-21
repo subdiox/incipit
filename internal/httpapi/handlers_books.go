@@ -530,6 +530,7 @@ func (s *Server) handleSetProgress(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "save progress")
 		return
 	}
+	s.markRecommendationsStale(u.ID) // reading history changed
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

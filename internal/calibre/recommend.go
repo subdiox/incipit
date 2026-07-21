@@ -46,8 +46,10 @@ const (
 	// meaningful, low-frequency tastes and keeps candidate-gen posting lists small.
 	recMaxProfileFeatures = 150
 	// How many top candidates (by dot product) get the exact cosine + diversity
-	// pass. Bounds the per-candidate norm computation.
-	recCandidatePool = 400
+	// pass. Bounds the per-candidate norm computation. Sized well above the max
+	// requested limit (500) so that after per-series de-dup and per-reason caps
+	// there are still enough survivors to fill a large "For You" page.
+	recCandidatePool = 1200
 	// Max recommendations attributed to any single trait (an artist or a tag), so
 	// one favorite doesn't fill the whole row.
 	recMaxPerReason = 4
@@ -242,29 +244,51 @@ func (a *Adapter) Recommend(ctx context.Context, seeds map[int64]float64, exclud
 	}
 	sortByScoreDesc(cands, cosine)
 
-	// 5. Select the page: one book per series, at most recMaxPerReason per trait.
+	// 5. Select the page in two passes, always at most one book per series.
+	//    Pass 1 builds a varied head — at most recMaxPerReason books per trait —
+	//    so the highest-ranked slice (what the home shelf shows) isn't dominated by
+	//    one author/tag. Pass 2 then fills the rest up to `limit` without the
+	//    per-trait cap, so a focused reader can still get a long list instead of
+	//    being capped at (#distinct traits × recMaxPerReason).
 	seenSeries := map[int64]bool{}
+	added := map[int64]bool{}
 	perReason := map[featKey]int{}
 	var out []Recommendation
-	for _, b := range cands {
-		sid, inSeries := seriesOf[b]
-		if inSeries && seenSeries[sid] {
-			continue
-		}
-		rk := reason[b]
-		if perReason[rk] >= recMaxPerReason {
-			continue
-		}
-		if inSeries {
+	take := func(b int64) {
+		if sid, inSeries := seriesOf[b]; inSeries {
 			seenSeries[sid] = true
 		}
+		added[b] = true
+		rk := reason[b]
 		perReason[rk]++
 		out = append(out, Recommendation{
 			BookID: b, Score: cosine[b], ReasonKind: rk.kind, ReasonID: rk.id,
 		})
+	}
+	skip := func(b int64) bool {
+		if added[b] {
+			return true
+		}
+		sid, inSeries := seriesOf[b]
+		return inSeries && seenSeries[sid]
+	}
+	for _, b := range cands { // pass 1: varied head
 		if len(out) >= limit {
 			break
 		}
+		if skip(b) || perReason[reason[b]] >= recMaxPerReason {
+			continue
+		}
+		take(b)
+	}
+	for _, b := range cands { // pass 2: fill the tail, cap lifted
+		if len(out) >= limit {
+			break
+		}
+		if skip(b) {
+			continue
+		}
+		take(b)
 	}
 	if err := a.fillReasonNames(ctx, out); err != nil {
 		return nil, err
@@ -273,27 +297,34 @@ func (a *Adapter) Recommend(ctx context.Context, seeds map[int64]float64, exclud
 }
 
 // bookFeatures loads every tag/author/series feature of the given books, keyed
-// by book id. One query per category.
+// by book id. One query per category, chunked so a large candidate set stays
+// under SQLite's bound-variable limit.
 func (a *Adapter) bookFeatures(ctx context.Context, ids []int64) (map[int64][]featKey, error) {
 	out := make(map[int64][]featKey, len(ids))
 	if len(ids) == 0 {
 		return out, nil
 	}
-	in := placeholders(len(ids))
-	args := toAnySlice(ids)
+	const chunk = 900
 	for _, kind := range []string{kindTag, kindAuthor, kindSeries} {
 		lt := recLinkTable[kind]
-		q := fmt.Sprintf("SELECT book, %s FROM %s WHERE book IN (%s)", lt[1], lt[0], in)
-		err := a.eachRow(ctx, q, args, func(s scanner) error {
-			var book, fid int64
-			if err := s.Scan(&book, &fid); err != nil {
-				return err
+		for start := 0; start < len(ids); start += chunk {
+			end := start + chunk
+			if end > len(ids) {
+				end = len(ids)
 			}
-			out[book] = append(out[book], featKey{kind, fid})
-			return nil
-		})
-		if err != nil {
-			return nil, fmt.Errorf("recommend: book features (%s): %w", kind, err)
+			part := ids[start:end]
+			q := fmt.Sprintf("SELECT book, %s FROM %s WHERE book IN (%s)", lt[1], lt[0], placeholders(len(part)))
+			err := a.eachRow(ctx, q, toAnySlice(part), func(s scanner) error {
+				var book, fid int64
+				if err := s.Scan(&book, &fid); err != nil {
+					return err
+				}
+				out[book] = append(out[book], featKey{kind, fid})
+				return nil
+			})
+			if err != nil {
+				return nil, fmt.Errorf("recommend: book features (%s): %w", kind, err)
+			}
 		}
 	}
 	return out, nil

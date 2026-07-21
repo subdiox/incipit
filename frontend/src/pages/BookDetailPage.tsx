@@ -7,7 +7,7 @@ import { useI18n } from '@/i18n'
 import type { Book, BookUpdate } from '@/types'
 import { formatBytes, formatDate, dateInputValue, languageLabel, GENRE_TAG_PREFIX } from '@/lib/format'
 import { Cover } from '@/components/Cover'
-import { progressPct } from '@/components/ReadingShelf'
+import { BookCover } from '@/components/BookCover'
 import { isReadable } from '@/lib/book'
 import { usePopularityEnabled, useReadingActivityEnabled } from '@/lib/hooks'
 import { rememberFacets } from '@/lib/facets'
@@ -327,6 +327,8 @@ export function BookDetailPage() {
     onSuccess: () => {
       queryClient.setQueryData(['progress', bookId], null)
       queryClient.invalidateQueries({ queryKey: ['reading'] })
+      // Drop the shared progress map so the cover's reading-state bar clears too.
+      queryClient.invalidateQueries({ queryKey: ['me', 'progress'] })
     },
   })
 
@@ -342,10 +344,14 @@ export function BookDetailPage() {
   // Formats with an in-browser reader (CBZ image reader, PDF viewer, EPUB).
   const readable = isReadable(book)
   const downloadable = book.formats.length > 0
-  const pct = hasProgress ? progressPct(progress!.page, progress!.totalPages) : 0
-  const readLabel = hasProgress
-    ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
-    : t('book.read')
+  // Three states: mid-read → resume; finished → read from the start (the reader
+  // restarts it too); never opened → plain read.
+  const finished = !!progress && progress.totalPages > 0 && progress.page >= progress.totalPages - 1
+  const readLabel = finished
+    ? t('book.readFromStart')
+    : hasProgress
+      ? t('book.resume', { page: progress!.page + 1, total: progress!.totalPages })
+      : t('book.read')
 
   return (
     <div>
@@ -362,36 +368,20 @@ export function BookDetailPage() {
               default; on touch (no hover) a dedicated button sits below. */}
           {readable ? (
             <div className="group relative mx-auto max-w-[300px]">
-              <Link
-                to={`/books/${book.id}/read`}
-                aria-label={readLabel}
-                className="block overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700 transition-all md:hover:shadow-glow md:hover:ring-accent-500/60"
-              >
-                <div className="relative">
-                  <Cover
-                    bookId={book.id}
-                    title={book.title}
-                    hasCover={book.hasCover}
-                    version={book.lastModified}
-                    width={800}
-                    rounded="rounded-none"
-                    className="md:transition-transform md:duration-500 md:group-hover:scale-105"
-                  />
-                  {/* Hover-reveal read affordance (desktop only): a single clean
-                      "play" pill, centered over a soft gradient. */}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden justify-center bg-gradient-to-t from-black/70 to-transparent px-4 pb-5 pt-16 opacity-0 transition-opacity duration-200 group-hover:opacity-100 md:flex">
-                    <span className="inline-flex max-w-full items-center gap-2 rounded-full bg-accent-600 px-4 py-2 text-sm font-semibold text-onaccent shadow-glow ring-1 ring-white/15">
+              <Link to={`/books/${book.id}/read`} aria-label={readLabel} className="block">
+                {/* Same shared cover as every thumbnail, with the detail-only
+                    hover "resume" pill. Progress bar / finished check come from
+                    the shared reading-state overlay. */}
+                <BookCover
+                  book={book}
+                  size="hero"
+                  hoverContent={
+                    <span className="hidden max-w-full items-center gap-2 rounded-full bg-accent-600 px-4 py-2 text-sm font-semibold text-onaccent shadow-glow ring-1 ring-white/15 md:inline-flex">
                       <IconPlay width={13} height={13} className="shrink-0" />
                       <span className="truncate">{readLabel}</span>
                     </span>
-                  </div>
-                  {/* Thin progress bar hugging the bottom edge (both viewports). */}
-                  {hasProgress && (
-                    <div className="absolute inset-x-0 bottom-0 h-1 bg-black/30">
-                      <div className="h-full bg-accent-500" style={{ width: `${pct}%` }} />
-                    </div>
-                  )}
-                </div>
+                  }
+                />
               </Link>
               {/* Clear reading progress — revealed on hover (desktop). */}
               {hasProgress && (
@@ -401,7 +391,7 @@ export function BookDetailPage() {
                   disabled={resetProgress.isPending}
                   title={t('history.reset')}
                   aria-label={t('history.reset')}
-                  className="absolute right-2 top-2 z-10 hidden rounded-lg bg-black/50 p-1.5 text-slate-200 opacity-0 backdrop-blur transition-opacity hover:bg-red-600 hover:text-white focus:opacity-100 group-hover:opacity-100 disabled:opacity-50 md:block"
+                  className="absolute right-2 top-2 z-40 hidden rounded-lg bg-black/50 p-1.5 text-slate-200 opacity-0 backdrop-blur transition-opacity hover:bg-red-600 hover:text-white focus:opacity-100 group-hover:opacity-100 disabled:opacity-50 md:block"
                 >
                   {resetProgress.isPending ? (
                     <Spinner className="h-4 w-4" />
@@ -412,8 +402,8 @@ export function BookDetailPage() {
               )}
             </div>
           ) : (
-            <div className="mx-auto max-w-[300px] overflow-hidden rounded-2xl shadow-soft ring-1 ring-ink-700">
-              <Cover bookId={book.id} title={book.title} hasCover={book.hasCover} version={book.lastModified} width={800} rounded="rounded-none" />
+            <div className="mx-auto max-w-[300px]">
+              <BookCover book={book} size="hero" interactive={false} showProgress={false} />
             </div>
           )}
 
