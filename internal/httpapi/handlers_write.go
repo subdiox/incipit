@@ -20,8 +20,9 @@ import (
 
 const maxUpload = 1 << 30 // 1 GiB
 
-// uploadableFormats are the file types accepted by the uploader. Only CBZ is
-// readable in-browser today; the rest are stored, listed and downloadable.
+// uploadableFormats are the file types accepted by the uploader. CBZ, PDF and
+// EPUB have in-browser readers (frontend ReaderPage picks one by format); the
+// rest are stored, listed and downloadable.
 var uploadableFormats = map[string]bool{
 	"CBZ": true, "CBR": true, "EPUB": true, "PDF": true,
 	"MOBI": true, "AZW3": true, "FB2": true, "TXT": true,

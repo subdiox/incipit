@@ -1,9 +1,10 @@
 # Incipit
 
 A lightweight, modern, single-binary server for [Calibre](https://calibre-ebook.com/)
-comic libraries — browse your collection, **read CBZ comics (and EPUB/PDF) in the
-browser**, enrich metadata, and serve OPDS, with multi-user access
-(local / LDAP / reverse-proxy).
+libraries — browse your collection, **read comics (CBZ), ebooks (EPUB) and PDFs
+in the browser**, enrich metadata, and serve OPDS, with multi-user access
+(local / LDAP / reverse-proxy). Comics are where it goes deepest; see
+[Supported formats](#supported-formats) for exactly what each format gets.
 
 Incipit is a clean-room reimplementation that **reuses the Calibre library format**
 (`metadata.db` + the `Author/Title (id)/` folder layout), so your library stays
@@ -17,7 +18,7 @@ the React SPA embedded, no Calibre binaries and no Node at runtime.
 
 - **Single static binary.** Pure-Go (CGO-free) build with the SPA embedded via `go:embed`; distroless image, tiny footprint.
 - **Calibre-compatible.** Reads and writes `metadata.db` directly, replicating Calibre's invariants — including the `title_sort` / `author_to_author_sort` / `uuid4` SQL functions its triggers depend on — and writes `metadata.opf` for round-trip safety. Your library stays portable.
-- **In-browser readers.** A purpose-built **CBZ** reader (single/spread pages, left/right binding, fit-width/height, fullscreen, keyboard/tap/swipe, a draggable seek bar) plus **EPUB** and **PDF** viewers. Reading progress is saved per user and resumes where you left off.
+- **Three in-browser readers.** A purpose-built **CBZ** reader (single/spread pages, left/right binding, fit-width/height, fullscreen, keyboard/tap/swipe, a draggable seek bar, per-user progress that resumes where you left off), an **EPUB** reader (paginated, adjustable text size, built on a vendored foliate-js — no CDN), and a **PDF** viewer. Nothing is converted or unpacked ahead of time.
 - **Fast at scale.** Server-side full-text search across every field, gzipped API responses, and server-side tag/author search that stays instant on libraries with 100k+ tags.
 - **Metadata enrichment.** Fills a book's authors, publisher, pubdate, description, tags, rating and official cover by scraping コミックシーモア (cmoa.jp) from the (file)name — on upload or on demand.
 - **Organize.** Admin-defined **collections** (saved tag filters shown under Library), per-user **shelves** (with a built-in Favorites shelf), and an optional home-library base filter.
@@ -36,7 +37,7 @@ incipit (single Go binary)
 ├─ internal/calibre   read+write adapter for metadata.db (single serialized writer, WAL)
 ├─ internal/appdb     Incipit's own state: users, sessions, shelves, progress, collections, caches
 ├─ internal/auth      argon2id, login service, LDAP, reverse-proxy resolution
-├─ internal/reader    CBZ central-directory extraction, natural page ordering, resize cache
+├─ internal/reader    CBZ central-directory extraction, natural page ordering, resize cache; EPUB cover extraction
 ├─ internal/metadata  コミックシーモア (cmoa.jp) scraper for metadata + covers
 └─ internal/httpapi   handlers, middleware (session/CSRF/rate-limit/gzip/logging), OPDS, facets
 ```
@@ -58,7 +59,12 @@ binary CGO-free and lets it run on a distroless `static` image.
 - Incipit assumes it is the primary accessor of the library (as calibre-web does). Set `INCIPIT_READONLY=true` to share a library with a running desktop Calibre.
 - Adding/editing a book creates the `Author/Title (id)/` folder, writes the file, `cover.jpg`, and `metadata.opf`, and **moves/renames** files when the title or author changes (with filesystem rollback if the transaction fails).
 
-## CBZ reader
+## Readers
+
+Opening a book picks the reader that matches its format — CBZ, then PDF, then
+EPUB if the book has several.
+
+### CBZ (comics)
 
 - Opens the ZIP and reads only the **central directory** — the whole archive is
   never unpacked — and orders pages with a **natural** comparator (`page2` before
@@ -69,6 +75,26 @@ binary CGO-free and lets it run on a distroless `static` image.
 - Reading UI: single or two-page **spread**, left/right **binding direction**
   (manga vs. western), fit-width / fit-height, fullscreen, keyboard / tap-zone /
   swipe navigation, and a **draggable progress bar** to jump to any page.
+- **Per-user reading progress** is saved as you read, so the book reopens where
+  you stopped and feeds the "Continue reading" shelf.
+
+### EPUB
+
+- Paginated reflowable reading via a **vendored copy of foliate-js** — bundled
+  into the SPA, so there is no CDN dependency and it works fully offline.
+- Adjustable text size (remembered in the browser), keyboard and tap navigation.
+- The cover is extracted server-side from the EPUB's OPF (EPUB2 `<meta
+  name="cover">` or an EPUB3 cover-image item), so uploads get a real thumbnail
+  without any conversion step.
+
+### PDF
+
+- Handed to the **browser's own PDF viewer** in an inline frame: pagination,
+  zoom, text search and printing come for free, with no extra dependency to ship.
+
+EPUB and PDF reading position is kept by the viewer for the session but is not
+yet persisted server-side — progress, resume and "Continue reading" are CBZ-only
+for now.
 
 ## Search & browsing
 
@@ -183,9 +209,20 @@ cd frontend && npm install && npm run dev
 
 ## Supported formats
 
-Comic **CBZ** is the primary target (upload, auto-cover, reader, metadata
-enrichment). **EPUB** and **PDF** also open in the browser. Any format can be
-stored and downloaded; format conversion is out of scope (no Calibre binaries).
+Incipit **never converts** anything (that would mean shipping Calibre binaries),
+so a format is either served as-is or read in place. What each one gets:
+
+| Format | Upload | In-browser reader | Auto cover | Progress saved | OPDS-PSE |
+|---|:--:|---|:--:|:--:|:--:|
+| **CBZ** | ✅ | ✅ purpose-built comic reader | ✅ first page | ✅ | ✅ |
+| **EPUB** | ✅ | ✅ paginated (foliate-js) | ✅ from OPF | — | — |
+| **PDF** | ✅ | ✅ browser's PDF viewer | — | — | — |
+| CBR / MOBI / AZW3 / FB2 / TXT | ✅ | — | — | — | — |
+
+Every uploaded format is stored, listed, searchable, metadata-editable and
+downloadable — the table only describes the *extra* handling on top of that.
+Formats with no reader are downloaded and opened in whatever app the client
+prefers; OPDS clients can fetch any of them.
 
 ## License
 

@@ -1,6 +1,8 @@
 # CLAUDE.md — Incipit
 
-Lightweight, modern, single-binary server for Calibre comic (CBZ) libraries.
+Lightweight, modern, single-binary server for Calibre libraries. Comics (CBZ) are
+the deepest-supported format — reader, per-user progress, auto-cover, OPDS-PSE —
+with in-browser readers for EPUB and PDF too; any format can be stored/served.
 Clean-room reimplementation (MIT) — reads the Calibre *format*, not its source.
 
 ## Architecture
