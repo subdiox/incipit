@@ -19,6 +19,12 @@ implementations globally in `internal/calibre/sqlfuncs.go`:
 - `uuid4()` — random v4 UUID for `books.uuid`.
 Registration is via `sqlite.MustRegister[Deterministic]ScalarFunction` (global to all connections opened afterward), guarded by a `sync.Once`. The embedded `schema.sql` includes the `books_insert_trg` / `books_update_trg` / `books_delete_trg` triggers that exercise these.
 
+## Read path performance (`internal/calibre/adapter.go`)
+A 300k-book library is where listing queries either work or fall off a cliff, and the cliff is steep — the two rules below were worth ~100x on a real library.
+- **Category filters are `b.id IN (SELECT book FROM <link> WHERE <cat>=?)`, never correlated `EXISTS`.** The EXISTS form reads better but makes the planner SCAN all of `books` (via a covering index, in *sort* order) and probe the link table once per book: work proportional to the whole library, every probe a random read. The IN form drives from the category index instead and touches only matching books. Measured: 48s → 1s for one tag filter on 300k books. `buildFilters` and the search clause both follow this; negative filters (exclude-tag, not-in-series) stay `NOT EXISTS`, since a negative can't drive a scan anyway.
+- **Both databases open with a 256 MiB page cache** (`INCIPIT_DB_CACHE_MB`, 0 = SQLite's stock 2 MiB), and the pool is capped at 8 connections because the cache is per-connection. SQLite's default is far too small once the file is hundreds of MB, and the miss cost depends on where the library lives — on ZFS with lz4 and a 128K recordsize, every 4K page miss decompresses a 128K record.
+- Deployments accumulate b-tree fragmentation as books are added; `VACUUM` on metadata.db is worth ~2-3x on large filters and is the right first move when listings get slow again.
+
 ## Write path invariants (`internal/calibre/write.go`)
 - **Single serialized writer** (`writeMu` mutex) + WAL + busy_timeout. Incipit assumes it's the primary accessor (like calibre-web); `INCIPIT_READONLY=true` to share with desktop Calibre.
 - Folder layout `Author/Title (id)/`; files named `Title - Author.<ext>`; cover is `cover.jpg`; `metadata.opf` is written for round-trip safety.

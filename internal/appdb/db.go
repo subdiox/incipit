@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"os"
+	"strconv"
 
 	_ "modernc.org/sqlite"
 )
@@ -151,17 +153,48 @@ var migrations = []string{
 	);`,
 }
 
+// defaultCacheMB / maxConns mirror the metadata.db tuning: SQLite's stock 2 MiB
+// page cache is far too small once the database is hundreds of MB, and the cache
+// is per-connection so the pool has to be bounded.
+const (
+	defaultCacheMB = 256
+	maxConns       = 8
+)
+
+// cachePragma returns the cache_size pragma (negative = KiB) for
+// INCIPIT_DB_CACHE_MB, or "" when set to 0 (keep SQLite's default).
+func cachePragma() string {
+	mb := defaultCacheMB
+	if v := os.Getenv("INCIPIT_DB_CACHE_MB"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			mb = n
+		}
+	}
+	if mb == 0 {
+		return ""
+	}
+	return "cache_size(-" + strconv.Itoa(mb*1024) + ")"
+}
+
 // Open opens (creating if needed) the app database at path and runs migrations.
 func Open(path string) (*Store, error) {
 	q := url.Values{}
 	q.Add("_pragma", "busy_timeout(10000)")
 	q.Add("_pragma", "foreign_keys(1)")
+	// app.db grows with the library too (page_cache alone is hundreds of MB on a
+	// 300k-book shelf), so it gets the same page cache as metadata.db. Read from
+	// the environment directly rather than importing calibre/config: app.db is
+	// deliberately independent of both.
+	if p := cachePragma(); p != "" {
+		q.Add("_pragma", p)
+	}
 	dsn := "file:" + path + "?" + q.Encode()
 
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open app.db: %w", err)
 	}
+	db.SetMaxOpenConns(maxConns)
 	if err := db.Ping(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("ping app.db: %w", err)

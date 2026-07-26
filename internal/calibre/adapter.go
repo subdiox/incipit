@@ -205,19 +205,29 @@ func (a *Adapter) buildFilters(opts ListOptions) (string, []any) {
 		)`)
 		args = append(args, like, like, like, like, like, like, like, like)
 	}
+	// Positive category filters use the same `b.id IN (SELECT book FROM link
+	// WHERE cat=?)` form as the search clause above, for the same reason. The
+	// equivalent correlated `EXISTS (SELECT 1 FROM link WHERE link.book=b.id AND
+	// link.cat=?)` reads more naturally but is a trap at this size: the planner
+	// drives it by SCANning all of `books` (through a covering index, in *sort*
+	// order) and probing the link table once per book, so the work is proportional
+	// to the whole library and every probe is a random read. The IN form inverts
+	// that — it drives from the category index and touches only the matching books.
+	// Measured on a 300k-book library (tag with ~97k books, filtered listing):
+	// ~48s for the EXISTS form vs ~1s for this one.
 	if opts.AuthorID > 0 {
-		clauses = append(clauses, "EXISTS (SELECT 1 FROM books_authors_link bal WHERE bal.book=b.id AND bal.author=?)")
+		clauses = append(clauses, "b.id IN (SELECT book FROM books_authors_link WHERE author=?)")
 		args = append(args, opts.AuthorID)
 	}
 	if opts.SeriesID > 0 {
-		clauses = append(clauses, "EXISTS (SELECT 1 FROM books_series_link bsl WHERE bsl.book=b.id AND bsl.series=?)")
+		clauses = append(clauses, "b.id IN (SELECT book FROM books_series_link WHERE series=?)")
 		args = append(args, opts.SeriesID)
 	}
-	// Each selected tag adds its own EXISTS clause, so they AND together: a book
-	// must carry every selected tag to match.
+	// Each selected tag adds its own IN clause, so they AND together: a book must
+	// carry every selected tag to match.
 	for _, tid := range opts.TagIDs {
 		if tid > 0 {
-			clauses = append(clauses, "EXISTS (SELECT 1 FROM books_tags_link btl WHERE btl.book=b.id AND btl.tag=?)")
+			clauses = append(clauses, "b.id IN (SELECT book FROM books_tags_link WHERE tag=?)")
 			args = append(args, tid)
 		}
 	}
@@ -226,7 +236,7 @@ func (a *Adapter) buildFilters(opts ListOptions) (string, []any) {
 	var anyEx []string
 	for _, tid := range opts.AnyTagIDs {
 		if tid > 0 {
-			anyEx = append(anyEx, "EXISTS (SELECT 1 FROM books_tags_link btl WHERE btl.book=b.id AND btl.tag=?)")
+			anyEx = append(anyEx, "b.id IN (SELECT book FROM books_tags_link WHERE tag=?)")
 			args = append(args, tid)
 		}
 	}
@@ -234,7 +244,9 @@ func (a *Adapter) buildFilters(opts ListOptions) (string, []any) {
 		clauses = append(clauses, "("+strings.Join(anyEx, " OR ")+")")
 	}
 	// Exclude tags: each adds a NOT EXISTS clause, so a book carrying any of them
-	// is filtered out. Used by collection / home-library exclude filters.
+	// is filtered out. Used by collection / home-library exclude filters. This one
+	// stays correlated: a negative filter can never drive the scan (it selects
+	// most of the library), so there is nothing to invert.
 	for _, tid := range opts.ExcludeTagIDs {
 		if tid > 0 {
 			clauses = append(clauses, "NOT EXISTS (SELECT 1 FROM books_tags_link btl WHERE btl.book=b.id AND btl.tag=?)")
@@ -242,12 +254,12 @@ func (a *Adapter) buildFilters(opts ListOptions) (string, []any) {
 		}
 	}
 	if opts.PublisherID > 0 {
-		clauses = append(clauses, "EXISTS (SELECT 1 FROM books_publishers_link bpl WHERE bpl.book=b.id AND bpl.publisher=?)")
+		clauses = append(clauses, "b.id IN (SELECT book FROM books_publishers_link WHERE publisher=?)")
 		args = append(args, opts.PublisherID)
 	}
 	if lang := strings.TrimSpace(opts.Language); lang != "" {
-		clauses = append(clauses, `EXISTS (SELECT 1 FROM books_languages_link bll
-			JOIN languages l ON l.id=bll.lang_code WHERE bll.book=b.id AND l.lang_code=?)`)
+		clauses = append(clauses, `b.id IN (SELECT bll.book FROM books_languages_link bll
+			JOIN languages l ON l.id=bll.lang_code WHERE l.lang_code=?)`)
 		args = append(args, lang)
 	}
 	if len(clauses) == 0 {
