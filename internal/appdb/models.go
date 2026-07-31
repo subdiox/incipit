@@ -22,7 +22,7 @@ type User struct {
 	CanDownload  bool       `json:"canDownload"`
 	CanUpload    bool       `json:"canUpload"`
 	CanEdit      bool       `json:"canEdit"`
-	Language     string     `json:"language"` // UI language preference: "en" | "ja"
+	Language     string     `json:"language"` // UI language: "" (unset — follow the browser) | "en" | "ja"
 	PageSize     int        `json:"pageSize"` // library page size preference
 	Sort         string     `json:"sort"`      // library sort field (shared across pages)
 	SortOrder    string     `json:"sortOrder"` // "asc" | "desc"

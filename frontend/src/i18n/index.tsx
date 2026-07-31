@@ -20,15 +20,31 @@ export const LANGUAGES: { value: Lang; label: string }[] = [
   { value: 'ja', label: '日本語' },
 ]
 
-const STORAGE_KEY = 'incipit.lang'
+// Only ever holds a deliberately chosen language — picked in the switcher, or
+// read back off an account that has one. The old key was written on every
+// render with whatever language was in effect, which made an implicit browser
+// guess look like a choice, so it is retired rather than migrated.
+const STORAGE_KEY = 'incipit.lang.chosen'
+const LEGACY_STORAGE_KEY = 'incipit.lang'
 const localeMap: Record<Lang, string> = { en: 'en-US', ja: 'ja-JP' }
 
 function isLang(v: unknown): v is Lang {
   return v === 'en' || v === 'ja'
 }
 
+// Remember an explicit choice locally so it survives reloads and applies on the
+// login screen, before /auth/me has said who this is.
+function remember(l: Lang) {
+  try {
+    localStorage.setItem(STORAGE_KEY, l)
+  } catch {
+    // ignore unavailable storage
+  }
+}
+
 function detectInitial(): Lang {
   try {
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
     const saved = localStorage.getItem(STORAGE_KEY)
     if (isLang(saved)) return saved
   } catch {
@@ -52,22 +68,19 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const { user, setUser } = useAuth()
   const [lang, setLangState] = useState<Lang>(detectInitial)
 
-  // Apply the chosen language to date/number formatting + <html lang> and
-  // remember it locally so it survives reloads and the login screen.
+  // Apply the chosen language to date/number formatting + <html lang>.
   useEffect(() => {
     setFormatLocale(localeMap[lang])
-    try {
-      localStorage.setItem(STORAGE_KEY, lang)
-    } catch {
-      // ignore unavailable storage
-    }
     if (typeof document !== 'undefined') document.documentElement.lang = lang
   }, [lang])
 
-  // Adopt the signed-in user's saved preference (e.g. right after login).
+  // Adopt the signed-in user's saved preference (e.g. right after login). An
+  // account that has never picked one stores an empty language; leaving it
+  // alone is what lets browser detection survive logging in.
   useEffect(() => {
-    if (user && isLang(user.language) && user.language !== lang) {
-      setLangState(user.language)
+    if (user && isLang(user.language)) {
+      remember(user.language)
+      if (user.language !== lang) setLangState(user.language)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.language])
@@ -75,6 +88,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const setLang = useCallback(
     (l: Lang) => {
       setLangState(l)
+      remember(l)
       if (user && user.language !== l) {
         // Persist per-account; keep the local change even if the request fails.
         api

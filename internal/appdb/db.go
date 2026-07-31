@@ -151,6 +151,13 @@ var migrations = []string{
 		reason_name TEXT NOT NULL DEFAULT '',
 		PRIMARY KEY (user_id, rank)
 	);`,
+	// The UI language column now distinguishes "unset" (empty — follow the
+	// browser's Accept-Language) from an explicit choice made in Account →
+	// Language. Every account predating this migration carries the old 'en'
+	// default, which is indistinguishable from an explicit English pick, so
+	// clear them all: an English speaker's browser still resolves to English,
+	// and anyone who really wants to pin it can re-pick in Account.
+	`UPDATE users SET language='' WHERE language='en';`,
 }
 
 // defaultCacheMB / maxConns mirror the metadata.db tuning: SQLite's stock 2 MiB

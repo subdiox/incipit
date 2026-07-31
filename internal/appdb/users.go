@@ -18,9 +18,9 @@ func (s *Store) CreateUser(ctx context.Context, u User) (*User, error) {
 	if u.Source == "" {
 		u.Source = SourceLocal
 	}
-	if u.Language == "" {
-		u.Language = "en"
-	}
+	// Language is deliberately left empty unless the caller sets one: empty means
+	// "never chosen", which lets the UI follow the browser's language instead of
+	// pinning every new account to English.
 	if u.PageSize == 0 {
 		u.PageSize = DefaultPageSize
 	}

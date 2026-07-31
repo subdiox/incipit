@@ -75,11 +75,49 @@ var opdsJA = opdsL10n{
 }
 
 // opdsL returns the localized strings for the authenticated user's language.
+// Accounts that never picked one in Account → Language fall back to the reader's
+// Accept-Language, mirroring how the web UI follows the browser.
 func opdsL(r *http.Request) opdsL10n {
-	if u := currentUser(r); u != nil && u.Language == "ja" {
+	lang := ""
+	if u := currentUser(r); u != nil {
+		lang = u.Language
+	}
+	if lang == "" {
+		lang = acceptsJapanese(r.Header.Get("Accept-Language"))
+	}
+	if lang == "ja" {
 		return opdsJA
 	}
 	return opdsEN
+}
+
+// acceptsJapanese returns "ja" when Japanese is the highest-weighted tag in an
+// Accept-Language header, and "" otherwise (English is the catalog's fallback,
+// so anything else — including a bare "*" — needs no further resolution).
+func acceptsJapanese(header string) string {
+	best, bestQ := "", -1.0
+	for _, part := range strings.Split(header, ",") {
+		fields := strings.Split(strings.TrimSpace(part), ";")
+		tag := strings.ToLower(strings.TrimSpace(fields[0]))
+		if tag == "" {
+			continue
+		}
+		q := 1.0
+		for _, f := range fields[1:] {
+			if v, ok := strings.CutPrefix(strings.TrimSpace(f), "q="); ok {
+				if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+					q = parsed
+				}
+			}
+		}
+		if q > bestQ {
+			best, bestQ = tag, q
+		}
+	}
+	if strings.HasPrefix(best, "ja") {
+		return "ja"
+	}
+	return ""
 }
 
 type opdsEntry struct {
